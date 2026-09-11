@@ -1,8 +1,14 @@
+# Minimal current example for this project.
+#
+# Development and direct testing are being carried out on ESP32 hardware,
+# primarily ESP32-C3 SuperMini based adapters. GPIO assignments below are
+# examples only: use the pins wired on your own adapter.
+
 esphome:
-  name: climate-living-room
+  name: toshiba-a2a
 
 esp32:
-  board: esp32dev
+  board: esp32-c3-devkitm-1
   framework:
     type: arduino
 
@@ -19,25 +25,20 @@ logger:
 
 uart:
   id: uart_bus
-  tx_pin: 33
-  rx_pin: 32
+  tx_pin: GPIO4   # example only
+  rx_pin: GPIO5   # example only
   parity: EVEN
   baud_rate: 9600
 
-# Optional. Required only for features that use the Toshiba energy/time data.
-# time:
-#   - platform: homeassistant
-#     id: hass_time
-
 climate:
   - platform: toshiba_suzumi
-    name: "Living Room"
-    id: living_room
+    name: "Toshiba A2A"
+    id: toshiba_a2a
     uart_id: uart_bus
 
-    # Equipment identity is obtained from pushed 0xE0 traffic when the IDU
-    # publishes it. Some older/different firmware has been observed to publish
-    # NULL for the IDU model, in which case the IDU Model entity is unavailable.
+    # Equipment identity is decoded from Toshiba-pushed 0xE0 traffic when
+    # supplied by the IDU firmware. Some tested firmware publishes NULL for
+    # the IDU model; that is reported as unavailable rather than guessed.
     idu_model:
       name: "IDU Model"
     odu_model:
@@ -54,11 +55,9 @@ climate:
     vertical_air_direction:
       name: "Vertical Air Direction"
 
-    # The controls below are the divided replacement for the legacy
-    # supported_presets list. Do not assume every Toshiba IDU supports every
-    # function. Enable only those appropriate to the unit while the automatic
-    # capability/mode matrix remains under development.
-    #
+    # The Toshiba-specific controls below are implemented but are still being
+    # validated against exact IDU model and HVAC-mode restrictions. Enable
+    # only controls you have established are appropriate to your unit.
     # eco:
     #   name: "ECO"
     # hi_power:
@@ -75,53 +74,6 @@ climate:
     #   name: "Floor"
     # comfort:
     #   name: "Comfort"
-
-    # Optional status/engineering entities. Availability differs significantly
-    # by IDU model and firmware; sentinel values are not exposed as measurements.
-    # self_clean:
-    #   name: "Self Clean"
-    # compressor_load:
-    #   name: "Compressor Load"
-    # compressor_current:
-    #   name: "Compressor Current"
-    # odu_discharge_temp:
-    #   name: "ODU Discharge Temperature"
-    # odu_suction_temp:
-    #   name: "ODU Suction Temperature"
-    # odu_heat_exchanger_temp:
-    #   name: "ODU Heat Exchanger Temperature"
-    # idu_heat_exchanger_temp:
-    #   name: "IDU Heat Exchanger Temperature"
-    # idu_junction_temp:
-    #   name: "IDU Junction Temperature"
-    # idu_fan_speed:
-    #   name: "IDU Fan/Airflow Raw"
-
-    # Optional legacy settings retained during migration.
-    # horizontal_swing: true
-    # disable_wifi_led: true
-    # disable_heat_mode: true
-    # min_temp: 17
-    # time_id: hass_time
-    # time_sync_interval: 24h
-    # energy:
-    #   name: "Daily Energy"
-
-# Optional passive UART capture. This sends no scan requests while enabled.
-switch:
-  - platform: template
-    name: "Toshiba Passive UART Capture"
-    icon: "mdi:chart-timeline-variant"
-    optimistic: true
-    restore_mode: ALWAYS_OFF
-    turn_on_action:
-      - lambda: |-
-          auto* controller = static_cast<toshiba_suzumi::ToshibaClimateUart*>(id(living_room));
-          controller->set_scan_enabled(true);
-    turn_off_action:
-      - lambda: |-
-          auto* controller = static_cast<toshiba_suzumi::ToshibaClimateUart*>(id(living_room));
-          controller->set_scan_enabled(false);
 
 api:
   encryption:
