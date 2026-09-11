@@ -71,7 +71,8 @@ class ToshibaOutputEstimator : public PollingComponent {
     }
 
     const std::string &model = climate_->get_idu_model();
-    const auto *airflow_entry = find_manual_airflow(model.c_str(), airflow_mode, fan_level);
+    const bool hi_power = climate_->is_hi_power_active();
+    const auto *airflow_entry = find_manual_airflow(model.c_str(), airflow_mode, fan_level, hi_power);
     if (airflow_entry == nullptr) {
       publish_invalid_();
       return;
