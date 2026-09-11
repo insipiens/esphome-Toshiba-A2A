@@ -1,7 +1,16 @@
 # Experimental sensible thermal-output estimator.
 #
-# For supported IDUs the component combines:
-#   - E0 detected IDU model
+# Repository responsibility:
+#   - decode Toshiba registers and equipment identity
+#   - publish interpreted engineering values
+#
+# ESPHome YAML responsibility:
+#   - retain Home Assistant/application data across reboot
+#   - restore the last valid equipment identity into runtime state
+#   - configure derived calculations and calibration
+#
+# For supported IDUs the output estimator combines:
+#   - retained E0-detected IDU model
 #   - Toshiba-reported room/return-air temperature (0xBB)
 #   - Toshiba IDU heat-exchanger temperature (E4 +0)
 #   - current fixed fan setting
@@ -10,13 +19,34 @@
 # Auto and Quiet are intentionally not estimated yet because they do not map to
 # one fixed manufacturer airflow value. Use a fixed Low / Low-Medium / Medium /
 # Medium-High / High fan setting while validating the estimator.
-#
-# heat_exchanger_factor starts at 1.0. That gives the raw HX-delta estimate for
-# comparison testing. Fit this factor from simultaneous HX and outlet-air
-# measurements before treating the result as calibrated delivered sensible heat.
 
 esphome:
   name: toshiba-a2a-output-test
+  on_boot:
+    priority: -200
+    then:
+      - lambda: |-
+          auto *controller = static_cast<toshiba_suzumi::ToshibaClimateUart *>(id(toshiba_a2a));
+          if (!id(saved_idu_model).empty())
+            controller->restore_idu_model(id(saved_idu_model));
+          if (!id(saved_odu_model).empty())
+            controller->restore_odu_model(id(saved_odu_model));
+
+preferences:
+  flash_write_interval: 10min
+
+globals:
+  - id: saved_idu_model
+    type: std::string
+    restore_value: yes
+    max_restore_data_length: 32
+    initial_value: '""'
+
+  - id: saved_odu_model
+    type: std::string
+    restore_value: yes
+    max_restore_data_length: 32
+    initial_value: '""'
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -56,9 +86,24 @@ climate:
 
     idu_model:
       name: "IDU Model"
+      id: idu_model
+      on_value:
+        then:
+          - lambda: |-
+              if (!x.empty() && x != "Unknown" && x != "Unavailable")
+                id(saved_idu_model) = x;
+
+    odu_model:
+      name: "ODU Model"
+      id: odu_model
+      on_value:
+        then:
+          - lambda: |-
+              if (!x.empty() && x != "Unknown" && x != "Unavailable")
+                id(saved_odu_model) = x;
 
 # Sensible thermal-output calculation:
-#   Q = rho_air * cp_air * Vdot * (T_hx - T_room) * heat_exchanger_factor
+#   Q = rho_air * cp_air * Vdot * delta-T * heat_exchanger_factor
 # with the sign/mode handled internally.
 toshiba_output:
   climate_id: toshiba_a2a
