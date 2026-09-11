@@ -76,6 +76,18 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void set_idu_model_sensor(text_sensor::TextSensor *sensor) { idu_model_sensor_ = sensor; }
   void set_odu_model_sensor(text_sensor::TextSensor *sensor) { odu_model_sensor_ = sensor; }
   const std::string &get_idu_model() const { return idu_model_; }
+  void restore_idu_model(const std::string &model) {
+    if (model.empty()) return;
+    this->idu_model_ = model;
+    this->idu_family_ = indoor_unit_family_from_model(model);
+    this->capabilities_ = capability_profile_from_model(model);
+    if (this->idu_model_sensor_ != nullptr) this->idu_model_sensor_->publish_state(model);
+  }
+  void restore_odu_model(const std::string &model) {
+    if (model.empty()) return;
+    this->odu_model_ = model;
+    if (this->odu_model_sensor_ != nullptr) this->odu_model_sensor_->publish_state(model);
+  }
   optional<SPECIAL_MODE> get_special_mode() const { return special_mode_; }
   bool is_hi_power_active() const {
     return special_mode_.has_value() && special_mode_.value() == SPECIAL_MODE::HI_POWER;
