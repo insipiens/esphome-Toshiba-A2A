@@ -15,7 +15,7 @@ The original project's own references and acknowledgements are also retained as 
 - **[toremick/shorai-esp32](https://github.com/toremick/shorai-esp32)** — referenced by the original project for the Toshiba connection-adapter approach.
 - **[Vpowgh/TConnect](https://github.com/Vpowgh/TConnect)** — referenced by the original project as related Toshiba protocol/control work.
 
-The original repository is licensed under the **GNU General Public License v3.0**. This derived project retains that licence. See [LICENSE](LICENSE).
+The original repository is licensed under the **GNU General Public License v3.0**. This derived project retains that licence. See [LICENSE](LICENSE) and [PROVENANCE.md](PROVENANCE.md).
 
 This repository should therefore be read as a continuation and substantial rewrite of earlier open-source work, not as a clean-room or unrelated implementation.
 
@@ -29,7 +29,7 @@ The redesign has three main goals:
 2. identify the connected indoor unit and expose only controls that are credible for that model/family and operating mode;
 3. separate confirmed protocol facts from model-specific behaviour and from assumptions that still require testing.
 
-The long-term architecture is intended to be:
+The intended architecture is:
 
 ```text
 UART packet
@@ -62,14 +62,14 @@ The current rewrite includes, or is in the process of introducing:
 - a shared residential capability vocabulary with model-specific additions rather than one monolithic profile per family;
 - separation of the old `0xF7` "special mode" preset list into independent Home Assistant controls such as ECO, Hi POWER, Fireplace, Outdoor Silent, 8 °C heat, Sleep, Floor and Comfort;
 - fixed vertical-air-direction control in addition to ESPHome's standard swing modes;
-- improved terminology: IDU/ODU is preferred over the older FCU/CDU naming;
+- IDU/ODU terminology in place of inherited FCU/CDU naming;
 - extended `0xE4` IDU and `0xE5` ODU/system telemetry handling;
-- correction of interpretations that measurements showed were too strong — for example, the IDU fan field is retained as a raw/live fan feedback or nominal air-velocity quantity and is **not** claimed to be literal RPM;
+- correction of interpretations that measurements showed were too strong — for example, the IDU fan field is not claimed to be literal RPM;
 - passive raw UART capture and diagnostic tooling for observing Toshiba-originated traffic without injecting scan requests;
-- active register-scanning tools for controlled protocol investigation where appropriate;
+- controlled active register investigation where appropriate;
 - Home Assistant entities for equipment identity and engineering telemetry;
-- continued investigation of energy, current and performance-related fields against independent electrical measurements;
-- a control-matrix design intended to encode which controls Toshiba makes available in Heat, Cool, Dry, Fan and Auto modes, including forced dependencies such as functions that make the unit select Fan Auto.
+- continued investigation of energy, current and performance-related fields against independent measurements;
+- a control-matrix design intended to encode which controls Toshiba makes available in Heat, Cool, Dry, Fan and Auto modes, including forced dependencies.
 
 The component directory is still named `toshiba_suzumi` at this stage to avoid an unnecessary breaking change while the redesign is underway. The repository scope is intentionally broader than Suzumi.
 
@@ -83,48 +83,43 @@ The process used so far includes:
 - using the physical Toshiba remote/panel as the reference for the user-facing control taxonomy;
 - capturing raw UART traffic while changing exactly one physical control at a time;
 - comparing ordinary class-`0x10` requests/responses with unsolicited or pushed class-`0x11` publications;
-- scanning registers only when doing so is useful and safe, rather than assuming every meaningful value can be actively polled;
+- scanning registers only when useful and safe rather than assuming every meaningful value can be actively polled;
 - moving the same ESP/UART adapter between indoor units to distinguish ESP hardware problems from IDU/model/firmware behaviour;
 - comparing different capacity variants and firmware generations of the same broad indoor-unit family;
 - checking telemetry against physical behaviour and independent measurements, including external electrical metering where available;
 - retaining anomalous results instead of normalising them away — for example, some units have been observed to publish `NULL` in the IDU model field of an otherwise valid `0xE0` equipment-identification message;
 - treating unknown fields as unknown until repeatable evidence supports a stronger interpretation.
 
-This matters because Toshiba units can expose the same normal climate controls while differing substantially in the engineering telemetry or pushed status data they make available.
+## Hardware and platform actually tested
 
-## Hardware actually available to this project
+The rewrite has been developed against one real multi-split installation rather than a broad Toshiba laboratory fleet.
 
-The rewrite has been developed against one real multi-split installation rather than a broad laboratory collection of Toshiba products.
+Directly available HVAC hardware includes:
 
-The outdoor unit available for direct testing is:
+- **RAS-5M34G3AVG-E1** multi-split outdoor unit;
+- **RAS-B13J2FVG-E1** floor/console IDU;
+- **RAS-B10J2FVG-family** floor/console IDUs, including units showing older/different firmware behaviour;
+- **RAS-B10P2KVSG-E** high-wall IDU, identified directly through the `0xE0` equipment-identification message;
+- a **RAS-B10G3KVSG-family** high-wall IDU used during UART/control investigation.
 
-- **RAS-5M34G3AVG-E1** multi-split ODU.
+Current development hardware is **ESP32**, primarily **ESP32-C3 SuperMini-based adapters**. Other ESP platforms may still work through inherited ESPHome compatibility, but this project does not currently claim or document them as tested. In particular, the inherited ESP8266 example has been removed because ESP8266 has not been tested by this project.
 
-Indoor units directly observed during development include:
-
-- **RAS-B13J2FVG-E1** floor/console unit;
-- **RAS-B10J2FVG-family** floor/console units, including units showing older/different firmware behaviour;
-- **RAS-B10P2KVSG-E** high-wall unit, identified directly through the `0xE0` equipment-identification message;
-- a **RAS-B10G3KVSG-family** high-wall unit used during UART/control investigation.
-
-Those units are enough to prove that significant behaviour differs by IDU/model/firmware, but they are **not** enough to assert that every J2FVG, P2KVSG, G3KVSG, Shorai, Seiya, Suzumi, Daiseikai or other Toshiba family behaves identically.
+Those HVAC units are enough to prove that significant behaviour differs by IDU/model/firmware, but they are **not** enough to assert that every J2FVG, P2KVSG, G3KVSG, Shorai, Seiya, Suzumi, Daiseikai or other Toshiba family behaves identically.
 
 The original `esphome_toshiba_suzumi` project lists a substantially wider set of units believed compatible with the Toshiba RB-N105S-G/RB-N106S-G interface. That upstream compatibility list remains useful prior art, but this repository does not re-label those models as independently tested here.
 
 ## Findings that currently shape the design
 
-Some results have been particularly important to the rewrite:
-
-- The `0xE0` class-`0x11` message can contain the IDU model and ODU model in two fixed equipment records. This is now used as the working basis for automatic model identification.
-- A valid `0xE0` message may contain `NULL` for the IDU model on some units/firmware. The project treats this as "model unavailable" rather than substituting the ODU model or inventing an identity.
+- The `0xE0` class-`0x11` message can contain the IDU model and ODU model in two fixed equipment records and is used as the working basis for automatic model identification.
+- A valid `0xE0` message may contain `NULL` for the IDU model on some units/firmware. The project reports model unavailable rather than inventing an identity.
 - `0xE4` and `0xE5` engineering/status data can differ dramatically between indoor units connected to the same outdoor system.
-- On some units a field may return sentinel values when actively polled yet appear with meaningful live values in Toshiba-pushed class-`0x11` traffic. Therefore "register did not answer a poll" is not equivalent to "feature does not exist".
+- On some units a field may return sentinel values when actively polled yet appear with meaningful live values in Toshiba-pushed class-`0x11` traffic. "Register did not answer a poll" is therefore not equivalent to "feature does not exist".
 - Cross-testing the same ESP adapter on different IDUs showed that some missing engineering telemetry follows the indoor unit/controller rather than the ESP hardware.
-- The historical `0xF7` values are a protocol encoding, not a good Home Assistant UI model. Toshiba presents functions such as ECO, Hi POWER, Fireplace, Outdoor Silent and Floor as distinct controls, even when their protocol representation shares a register.
+- The historical `0xF7` values are a protocol encoding, not a good Home Assistant UI model. Toshiba presents functions such as ECO, Hi POWER, Fireplace, Outdoor Silent and Floor as distinct controls even when their protocol representation shares a register.
 
 ## Current control-model work
 
-The former `supported_presets` mechanism is being replaced by divided controls. Current development exposes the existing `0xF7` set conceptually as:
+The former `supported_presets` mechanism is being replaced by divided controls:
 
 | Toshiba function | Home Assistant representation |
 | --- | --- |
@@ -140,13 +135,13 @@ The former `supported_presets` mechanism is being replaced by divided controls. 
 
 This is still being validated. A shared register does not prove that all of these logical functions are mutually exclusive, and receiving one value must not be used to fabricate false OFF states for unrelated controls without evidence from the unit.
 
-The next stage is to complete the **model × HVAC-mode × available-control** matrix from Toshiba manuals and physical-unit testing. For example, Floor and 8 °C heat are not meaningful in every HVAC mode, and some functions force secondary state changes such as Fan Auto.
+Legacy `supported_presets` / `special_mode` handling remains in the component only as a migration compatibility path. It is not the preferred configuration model for this repository and is intentionally omitted from current examples.
 
-See [TOSHIBA_CONTROL_MATRIX.md](TOSHIBA_CONTROL_MATRIX.md) for the design and test programme.
+The next stage is to complete the **model × HVAC-mode × available-control** matrix from Toshiba manuals and physical-unit testing. See [TOSHIBA_CONTROL_MATRIX.md](TOSHIBA_CONTROL_MATRIX.md).
 
 ## Installation during development
 
-Until the internal component is renamed, ESPHome configuration should continue to load `toshiba_suzumi` from this repository:
+Use [example.yaml](example.yaml) as the current minimal example. It is deliberately limited to normal climate operation and directly useful entities.
 
 ```yaml
 external_components:
@@ -156,49 +151,15 @@ external_components:
       ref: main
     components: [toshiba_suzumi]
     refresh: 1min
-
-uart:
-  id: uart_bus
-  tx_pin: 4       # example only - use the pins appropriate to your hardware
-  rx_pin: 5       # example only - use the pins appropriate to your hardware
-  parity: EVEN
-  baud_rate: 9600
-
-climate:
-  - platform: toshiba_suzumi
-    name: "Toshiba A2A"
-    id: toshiba_a2a
-    uart_id: uart_bus
-
-    idu_model:
-      name: "IDU Model"
-    odu_model:
-      name: "ODU Model"
-
-    power_select:
-      name: "Power Select"
-    vertical_air_direction:
-      name: "Vertical Air Direction"
-
-    eco:
-      name: "ECO"
-    hi_power:
-      name: "Hi POWER"
-    fireplace:
-      name: "Fireplace"
-    eight_degree_heat:
-      name: "8 Degree Heat"
-    outdoor_silent:
-      name: "Outdoor Silent"
-    sleep:
-      name: "Sleep"
-    floor:
-      name: "Floor"
-    comfort:
-      name: "Comfort"
 ```
 
-Not every entity in that example is appropriate for every IDU. Automatic capability- and operating-mode-driven presentation is part of the current redesign. During development, configure and test conservatively.
+The example uses an ESP32-C3 build target because that reflects current project hardware. Its GPIO assignments are examples only and must match the user's actual adapter wiring.
+
+Additional examples are separated by purpose rather than being mixed into the normal configuration:
+
+- [examples/diagnostic_capture.yaml](examples/diagnostic_capture.yaml) — passive raw UART research capture; not needed for normal use;
+- [examples/engineering_telemetry.yaml](examples/engineering_telemetry.yaml) — E4/E5 engineering/status sensors whose availability varies by IDU/model/firmware;
+- [examples/output_estimation.yaml](examples/output_estimation.yaml) — experimental sensible-output estimator calibrated on the B13J2FVG reference unit, not a generic Toshiba output or COP model.
 
 ## Hardware interface and safety
 
@@ -206,7 +167,7 @@ The Toshiba accessory connector carries power and UART-level signals. The origin
 
 **Do not assume pin order from this README alone. Check the connector, unit documentation and the original project before wiring. Disconnect mains power from the indoor unit before connecting or disconnecting an ESP interface. Incorrect wiring can damage the indoor-unit control board.**
 
-The original wiring documentation and photographs remain valuable and are available in the [upstream project](https://github.com/pedobry/esphome_toshiba_suzumi). They are referenced rather than being presented here as new work.
+The original wiring documentation and photographs remain available in the [upstream project](https://github.com/pedobry/esphome_toshiba_suzumi). They are referenced rather than being presented here as new work.
 
 ## Compatibility status
 
@@ -216,20 +177,11 @@ There are three distinct levels of evidence in this project:
 - **Documented/mapped:** behaviour supported by Toshiba manuals or strong protocol evidence but not necessarily exercised on every model.
 - **Unknown:** behaviour not yet established, especially where firmware generations differ or a unit returns sentinel/`NULL` data.
 
-Please do not interpret a family name in the capability code as a blanket compatibility guarantee. Reports and raw captures from other Toshiba models are useful precisely because the current test population is small.
+Please do not interpret a family name in the capability code as a blanket compatibility guarantee.
 
 ## Contributing test evidence
 
-Useful reports include:
-
-- exact IDU and ODU model numbers;
-- firmware/version information if the unit exposes it;
-- the physical remote model;
-- ESPHome version;
-- raw UART captures showing the action that caused the traffic;
-- before/after values for the relevant registers;
-- whether a value was obtained by active polling or unsolicited Toshiba traffic;
-- physical behaviour observed at the unit.
+Useful reports include exact IDU and ODU model numbers, firmware/version information where available, physical remote model, ESPHome version, raw UART captures showing the action that caused the traffic, before/after values for relevant registers, whether a value came from active polling or unsolicited Toshiba traffic, and physical behaviour observed at the unit.
 
 Where possible, change one control at a time and repeat the test. A reproducible anomaly is more useful than a guessed decoding.
 
