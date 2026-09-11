@@ -1,8 +1,19 @@
-# Experimental example: delivered sensible output estimation.
+# Experimental sensible thermal-output estimator.
 #
-# This estimator was calibrated from air-side measurements on the project's
-# B13J2FVG reference unit. It is not a generic Toshiba capacity/COP model and
-# should be recalibrated before use on other IDUs.
+# For supported IDUs the component combines:
+#   - E0 detected IDU model
+#   - Toshiba-reported room/return-air temperature (0xBB)
+#   - Toshiba IDU heat-exchanger temperature (E4 +0)
+#   - current fixed fan setting
+#   - Toshiba manufacturer airflow for that model/mode/fan setting
+#
+# Auto and Quiet are intentionally not estimated yet because they do not map to
+# one fixed manufacturer airflow value. Use a fixed Low / Low-Medium / Medium /
+# Medium-High / High fan setting while validating the estimator.
+#
+# heat_exchanger_factor starts at 1.0. That gives the raw HX-delta estimate for
+# comparison testing. Fit this factor from simultaneous HX and outlet-air
+# measurements before treating the result as calibrated delivered sensible heat.
 
 esphome:
   name: toshiba-a2a-output-test
@@ -10,7 +21,7 @@ esphome:
 esp32:
   board: esp32-c3-devkitm-1
   framework:
-    type: arduino
+    type: esp-idf
 
 external_components:
   - source:
@@ -18,15 +29,15 @@ external_components:
       url: https://github.com/insipiens/esphome-Toshiba-A2A
       ref: main
     components: [toshiba_suzumi, toshiba_output]
-    refresh: 1min
+    refresh: 0s
 
 logger:
   level: INFO
 
 uart:
   id: uart_bus
-  tx_pin: GPIO4   # example only
-  rx_pin: GPIO5   # example only
+  tx_pin: GPIO21
+  rx_pin: GPIO20
   parity: EVEN
   baud_rate: 9600
 
@@ -37,30 +48,32 @@ climate:
     uart_id: uart_bus
 
     indoor_temp:
-      name: "Indoor Temperature"
+      name: "IDU Room Temperature"
 
-    idu_junction_temp:
-      name: "IDU Junction Temperature"
-      id: idu_branch_temp
+    idu_heat_exchanger_temp:
+      name: "IDU Heat Exchanger Temperature"
+      id: idu_hx_temp
 
-    idu_fan_speed:
-      # Raw Toshiba fan/air-velocity field used by the empirical calibration.
-      name: "IDU Fan/Airflow Raw"
-      id: idu_fan_speed
+    idu_model:
+      name: "IDU Model"
 
-# Empirical sensible-output estimator.
-# Cooling coefficient comes from the August 2026 B13J2FVG air-side calibration.
-# Heating coefficient is provisional and should be refined from heating tests.
+# Sensible thermal-output calculation:
+#   Q = rho_air * cp_air * Vdot * (T_hx - T_room) * heat_exchanger_factor
+# with the sign/mode handled internally.
 toshiba_output:
   climate_id: toshiba_a2a
-  branch_temperature: idu_branch_temp
-  fan_speed: idu_fan_speed
+  heat_exchanger_temperature: idu_hx_temp
+
+  airflow:
+    name: "Toshiba IDU Airflow"
+
   cooling_output:
     name: "Estimated IDU Cooling Output"
+
   heating_output:
     name: "Estimated IDU Heating Output"
-  cooling_coefficient: 2.72
-  heating_coefficient: 3.264
+
+  heat_exchanger_factor: 1.0
 
 api:
   encryption:
