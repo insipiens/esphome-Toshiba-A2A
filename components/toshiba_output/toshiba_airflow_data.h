@@ -9,20 +9,27 @@ namespace toshiba_output {
 // Toshiba manufacturer indoor-fan data used by the thermal-output estimator.
 //
 // Sources:
-//   J2FVG console: Toshiba Service Manual SVM-20012-1, tables 1 and 2,
-//                  "Indoor fan air flow rate" (cooling/heating), pp. 34/36.
-//   G3KVSG high wall: Toshiba Service Manual SVM-22104, table 1,
-//                     "Indoor fan air flow rate".
+//   J2FVG console: Toshiba Service Manual SVM-20012-1, Fig. 1 / Fig. 3 and
+//                  tables 1 and 2, "Indoor fan air flow rate" (cooling/heating),
+//                  pp. 34-36.
+//   G3KVSG high wall: Toshiba Service Manual SVM-22104, "Indoor fan air flow rate".
 //
-// Values below are manufacturer air-volume rates in m3/h. The W1..WF names are
-// Toshiba's internal fan-speed levels. Keeping the complete tables here avoids
-// inventing/interpolating values and allows E4 fan-feedback mapping to be added
-// once its relationship to Toshiba's W levels is established.
+// TOSHIBA_AIRFLOW_LEVELS preserves Toshiba's complete internal W1..WF tables.
+// For B13J2FVG this yields 10 distinct documented cooling air-volume values and
+// 11 distinct documented heating air-volume values; duplicate W levels are kept
+// because the controller can select them separately.
 //
-// P2KVSG note: currently available Toshiba product literature gives only the
-// overall airflow range (for example B10P2KVSG-E: 310..660 m3/h), not the
-// per-fan-level service table. P2 data is therefore deliberately NOT fabricated
-// here; add it only from an authoritative per-level Toshiba table.
+// The manual fixed-speed table below additionally follows Toshiba's MANUAL-mode
+// figures. Hi-POWER changes the endpoints used by L/M/H; L+ and M+ are explicitly
+// defined by Toshiba as the midpoint of the adjacent manual fan speeds. Those
+// midpoint air-volume values are therefore derived from Toshiba's documented
+// interpolation rule, rather than being assigned to an arbitrary W level.
+//
+// P2KVSG / P2KVSGB note: current official SHORAI Curve product literature confirms
+// RAS-B10P2KVSG-E and RAS-B10P2KVSGB-E and gives an overall 310..660 m3/h indoor
+// airflow range, but an authoritative per-level service table has not yet been
+// located. Do not fabricate intermediate values; the estimator returns unavailable
+// for that family until the per-level Toshiba service data is added.
 
 enum class AirflowMode : uint8_t { COOLING, HEATING };
 
@@ -46,6 +53,7 @@ struct ToshibaManualAirflow {
   const char *model;
   AirflowMode mode;
   ManualFanLevel fan;
+  bool hi_power;
   uint16_t airflow_m3h;
 };
 
@@ -151,35 +159,60 @@ static constexpr ToshibaAirflowLevel TOSHIBA_AIRFLOW_LEVELS[] = {
 
 #undef AF
 
-// Remote/manual five-speed mapping for J2FVG. These are the service-manual
-// H, M+, M, L+, L operating points. Quiet and Auto are deliberately excluded:
-// neither maps to one fixed manufacturer airflow value.
-#define MAF(model, mode, fan, flow) {model, AirflowMode::mode, ManualFanLevel::fan, flow}
+// J2FVG fixed manual fan settings. Toshiba Fig. 1 (cooling) and Fig. 3
+// (heating) explicitly alter L/M/H under Hi-POWER; L+ and M+ are the midpoint
+// of the adjacent speeds. Values below are m3/h and use integer rounding to
+// the nearest whole m3/h for those documented midpoint rules.
+#define MAF(model, mode, fan, hip, flow) {model, AirflowMode::mode, ManualFanLevel::fan, hip, flow}
 
 static constexpr ToshibaManualAirflow TOSHIBA_MANUAL_AIRFLOW[] = {
-    MAF("RAS-B10J2FVG-E", COOLING, LOW, 258),
-    MAF("RAS-B10J2FVG-E", COOLING, LOW_MEDIUM, 324),
-    MAF("RAS-B10J2FVG-E", COOLING, MEDIUM, 366),
-    MAF("RAS-B10J2FVG-E", COOLING, MEDIUM_HIGH, 498),
-    MAF("RAS-B10J2FVG-E", COOLING, HIGH, 498),
+    // B10 cooling — normal then Hi-POWER.
+    MAF("RAS-B10J2FVG-E", COOLING, LOW, false, 258),
+    MAF("RAS-B10J2FVG-E", COOLING, LOW_MEDIUM, false, 312),
+    MAF("RAS-B10J2FVG-E", COOLING, MEDIUM, false, 366),
+    MAF("RAS-B10J2FVG-E", COOLING, MEDIUM_HIGH, false, 432),
+    MAF("RAS-B10J2FVG-E", COOLING, HIGH, false, 498),
+    MAF("RAS-B10J2FVG-E", COOLING, LOW, true, 315),
+    MAF("RAS-B10J2FVG-E", COOLING, LOW_MEDIUM, true, 381),
+    MAF("RAS-B10J2FVG-E", COOLING, MEDIUM, true, 447),
+    MAF("RAS-B10J2FVG-E", COOLING, MEDIUM_HIGH, true, 473),
+    MAF("RAS-B10J2FVG-E", COOLING, HIGH, true, 498),
 
-    MAF("RAS-B13J2FVG-E", COOLING, LOW, 300),
-    MAF("RAS-B13J2FVG-E", COOLING, LOW_MEDIUM, 354),
-    MAF("RAS-B13J2FVG-E", COOLING, MEDIUM, 408),
-    MAF("RAS-B13J2FVG-E", COOLING, MEDIUM_HIGH, 519),
-    MAF("RAS-B13J2FVG-E", COOLING, HIGH, 528),
+    // B13 cooling — normal then Hi-POWER.
+    MAF("RAS-B13J2FVG-E", COOLING, LOW, false, 300),
+    MAF("RAS-B13J2FVG-E", COOLING, LOW_MEDIUM, false, 354),
+    MAF("RAS-B13J2FVG-E", COOLING, MEDIUM, false, 408),
+    MAF("RAS-B13J2FVG-E", COOLING, MEDIUM_HIGH, false, 464),
+    MAF("RAS-B13J2FVG-E", COOLING, HIGH, false, 519),
+    MAF("RAS-B13J2FVG-E", COOLING, LOW, true, 354),
+    MAF("RAS-B13J2FVG-E", COOLING, LOW_MEDIUM, true, 411),
+    MAF("RAS-B13J2FVG-E", COOLING, MEDIUM, true, 468),
+    MAF("RAS-B13J2FVG-E", COOLING, MEDIUM_HIGH, true, 498),
+    MAF("RAS-B13J2FVG-E", COOLING, HIGH, true, 528),
 
-    MAF("RAS-B10J2FVG-E", HEATING, LOW, 282),
-    MAF("RAS-B10J2FVG-E", HEATING, LOW_MEDIUM, 334),
-    MAF("RAS-B10J2FVG-E", HEATING, MEDIUM, 366),
-    MAF("RAS-B10J2FVG-E", HEATING, MEDIUM_HIGH, 443),
-    MAF("RAS-B10J2FVG-E", HEATING, HIGH, 528),
+    // B10 heating — normal then Hi-POWER.
+    MAF("RAS-B10J2FVG-E", HEATING, LOW, false, 282),
+    MAF("RAS-B10J2FVG-E", HEATING, LOW_MEDIUM, false, 324),
+    MAF("RAS-B10J2FVG-E", HEATING, MEDIUM, false, 366),
+    MAF("RAS-B10J2FVG-E", HEATING, MEDIUM_HIGH, false, 447),
+    MAF("RAS-B10J2FVG-E", HEATING, HIGH, false, 528),
+    MAF("RAS-B10J2FVG-E", HEATING, LOW, true, 334),
+    MAF("RAS-B10J2FVG-E", HEATING, LOW_MEDIUM, true, 389),
+    MAF("RAS-B10J2FVG-E", HEATING, MEDIUM, true, 443),
+    MAF("RAS-B10J2FVG-E", HEATING, MEDIUM_HIGH, true, 486),
+    MAF("RAS-B10J2FVG-E", HEATING, HIGH, true, 528),
 
-    MAF("RAS-B13J2FVG-E", HEATING, LOW, 300),
-    MAF("RAS-B13J2FVG-E", HEATING, LOW_MEDIUM, 366),
-    MAF("RAS-B13J2FVG-E", HEATING, MEDIUM, 426),
-    MAF("RAS-B13J2FVG-E", HEATING, MEDIUM_HIGH, 486),
-    MAF("RAS-B13J2FVG-E", HEATING, HIGH, 552),
+    // B13 heating — normal then Hi-POWER.
+    MAF("RAS-B13J2FVG-E", HEATING, LOW, false, 300),
+    MAF("RAS-B13J2FVG-E", HEATING, LOW_MEDIUM, false, 363),
+    MAF("RAS-B13J2FVG-E", HEATING, MEDIUM, false, 426),
+    MAF("RAS-B13J2FVG-E", HEATING, MEDIUM_HIGH, false, 489),
+    MAF("RAS-B13J2FVG-E", HEATING, HIGH, false, 552),
+    MAF("RAS-B13J2FVG-E", HEATING, LOW, true, 366),
+    MAF("RAS-B13J2FVG-E", HEATING, LOW_MEDIUM, true, 426),
+    MAF("RAS-B13J2FVG-E", HEATING, MEDIUM, true, 486),
+    MAF("RAS-B13J2FVG-E", HEATING, MEDIUM_HIGH, true, 528),
+    MAF("RAS-B13J2FVG-E", HEATING, HIGH, true, 570),
 };
 
 #undef MAF
@@ -206,10 +239,11 @@ inline const ToshibaAirflowLevel *find_airflow_level(const char *model, AirflowM
 }
 
 inline const ToshibaManualAirflow *find_manual_airflow(const char *model, AirflowMode mode,
-                                                        ManualFanLevel fan) {
+                                                        ManualFanLevel fan, bool hi_power) {
   if (model == nullptr) return nullptr;
   for (const auto &entry : TOSHIBA_MANUAL_AIRFLOW) {
-    if (entry.mode == mode && entry.fan == fan && airflow_model_matches(model, entry.model))
+    if (entry.mode == mode && entry.fan == fan && entry.hi_power == hi_power &&
+        airflow_model_matches(model, entry.model))
       return &entry;
   }
   return nullptr;
