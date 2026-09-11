@@ -26,6 +26,14 @@ namespace toshiba_output {
 
 enum class AirflowMode : uint8_t { COOLING, HEATING };
 
+enum class ManualFanLevel : uint8_t {
+  LOW,
+  LOW_MEDIUM,
+  MEDIUM,
+  MEDIUM_HIGH,
+  HIGH,
+};
+
 struct ToshibaAirflowLevel {
   const char *model;
   AirflowMode mode;
@@ -34,10 +42,16 @@ struct ToshibaAirflowLevel {
   uint16_t airflow_m3h;
 };
 
+struct ToshibaManualAirflow {
+  const char *model;
+  AirflowMode mode;
+  ManualFanLevel fan;
+  uint16_t airflow_m3h;
+};
+
 #define AF(model, mode, level, rpm, flow) {model, AirflowMode::mode, level, rpm, flow}
 
 static constexpr ToshibaAirflowLevel TOSHIBA_AIRFLOW_LEVELS[] = {
-    // RAS-B10J2FVG-E — SVM-20012-1 table 1, cooling.
     AF("RAS-B10J2FVG-E", COOLING, "WF", 530, 498),
     AF("RAS-B10J2FVG-E", COOLING, "WE", 530, 498),
     AF("RAS-B10J2FVG-E", COOLING, "WD", 530, 498),
@@ -54,7 +68,6 @@ static constexpr ToshibaAirflowLevel TOSHIBA_AIRFLOW_LEVELS[] = {
     AF("RAS-B10J2FVG-E", COOLING, "W2", 240, 198),
     AF("RAS-B10J2FVG-E", COOLING, "W1", 240, 198),
 
-    // RAS-B13J2FVG-E — SVM-20012-1 table 1, cooling.
     AF("RAS-B13J2FVG-E", COOLING, "WF", 560, 528),
     AF("RAS-B13J2FVG-E", COOLING, "WE", 560, 528),
     AF("RAS-B13J2FVG-E", COOLING, "WD", 550, 519),
@@ -71,7 +84,6 @@ static constexpr ToshibaAirflowLevel TOSHIBA_AIRFLOW_LEVELS[] = {
     AF("RAS-B13J2FVG-E", COOLING, "W2", 240, 198),
     AF("RAS-B13J2FVG-E", COOLING, "W1", 240, 198),
 
-    // RAS-B10J2FVG-E — SVM-20012-1 table 2, heating.
     AF("RAS-B10J2FVG-E", HEATING, "WF", 560, 528),
     AF("RAS-B10J2FVG-E", HEATING, "WE", 560, 528),
     AF("RAS-B10J2FVG-E", HEATING, "WD", 480, 443),
@@ -88,7 +100,6 @@ static constexpr ToshibaAirflowLevel TOSHIBA_AIRFLOW_LEVELS[] = {
     AF("RAS-B10J2FVG-E", HEATING, "W2", 240, 198),
     AF("RAS-B10J2FVG-E", HEATING, "W1", 240, 198),
 
-    // RAS-B13J2FVG-E — SVM-20012-1 table 2, heating.
     AF("RAS-B13J2FVG-E", HEATING, "WF", 600, 570),
     AF("RAS-B13J2FVG-E", HEATING, "WE", 580, 552),
     AF("RAS-B13J2FVG-E", HEATING, "WD", 520, 486),
@@ -105,8 +116,6 @@ static constexpr ToshibaAirflowLevel TOSHIBA_AIRFLOW_LEVELS[] = {
     AF("RAS-B13J2FVG-E", HEATING, "W2", 250, 210),
     AF("RAS-B13J2FVG-E", HEATING, "W1", 240, 198),
 
-    // G3KVSG B07/B10 share the SVM-22104 table. The complete per-level
-    // values are retained here for the directly relevant B10 family.
     AF("RAS-B10G3KVSG-E", COOLING, "WF", 1030, 720),
     AF("RAS-B10G3KVSG-E", COOLING, "WE", 1030, 720),
     AF("RAS-B10G3KVSG-E", COOLING, "WD", 980, 660),
@@ -142,12 +151,65 @@ static constexpr ToshibaAirflowLevel TOSHIBA_AIRFLOW_LEVELS[] = {
 
 #undef AF
 
+// Remote/manual five-speed mapping for J2FVG. These are the service-manual
+// H, M+, M, L+, L operating points. Quiet and Auto are deliberately excluded:
+// neither maps to one fixed manufacturer airflow value.
+#define MAF(model, mode, fan, flow) {model, AirflowMode::mode, ManualFanLevel::fan, flow}
+
+static constexpr ToshibaManualAirflow TOSHIBA_MANUAL_AIRFLOW[] = {
+    MAF("RAS-B10J2FVG-E", COOLING, LOW, 258),
+    MAF("RAS-B10J2FVG-E", COOLING, LOW_MEDIUM, 324),
+    MAF("RAS-B10J2FVG-E", COOLING, MEDIUM, 366),
+    MAF("RAS-B10J2FVG-E", COOLING, MEDIUM_HIGH, 498),
+    MAF("RAS-B10J2FVG-E", COOLING, HIGH, 498),
+
+    MAF("RAS-B13J2FVG-E", COOLING, LOW, 300),
+    MAF("RAS-B13J2FVG-E", COOLING, LOW_MEDIUM, 354),
+    MAF("RAS-B13J2FVG-E", COOLING, MEDIUM, 408),
+    MAF("RAS-B13J2FVG-E", COOLING, MEDIUM_HIGH, 519),
+    MAF("RAS-B13J2FVG-E", COOLING, HIGH, 528),
+
+    MAF("RAS-B10J2FVG-E", HEATING, LOW, 282),
+    MAF("RAS-B10J2FVG-E", HEATING, LOW_MEDIUM, 334),
+    MAF("RAS-B10J2FVG-E", HEATING, MEDIUM, 366),
+    MAF("RAS-B10J2FVG-E", HEATING, MEDIUM_HIGH, 443),
+    MAF("RAS-B10J2FVG-E", HEATING, HIGH, 528),
+
+    MAF("RAS-B13J2FVG-E", HEATING, LOW, 300),
+    MAF("RAS-B13J2FVG-E", HEATING, LOW_MEDIUM, 366),
+    MAF("RAS-B13J2FVG-E", HEATING, MEDIUM, 426),
+    MAF("RAS-B13J2FVG-E", HEATING, MEDIUM_HIGH, 486),
+    MAF("RAS-B13J2FVG-E", HEATING, HIGH, 552),
+};
+
+#undef MAF
+
+inline bool airflow_model_matches(const char *reported, const char *table_model) {
+  if (reported == nullptr || table_model == nullptr) return false;
+  if (std::strcmp(reported, table_model) == 0) return true;
+
+  // Some E0 payloads report the hardware revision as a trailing "1"
+  // (e.g. RAS-B13J2FVG-E1) while Toshiba service data names RAS-B13J2FVG-E.
+  const size_t n = std::strlen(table_model);
+  return std::strncmp(reported, table_model, n) == 0 && reported[n] == '1' && reported[n + 1] == '\0';
+}
+
 inline const ToshibaAirflowLevel *find_airflow_level(const char *model, AirflowMode mode,
                                                        const char *level) {
   if (model == nullptr || level == nullptr) return nullptr;
   for (const auto &entry : TOSHIBA_AIRFLOW_LEVELS) {
-    if (entry.mode == mode && std::strcmp(entry.model, model) == 0 &&
+    if (entry.mode == mode && airflow_model_matches(model, entry.model) &&
         std::strcmp(entry.level, level) == 0)
+      return &entry;
+  }
+  return nullptr;
+}
+
+inline const ToshibaManualAirflow *find_manual_airflow(const char *model, AirflowMode mode,
+                                                        ManualFanLevel fan) {
+  if (model == nullptr) return nullptr;
+  for (const auto &entry : TOSHIBA_MANUAL_AIRFLOW) {
+    if (entry.mode == mode && entry.fan == fan && airflow_model_matches(model, entry.model))
       return &entry;
   }
   return nullptr;
