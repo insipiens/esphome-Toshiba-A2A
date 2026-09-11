@@ -1,25 +1,46 @@
-***
-Jul 30th 2026
+ESPHome Toshiba A2A development
+===============================
 
-* replaced the one-shot full register scanner with a toggle-controlled, continuous read-only monitor for registers `0xCA`, `0xEE`, and `0xE5`
-* added focused header/raw/decoded logging and clean stop/resume behavior; normal entities are refreshed when monitoring stops
-* renamed diagnostic YAML options and internal identifiers to consistent IDU/ODU terminology; old aliases are not retained
-* renamed `cdu_load` to `compressor_load`, `cdu_iac` to `compressor_current`, and the remaining `cdu_*` / `fcu_*` diagnostic keys to descriptive `odu_*` / `idu_*` names
-* corrected compressor current scaling to 0.1 A per protocol count
-* request configured IDU and ODU diagnostic packets during normal polling
-* replaced the burst register scan with a paced 0x80-0xFE diagnostic scanner
+Sep 11th 2026
 
-***
+* established independent `insipiens/esphome-Toshiba-A2A` repository from the substantially modified `esphome_toshiba_suzumi` codebase
+* retained GPLv3 licensing and explicit provenance/attribution to the upstream project and its referenced prior work
+* documented the project's deliberately limited direct test population and evidence-driven reverse-engineering method
+* added E0 equipment-identification decoding and IDU/ODU model entities
+* introduced model/family capability groundwork
+* began replacing the legacy F7 climate-preset abstraction with separate Toshiba-specific Home Assistant controls
+* documented a model x HVAC-mode x control capability/dependency matrix as the next validation stage
+* separated passive UART capture, engineering telemetry and experimental output-estimation examples from the normal installation example
+* removed the ESP8266 example because this project has not tested ESP8266
+
+Jul-Aug 2026 development carried into this repository
+
+* replaced the earlier one-shot register scanner with passive/raw diagnostic capture and controlled register-investigation tooling
+* added focused header/raw/decoded logging and clean stop/resume behaviour
+* renamed diagnostic YAML options and internal identifiers to consistent IDU/ODU terminology
+* renamed inherited `cdu_*` / `fcu_*` diagnostic keys to descriptive `odu_*` / `idu_*` names
+* added/extended E4 IDU and E5 ODU/system telemetry handling
+* calibrated the current-like E5 value against independent electrical metering; exact locality/system semantics remain under investigation
+* corrected the interpretation of the IDU fan field: it is not claimed to be literal RPM
+* added an empirical IDU sensible-output estimator calibrated from the B13J2FVG reference unit; this remains experimental and is not a generic Toshiba COP model
+
+
+Inherited upstream history
+==========================
+
+The entries below are preserved from the original
+https://github.com/pedobry/esphome_toshiba_suzumi project. They describe
+upstream development and must not be read as testing performed by the
+ESPHome Toshiba A2A project.
+
 Sep 10th 2025
 
 * implement Special modes as Climate presets instead of HA selector. Due to backward compatibility, the list of special modes can be either as new "supported_presets" YAML option, or the old "supported_modes" option. I recommend to migrate to the new config schema as the old one will be removed in the future.
 
-***
 Jun 23rd 2025
 
-* updated schema definition to support ESPHome 2025.5+. 
+* updated schema definition to support ESPHome 2025.5+.
 
-***
 May 18th 2025
 
 * added support for FrostGuard (8 degree) mode
@@ -31,24 +52,21 @@ Oct 7th 2024
 
 * add configuration option to disable WiFi LED on AC unit
 
-April 4th, 2023
+April 4th 2023
 
 * fixed fan Quiet mode for ESPHome 2023.3.0
-* Note:
+* upstream note:
     - users with ESPHome 2023.3.0+ should use branch master
-        url: https://github.com/pedobry/esphome_toshiba_suzumi
-    - users with ESPHome 2023.2.x and older should use this url:
-        url: https://github.com/pedobry/esphome_toshiba_suzumi@2023.2.0
+      url: https://github.com/pedobry/esphome_toshiba_suzumi
+    - users with ESPHome 2023.2.x and older should use
+      url: https://github.com/pedobry/esphome_toshiba_suzumi@2023.2.0
 
-APRIL 1st, 2023
+April 1st 2023
 
 * updated examples to filter outside temp value 127
 * added an optional button to scan for unsupported sensors
-* tested on ESP8266 - Lolin D1 mini
+* upstream project reported testing on ESP8266 - Lolin D1 mini
 
-
-ORIGINAL RELEASE (Dec 2022)
+Original upstream release (Dec 2022)
 
 * initial release
-
-***
