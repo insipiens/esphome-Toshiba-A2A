@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -54,6 +55,13 @@ struct ToshibaManualAirflow {
   AirflowMode mode;
   ManualFanLevel fan;
   bool hi_power;
+  uint16_t airflow_m3h;
+};
+
+struct ToshibaFeedbackAirflowPoint {
+  const char *model;
+  AirflowMode mode;
+  float feedback;
   uint16_t airflow_m3h;
 };
 
@@ -232,6 +240,32 @@ static constexpr ToshibaManualAirflow TOSHIBA_MANUAL_AIRFLOW[] = {
 
 #undef MAF
 
+// RAS-B10P2KVSGB-E E4+2 fan/air-velocity feedback calibration.
+//
+// The feedback anchors (55,67,80,91,103) were observed on the installed P2 at
+// fixed remote-control fan levels 1..5. The airflow anchors remain provisional:
+// they use the B10-class profile above because an exact P2 service airflow table
+// has not yet been located. Runtime values between the anchors are interpolated;
+// values outside the current observed fixed-speed range are linearly extrapolated
+// from the nearest pair so Auto/Quiet can be estimated while more history is
+// gathered. A feedback value of zero is treated as zero airflow.
+#define FAF(model, mode, feedback, flow) {model, AirflowMode::mode, feedback, flow}
+
+static constexpr ToshibaFeedbackAirflowPoint TOSHIBA_FEEDBACK_AIRFLOW[] = {
+    FAF("RAS-B10P2KVSGB-E", COOLING, 55.0f, 312),
+    FAF("RAS-B10P2KVSGB-E", COOLING, 67.0f, 378),
+    FAF("RAS-B10P2KVSGB-E", COOLING, 80.0f, 444),
+    FAF("RAS-B10P2KVSGB-E", COOLING, 91.0f, 552),
+    FAF("RAS-B10P2KVSGB-E", COOLING, 103.0f, 660),
+    FAF("RAS-B10P2KVSGB-E", HEATING, 55.0f, 328),
+    FAF("RAS-B10P2KVSGB-E", HEATING, 67.0f, 386),
+    FAF("RAS-B10P2KVSGB-E", HEATING, 80.0f, 444),
+    FAF("RAS-B10P2KVSGB-E", HEATING, 91.0f, 552),
+    FAF("RAS-B10P2KVSGB-E", HEATING, 103.0f, 660),
+};
+
+#undef FAF
+
 inline bool airflow_model_matches(const char *reported, const char *table_model) {
   if (reported == nullptr || table_model == nullptr) return false;
   if (std::strcmp(reported, table_model) == 0) return true;
@@ -262,6 +296,55 @@ inline const ToshibaManualAirflow *find_manual_airflow(const char *model, Airflo
       return &entry;
   }
   return nullptr;
+}
+
+inline bool interpolate_feedback_airflow(const char *model, AirflowMode mode,
+                                         float feedback, float &airflow_m3h) {
+  if (model == nullptr) return false;
+
+  const ToshibaFeedbackAirflowPoint *points[16]{};
+  size_t count = 0;
+  for (const auto &entry : TOSHIBA_FEEDBACK_AIRFLOW) {
+    if (entry.mode == mode && airflow_model_matches(model, entry.model)) {
+      if (count < 16) points[count++] = &entry;
+    }
+  }
+
+  if (count == 0) return false;
+  if (feedback <= 0.0f) {
+    airflow_m3h = 0.0f;
+    return true;
+  }
+  if (count == 1) {
+    airflow_m3h = static_cast<float>(points[0]->airflow_m3h);
+    return true;
+  }
+
+  size_t lo = 0;
+  size_t hi = 1;
+
+  if (feedback >= points[count - 1]->feedback) {
+    lo = count - 2;
+    hi = count - 1;
+  } else if (feedback > points[0]->feedback) {
+    for (size_t i = 1; i < count; i++) {
+      if (feedback <= points[i]->feedback) {
+        lo = i - 1;
+        hi = i;
+        break;
+      }
+    }
+  }
+
+  const float x0 = points[lo]->feedback;
+  const float x1 = points[hi]->feedback;
+  const float y0 = static_cast<float>(points[lo]->airflow_m3h);
+  const float y1 = static_cast<float>(points[hi]->airflow_m3h);
+  if (x1 == x0) return false;
+
+  airflow_m3h = y0 + (feedback - x0) * (y1 - y0) / (x1 - x0);
+  if (airflow_m3h < 0.0f) airflow_m3h = 0.0f;
+  return true;
 }
 
 }  // namespace toshiba_output
