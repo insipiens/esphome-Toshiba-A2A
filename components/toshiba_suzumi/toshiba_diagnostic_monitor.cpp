@@ -116,6 +116,10 @@ void ToshibaClimateUart::on_set_special_mode_level(SPECIAL_MODE level_one, SPECI
 
 void ToshibaSpecialModeSwitch::write_state(bool state) {
   this->parent_->on_set_special_mode_switch(this->mode_, state);
+  // Publish the requested state immediately so the ESPHome/Home Assistant
+  // switch behaves as a normal toggle. A subsequent Toshiba F7 publication
+  // can still confirm or correct this optimistic state.
+  this->publish_state(state);
 }
 
 void ToshibaSpecialModeLevelSelect::control(const std::string &value) {
