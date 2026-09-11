@@ -6,6 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/toshiba_suzumi/toshiba_climate.h"
 #include "toshiba_airflow_data.h"
+#include "toshiba_airflow_inferred.h"
 
 namespace esphome {
 namespace toshiba_output {
@@ -72,21 +73,37 @@ class ToshibaOutputEstimator : public PollingComponent {
 
     const std::string &model = climate_->get_idu_model();
     const bool hi_power = climate_->is_hi_power_active();
+
+    float airflow_m3h = NAN;
+
+    // Prefer manufacturer-confirmed per-model manual airflow data.
     const auto *airflow_entry = find_manual_airflow(model.c_str(), airflow_mode, fan_level, hi_power);
-    if (airflow_entry == nullptr) {
+    if (airflow_entry != nullptr) {
+      airflow_m3h = static_cast<float>(airflow_entry->airflow_m3h);
+    } else {
+      // RAS-B10P2KVSGB-E currently uses a deliberately isolated provisional
+      // profile inferred from the B10 G3 because the official top-line airflow
+      // envelope matches (about 310..660 m3/h). Hi-POWER is not inferred.
+      const auto *inferred = find_inferred_manual_airflow(model.c_str(), airflow_mode, fan_level, hi_power);
+      if (inferred != nullptr)
+        airflow_m3h = static_cast<float>(inferred->airflow_m3h);
+    }
+
+    if (!std::isfinite(airflow_m3h)) {
       publish_invalid_();
       return;
     }
 
-    const float volume_flow_m3_s = static_cast<float>(airflow_entry->airflow_m3h) / 3600.0f;
+    const float volume_flow_m3_s = airflow_m3h / 3600.0f;
     const float mass_flow_kg_s = AIR_DENSITY_KG_M3 * volume_flow_m3_s;
 
-    // Sensible thermal output based on manufacturer airflow and the IDU-reported
-    // heat-exchanger/room temperature difference. heat_exchanger_factor allows
-    // calibration of HX thermistor temperature against actual leaving-air delta-T.
+    // Sensible thermal output based on manufacturer/inferred airflow and the
+    // IDU-reported heat-exchanger/room temperature difference.
+    // heat_exchanger_factor allows calibration of HX thermistor temperature
+    // against actual leaving-air delta-T.
     const float thermal_w = mass_flow_kg_s * AIR_SPECIFIC_HEAT_J_KG_K * delta_t * heat_exchanger_factor_;
 
-    if (airflow_ != nullptr) airflow_->publish_state(airflow_entry->airflow_m3h);
+    if (airflow_ != nullptr) airflow_->publish_state(airflow_m3h);
     if (cooling_output_ != nullptr) cooling_output_->publish_state(heating ? 0.0f : thermal_w);
     if (heating_output_ != nullptr) heating_output_->publish_state(heating ? thermal_w : 0.0f);
   }
