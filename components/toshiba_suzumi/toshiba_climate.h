@@ -76,6 +76,10 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void set_idu_model_sensor(text_sensor::TextSensor *sensor) { idu_model_sensor_ = sensor; }
   void set_odu_model_sensor(text_sensor::TextSensor *sensor) { odu_model_sensor_ = sensor; }
   const std::string &get_idu_model() const { return idu_model_; }
+  optional<SPECIAL_MODE> get_special_mode() const { return special_mode_; }
+  bool is_hi_power_active() const {
+    return special_mode_.has_value() && special_mode_.value() == SPECIAL_MODE::HI_POWER;
+  }
   void set_time(time::RealTimeClock *time) { time_ = time; }
   void set_energy_sensor(sensor::Sensor *sensor) { energy_sensor_ = sensor; }
   void set_power_sensor(sensor::Sensor *sensor) { power_sensor_ = sensor; }
