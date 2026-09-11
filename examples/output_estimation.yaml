@@ -2,6 +2,7 @@
 #
 # Repository responsibility:
 #   - decode Toshiba registers and equipment identity
+#   - interpret E4+2 fan/air-velocity feedback into model-specific airflow where calibrated
 #   - publish interpreted engineering values
 #
 # ESPHome YAML responsibility:
@@ -13,12 +14,13 @@
 #   - retained E0-detected IDU model
 #   - Toshiba-reported room/return-air temperature (0xBB)
 #   - Toshiba IDU heat-exchanger temperature (E4 +0)
-#   - current fixed fan setting
-#   - Toshiba manufacturer airflow for that model/mode/fan setting
+#   - Toshiba fan/air-velocity feedback (E4 +2)
+#   - model-specific airflow calibration
 #
-# Auto and Quiet are intentionally not estimated yet because they do not map to
-# one fixed manufacturer airflow value. Use a fixed Low / Low-Medium / Medium /
-# Medium-High / High fan setting while validating the estimator.
+# RAS-B10P2KVSGB-E currently uses provisional piecewise E4+2-to-airflow calibration
+# anchored by observed fixed fan levels and the B10-class airflow profile. Other
+# models continue to use their fixed/manual lookup until their feedback calibration
+# has been established.
 
 esphome:
   name: toshiba-a2a-output-test
@@ -84,6 +86,10 @@ climate:
       name: "IDU Heat Exchanger Temperature"
       id: idu_hx_temp
 
+    idu_fan_speed:
+      name: "IDU Fan Feedback"
+      id: idu_fan_feedback
+
     idu_model:
       name: "IDU Model"
       id: idu_model
@@ -108,6 +114,7 @@ climate:
 toshiba_output:
   climate_id: toshiba_a2a
   heat_exchanger_temperature: idu_hx_temp
+  fan_feedback: idu_fan_feedback
 
   airflow:
     name: "Toshiba IDU Airflow"
