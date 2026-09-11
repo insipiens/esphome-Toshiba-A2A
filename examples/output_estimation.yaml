@@ -1,0 +1,75 @@
+# Experimental example: delivered sensible output estimation.
+#
+# This estimator was calibrated from air-side measurements on the project's
+# B13J2FVG reference unit. It is not a generic Toshiba capacity/COP model and
+# should be recalibrated before use on other IDUs.
+
+esphome:
+  name: toshiba-a2a-output-test
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: arduino
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/insipiens/esphome-Toshiba-A2A
+      ref: main
+    components: [toshiba_suzumi, toshiba_output]
+    refresh: 1min
+
+logger:
+  level: INFO
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO4   # example only
+  rx_pin: GPIO5   # example only
+  parity: EVEN
+  baud_rate: 9600
+
+climate:
+  - platform: toshiba_suzumi
+    name: "Toshiba A2A"
+    id: toshiba_a2a
+    uart_id: uart_bus
+
+    indoor_temp:
+      name: "Indoor Temperature"
+
+    idu_junction_temp:
+      name: "IDU Junction Temperature"
+      id: idu_branch_temp
+
+    idu_fan_speed:
+      # Raw Toshiba fan/air-velocity field used by the empirical calibration.
+      name: "IDU Fan/Airflow Raw"
+      id: idu_fan_speed
+
+# Empirical sensible-output estimator.
+# Cooling coefficient comes from the August 2026 B13J2FVG air-side calibration.
+# Heating coefficient is provisional and should be refined from heating tests.
+toshiba_output:
+  climate_id: toshiba_a2a
+  branch_temperature: idu_branch_temp
+  fan_speed: idu_fan_speed
+  cooling_output:
+    name: "Estimated IDU Cooling Output"
+  heating_output:
+    name: "Estimated IDU Heating Output"
+  cooling_coefficient: 2.72
+  heating_coefficient: 3.264
+
+api:
+  encryption:
+    key: !secret ha_enc_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
