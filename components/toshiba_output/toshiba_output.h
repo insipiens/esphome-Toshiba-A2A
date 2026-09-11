@@ -6,7 +6,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/toshiba_suzumi/toshiba_climate.h"
 #include "toshiba_airflow_data.h"
-#include "toshiba_airflow_inferred.h"
 
 namespace esphome {
 namespace toshiba_output {
@@ -25,7 +24,7 @@ class ToshibaOutputEstimator : public PollingComponent {
       return;
 
     const float hx = heat_exchanger_temp_->state;
-    const float room = climate_->current_temperature;  // Toshiba 0xBB room/return-air temperature.
+    const float room = climate_->current_temperature;
 
     if (!std::isfinite(hx) || !std::isfinite(room)) {
       publish_invalid_();
@@ -73,34 +72,20 @@ class ToshibaOutputEstimator : public PollingComponent {
 
     const std::string &model = climate_->get_idu_model();
     const bool hi_power = climate_->is_hi_power_active();
-
-    float airflow_m3h = NAN;
-
-    // Prefer manufacturer-confirmed per-model manual airflow data.
     const auto *airflow_entry = find_manual_airflow(model.c_str(), airflow_mode, fan_level, hi_power);
-    if (airflow_entry != nullptr) {
-      airflow_m3h = static_cast<float>(airflow_entry->airflow_m3h);
-    } else {
-      // RAS-B10P2KVSGB-E currently uses a deliberately isolated provisional
-      // profile inferred from the B10 G3 because the official top-line airflow
-      // envelope matches (about 310..660 m3/h). Hi-POWER is not inferred.
-      const auto *inferred = find_inferred_manual_airflow(model.c_str(), airflow_mode, fan_level, hi_power);
-      if (inferred != nullptr)
-        airflow_m3h = static_cast<float>(inferred->airflow_m3h);
-    }
-
-    if (!std::isfinite(airflow_m3h)) {
+    if (airflow_entry == nullptr) {
       publish_invalid_();
       return;
     }
 
+    const float airflow_m3h = static_cast<float>(airflow_entry->airflow_m3h);
     const float volume_flow_m3_s = airflow_m3h / 3600.0f;
     const float mass_flow_kg_s = AIR_DENSITY_KG_M3 * volume_flow_m3_s;
 
-    // Sensible thermal output based on manufacturer/inferred airflow and the
-    // IDU-reported heat-exchanger/room temperature difference.
-    // heat_exchanger_factor allows calibration of HX thermistor temperature
-    // against actual leaving-air delta-T.
+    // Sensible thermal output based on the model/fan airflow lookup and the
+    // IDU-reported heat-exchanger/room temperature difference. Some table rows
+    // (currently RAS-B10P2KVSGB-E) are explicitly documented in the lookup as
+    // inferred rather than manufacturer-confirmed per-level data.
     const float thermal_w = mass_flow_kg_s * AIR_SPECIFIC_HEAT_J_KG_K * delta_t * heat_exchanger_factor_;
 
     if (airflow_ != nullptr) airflow_->publish_state(airflow_m3h);
