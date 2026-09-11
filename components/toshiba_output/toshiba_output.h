@@ -20,8 +20,49 @@ class ToshibaOutputEstimator : public PollingComponent {
   void set_heat_exchanger_factor(float value) { heat_exchanger_factor_ = value; }
 
   void update() override {
-    if (climate_ == nullptr || heat_exchanger_temp_ == nullptr)
+    if (climate_ == nullptr)
       return;
+
+    // Fan-only still has a real airflow even though delivered heating/cooling is zero.
+    // Use the cooling/manual airflow profile for fan-only until Toshiba service data
+    // establishes a separate fan-only table for a supported model.
+    if (climate_->mode == climate::CLIMATE_MODE_FAN_ONLY) {
+      ManualFanLevel fan_level;
+      if (!resolve_manual_fan_(fan_level)) {
+        // Auto and Quiet do not correspond to one fixed manufacturer airflow.
+        // E4 actual-fan feedback can be used here once its W1..WF mapping is proven.
+        publish_airflow_invalid_outputs_zero_();
+        return;
+      }
+
+      const std::string &model = climate_->get_idu_model();
+      const bool hi_power = climate_->is_hi_power_active();
+      const auto *airflow_entry =
+          find_manual_airflow(model.c_str(), AirflowMode::COOLING, fan_level, hi_power);
+      if (airflow_entry == nullptr) {
+        publish_airflow_invalid_outputs_zero_();
+        return;
+      }
+
+      if (airflow_ != nullptr)
+        airflow_->publish_state(static_cast<float>(airflow_entry->airflow_m3h));
+      if (cooling_output_ != nullptr) cooling_output_->publish_state(0.0f);
+      if (heating_output_ != nullptr) heating_output_->publish_state(0.0f);
+      return;
+    }
+
+    if (climate_->mode != climate::CLIMATE_MODE_HEAT &&
+        climate_->mode != climate::CLIMATE_MODE_COOL &&
+        climate_->mode != climate::CLIMATE_MODE_DRY &&
+        climate_->mode != climate::CLIMATE_MODE_HEAT_COOL) {
+      publish_zero_();
+      return;
+    }
+
+    if (heat_exchanger_temp_ == nullptr) {
+      publish_invalid_();
+      return;
+    }
 
     const float hx = heat_exchanger_temp_->state;
     const float room = climate_->current_temperature;
@@ -43,7 +84,7 @@ class ToshibaOutputEstimator : public PollingComponent {
                climate_->mode == climate::CLIMATE_MODE_DRY) {
       airflow_mode = AirflowMode::COOLING;
       delta_t = room - hx;
-    } else if (climate_->mode == climate::CLIMATE_MODE_HEAT_COOL) {
+    } else {  // CLIMATE_MODE_HEAT_COOL
       if (hx >= room) {
         airflow_mode = AirflowMode::HEATING;
         delta_t = hx - room;
@@ -52,9 +93,6 @@ class ToshibaOutputEstimator : public PollingComponent {
         airflow_mode = AirflowMode::COOLING;
         delta_t = room - hx;
       }
-    } else {
-      publish_zero_();
-      return;
     }
 
     if (delta_t <= 0.0f) {
@@ -130,6 +168,12 @@ class ToshibaOutputEstimator : public PollingComponent {
 
   void publish_zero_() {
     if (airflow_ != nullptr) airflow_->publish_state(0.0f);
+    if (cooling_output_ != nullptr) cooling_output_->publish_state(0.0f);
+    if (heating_output_ != nullptr) heating_output_->publish_state(0.0f);
+  }
+
+  void publish_airflow_invalid_outputs_zero_() {
+    if (airflow_ != nullptr) airflow_->publish_state(NAN);
     if (cooling_output_ != nullptr) cooling_output_->publish_state(0.0f);
     if (heating_output_ != nullptr) heating_output_->publish_state(0.0f);
   }
