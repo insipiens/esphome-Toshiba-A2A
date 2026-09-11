@@ -10,6 +10,7 @@ from esphome.const import (
 
 CONF_CLIMATE_ID = "climate_id"
 CONF_HEAT_EXCHANGER_TEMPERATURE = "heat_exchanger_temperature"
+CONF_FAN_FEEDBACK = "fan_feedback"
 CONF_COOLING_OUTPUT = "cooling_output"
 CONF_HEATING_OUTPUT = "heating_output"
 CONF_AIRFLOW = "airflow"
@@ -32,6 +33,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(ToshibaOutputEstimator),
         cv.Required(CONF_CLIMATE_ID): cv.use_id(climate.Climate),
         cv.Required(CONF_HEAT_EXCHANGER_TEMPERATURE): cv.use_id(sensor.Sensor),
+        cv.Optional(CONF_FAN_FEEDBACK): cv.use_id(sensor.Sensor),
         cv.Optional(CONF_COOLING_OUTPUT): sensor.sensor_schema(
             unit_of_measurement=UNIT_WATT,
             accuracy_decimals=0,
@@ -67,6 +69,10 @@ async def to_code(config):
     cg.add(var.set_climate(climate_var))
     cg.add(var.set_heat_exchanger_temperature_sensor(hx_var))
     cg.add(var.set_heat_exchanger_factor(config[CONF_HEAT_EXCHANGER_FACTOR]))
+
+    if CONF_FAN_FEEDBACK in config:
+        fan_var = await cg.get_variable(config[CONF_FAN_FEEDBACK])
+        cg.add(var.set_fan_feedback_sensor(fan_var))
 
     if CONF_COOLING_OUTPUT in config:
         sens = await sensor.new_sensor(config[CONF_COOLING_OUTPUT])
