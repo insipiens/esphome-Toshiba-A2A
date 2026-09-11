@@ -1,0 +1,71 @@
+# Development/research example: passive Toshiba UART capture.
+#
+# This is not required for normal climate control. While enabled, the component
+# captures checksum-valid Toshiba-originated traffic without issuing register
+# scan requests. Use it when collecting evidence for protocol/model behaviour.
+
+substitutions:
+  device_name: toshiba-a2a-diagnostic
+
+esphome:
+  name: ${device_name}
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: arduino
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/insipiens/esphome-Toshiba-A2A
+      ref: main
+    components: [toshiba_suzumi]
+    refresh: 1min
+
+logger:
+  level: DEBUG
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO4   # example only: use your adapter wiring
+  rx_pin: GPIO5   # example only: use your adapter wiring
+  parity: EVEN
+  baud_rate: 9600
+
+climate:
+  - platform: toshiba_suzumi
+    name: "Toshiba A2A"
+    id: toshiba_a2a
+    uart_id: uart_bus
+    idu_model:
+      name: "IDU Model"
+    odu_model:
+      name: "ODU Model"
+
+switch:
+  - platform: template
+    name: "Toshiba Passive UART Capture"
+    icon: "mdi:chart-timeline-variant"
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    turn_on_action:
+      - lambda: |-
+          auto* controller = static_cast<toshiba_suzumi::ToshibaClimateUart*>(id(toshiba_a2a));
+          controller->set_scan_enabled(true);
+    turn_off_action:
+      - lambda: |-
+          auto* controller = static_cast<toshiba_suzumi::ToshibaClimateUart*>(id(toshiba_a2a));
+          controller->set_scan_enabled(false);
+
+api:
+  encryption:
+    key: !secret ha_enc_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
