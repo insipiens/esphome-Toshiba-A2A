@@ -1,92 +1,40 @@
 #include <algorithm>
-#include <cstring>
 #include <utility>
 #include "toshiba_climate.h"
 #include "toshiba_model.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/preferences.h"
 
 namespace esphome {
 namespace toshiba_suzumi {
 
 static constexpr size_t CHUNK = 24;
-static constexpr uint32_t EQUIPMENT_PREF_KEY = 0x544F5348;  // "TOSH"
-static constexpr uint32_t EQUIPMENT_PREF_MAGIC = 0x41324132;  // "A2A2"
-
-struct StoredToshibaEquipment {
-  uint32_t magic;
-  char idu_model[22];
-  char odu_model[22];
-};
-
-static void copy_model_to_storage(char *dest, size_t dest_size, const std::string &model) {
-  if (dest_size == 0) return;
-  std::memset(dest, 0, dest_size);
-  std::strncpy(dest, model.c_str(), dest_size - 1);
-}
 
 void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentification &equipment) {
-  auto pref = global_preferences->make_preference<StoredToshibaEquipment>(EQUIPMENT_PREF_KEY);
-  StoredToshibaEquipment stored{};
-  const bool have_stored = pref.load(&stored) && stored.magic == EQUIPMENT_PREF_MAGIC;
-  if (have_stored) {
-    stored.idu_model[sizeof(stored.idu_model) - 1] = '\0';
-    stored.odu_model[sizeof(stored.odu_model) - 1] = '\0';
-  }
-
-  bool identity_changed = false;
-
+  // The protocol layer only accepts positive identity data from Toshiba.
+  // Blank/NULL E0 fields are ignored so they cannot erase a previously known
+  // runtime model. Persistence across reboots belongs in the ESPHome YAML.
   if (equipment.idu_model_available && !equipment.idu_model.empty()) {
     if (this->idu_model_ != equipment.idu_model) {
       this->idu_model_ = equipment.idu_model;
       this->idu_family_ = equipment.idu_family;
       this->capabilities_ = equipment.capabilities;
-      identity_changed = true;
       ESP_LOGI(TAG, "E0 IDU model: %s", this->idu_model_.c_str());
       ESP_LOGI(TAG, "E0 IDU family: %s", indoor_unit_family_to_string(this->idu_family_));
       if (this->idu_model_sensor_ != nullptr) this->idu_model_sensor_->publish_state(this->idu_model_);
     }
-  } else if (!this->idu_model_.empty()) {
-    ESP_LOGD(TAG, "E0 IDU model unavailable; retaining last known model: %s", this->idu_model_.c_str());
-  } else if (have_stored && stored.idu_model[0] != '\0') {
-    this->idu_model_ = stored.idu_model;
-    this->idu_family_ = indoor_unit_family_from_model(this->idu_model_);
-    this->capabilities_ = capability_profile_from_model(this->idu_model_);
-    ESP_LOGI(TAG, "E0 IDU model unavailable; restored persisted model: %s", this->idu_model_.c_str());
-    ESP_LOGI(TAG, "Restored IDU family: %s", indoor_unit_family_to_string(this->idu_family_));
-    if (this->idu_model_sensor_ != nullptr) this->idu_model_sensor_->publish_state(this->idu_model_);
   } else {
-    ESP_LOGD(TAG, "E0 IDU model unavailable and no last-known model is stored");
+    ESP_LOGD(TAG, "E0 IDU model unavailable; retaining current runtime identity");
   }
 
   if (equipment.odu_model_available && !equipment.odu_model.empty()) {
     if (this->odu_model_ != equipment.odu_model) {
       this->odu_model_ = equipment.odu_model;
-      identity_changed = true;
       ESP_LOGI(TAG, "E0 ODU model: %s", this->odu_model_.c_str());
       if (this->odu_model_sensor_ != nullptr) this->odu_model_sensor_->publish_state(this->odu_model_);
     }
-  } else if (!this->odu_model_.empty()) {
-    ESP_LOGD(TAG, "E0 ODU model unavailable; retaining last known model: %s", this->odu_model_.c_str());
-  } else if (have_stored && stored.odu_model[0] != '\0') {
-    this->odu_model_ = stored.odu_model;
-    ESP_LOGI(TAG, "E0 ODU model unavailable; restored persisted model: %s", this->odu_model_.c_str());
-    if (this->odu_model_sensor_ != nullptr) this->odu_model_sensor_->publish_state(this->odu_model_);
   } else {
-    ESP_LOGD(TAG, "E0 ODU model unavailable and no last-known model is stored");
-  }
-
-  // Persist only when Toshiba supplies a real, changed identity. Blank/NULL E0
-  // packets never overwrite a known model and therefore never erase flash state.
-  if (identity_changed) {
-    StoredToshibaEquipment updated{};
-    updated.magic = EQUIPMENT_PREF_MAGIC;
-    copy_model_to_storage(updated.idu_model, sizeof(updated.idu_model), this->idu_model_);
-    copy_model_to_storage(updated.odu_model, sizeof(updated.odu_model), this->odu_model_);
-    if (!pref.save(&updated)) {
-      ESP_LOGW(TAG, "Failed to persist Toshiba equipment identity");
-    }
+    ESP_LOGD(TAG, "E0 ODU model unavailable; retaining current runtime identity");
   }
 }
 
