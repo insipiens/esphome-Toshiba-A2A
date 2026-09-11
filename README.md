@@ -206,7 +206,7 @@ The Toshiba accessory connector carries power and UART-level signals. The origin
 
 **Do not assume pin order from this README alone. Check the connector, unit documentation and the original project before wiring. Disconnect mains power from the indoor unit before connecting or disconnecting an ESP interface. Incorrect wiring can damage the indoor-unit control board.**
 
-The original wiring documentation and photographs remain valuable and are retained in this repository with attribution to the source project.
+The original wiring documentation and photographs remain valuable and are available in the [upstream project](https://github.com/pedobry/esphome_toshiba_suzumi). They are referenced rather than being presented here as new work.
 
 ## Compatibility status
 
