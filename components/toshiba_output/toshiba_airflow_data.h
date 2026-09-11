@@ -25,11 +25,11 @@ namespace toshiba_output {
 // midpoint air-volume values are therefore derived from Toshiba's documented
 // interpolation rule, rather than being assigned to an arbitrary W level.
 //
-// P2KVSG / P2KVSGB note: current official SHORAI Curve product literature confirms
-// RAS-B10P2KVSG-E and RAS-B10P2KVSGB-E and gives an overall 310..660 m3/h indoor
-// airflow range, but an authoritative per-level service table has not yet been
-// located. Do not fabricate intermediate values; the estimator returns unavailable
-// for that family until the per-level Toshiba service data is added.
+// P2KVSGB note: official product data for the installed RAS-B10P2KVSGB-E gives
+// the same approximately 310..660 m3/h airflow envelope as the B10 G3. Until a
+// P2 service manual is located, its normal fixed-speed profile below is inferred
+// from the documented B10 G3 profile. This is deliberately marked in comments
+// and Hi-POWER is not inferred for P2.
 
 enum class AirflowMode : uint8_t { COOLING, HEATING };
 
@@ -159,13 +159,13 @@ static constexpr ToshibaAirflowLevel TOSHIBA_AIRFLOW_LEVELS[] = {
 
 #undef AF
 
-// J2FVG fixed manual fan settings. Toshiba Fig. 1 (cooling) and Fig. 3
-// (heating) explicitly alter L/M/H under Hi-POWER; L+ and M+ are the midpoint
-// of the adjacent speeds. Values below are m3/h and use integer rounding to
-// the nearest whole m3/h for those documented midpoint rules.
 #define MAF(model, mode, fan, hip, flow) {model, AirflowMode::mode, ManualFanLevel::fan, hip, flow}
 
 static constexpr ToshibaManualAirflow TOSHIBA_MANUAL_AIRFLOW[] = {
+    // J2FVG fixed manual fan settings. Toshiba Fig. 1 (cooling) and Fig. 3
+    // (heating) explicitly alter L/M/H under Hi-POWER; L+ and M+ are midpoint
+    // interpolations of adjacent documented speeds.
+
     // B10 cooling — normal then Hi-POWER.
     MAF("RAS-B10J2FVG-E", COOLING, LOW, false, 258),
     MAF("RAS-B10J2FVG-E", COOLING, LOW_MEDIUM, false, 312),
@@ -213,6 +213,21 @@ static constexpr ToshibaManualAirflow TOSHIBA_MANUAL_AIRFLOW[] = {
     MAF("RAS-B13J2FVG-E", HEATING, MEDIUM, true, 486),
     MAF("RAS-B13J2FVG-E", HEATING, MEDIUM_HIGH, true, 528),
     MAF("RAS-B13J2FVG-E", HEATING, HIGH, true, 570),
+
+    // RAS-B10P2KVSGB-E — provisional normal fixed-speed profile inferred from
+    // B10 G3 because Toshiba product data gives the same ~310..660 m3/h envelope.
+    // These are not manufacturer-confirmed P2 per-level values. Hi-POWER is
+    // intentionally omitted until P2 service data is available.
+    MAF("RAS-B10P2KVSGB-E", COOLING, LOW, false, 312),
+    MAF("RAS-B10P2KVSGB-E", COOLING, LOW_MEDIUM, false, 378),
+    MAF("RAS-B10P2KVSGB-E", COOLING, MEDIUM, false, 444),
+    MAF("RAS-B10P2KVSGB-E", COOLING, MEDIUM_HIGH, false, 552),
+    MAF("RAS-B10P2KVSGB-E", COOLING, HIGH, false, 660),
+    MAF("RAS-B10P2KVSGB-E", HEATING, LOW, false, 328),
+    MAF("RAS-B10P2KVSGB-E", HEATING, LOW_MEDIUM, false, 386),
+    MAF("RAS-B10P2KVSGB-E", HEATING, MEDIUM, false, 444),
+    MAF("RAS-B10P2KVSGB-E", HEATING, MEDIUM_HIGH, false, 552),
+    MAF("RAS-B10P2KVSGB-E", HEATING, HIGH, false, 660),
 };
 
 #undef MAF
