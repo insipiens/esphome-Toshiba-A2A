@@ -15,7 +15,12 @@ CONF_HEATING_OUTPUT = "heating_output"
 CONF_AIRFLOW = "airflow"
 CONF_HEAT_EXCHANGER_FACTOR = "heat_exchanger_factor"
 
-DEPENDENCIES = ["climate", "sensor", "toshiba_suzumi"]
+# toshiba_suzumi is supplied as a climate platform rather than a top-level
+# component. Declaring it in DEPENDENCIES makes ESPHome's component dependency
+# validator reject an otherwise valid climate: platform: toshiba_suzumi config.
+# The C++ estimator still takes the ToshibaClimateUart instance selected by
+# climate_id; climate and sensor are the actual top-level dependencies here.
+DEPENDENCIES = ["climate", "sensor"]
 
 toshiba_output_ns = cg.esphome_ns.namespace("toshiba_output")
 ToshibaOutputEstimator = toshiba_output_ns.class_(
