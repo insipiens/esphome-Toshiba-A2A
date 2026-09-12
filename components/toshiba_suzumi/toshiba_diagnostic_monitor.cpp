@@ -13,6 +13,9 @@ static constexpr uint32_t REGISTER_SWEEP_INTERVAL_MS = 10000;
 static constexpr uint32_t REGISTER_SWEEP_GAP_MS = 120;
 static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x90;
 static constexpr uint8_t REGISTER_SWEEP_LAST = 0xCF;
+static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 150;
+static constexpr uint8_t FOCUSED_MONITOR_A3 = 0xA3;
+static constexpr uint8_t FOCUSED_MONITOR_A4 = 0xA4;
 
 void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentification &equipment) {
   // The protocol layer only accepts positive identity data from Toshiba.
@@ -153,7 +156,7 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
 
   // During the current protocol investigation, suppress the temporary verbose
   // E4/E5 raw dumps from the base parser while retaining the actual sensors.
-  // Explicit passive capture still records the complete frames when requested.
+  // Explicit focused capture still records the complete frames when requested.
   if (response_register == static_cast<uint8_t>(ToshibaCommandType::ODU_STATUS) &&
       (raw.size() == 22 || raw.size() == 24)) {
     const uint8_t offset = (raw.size() == 22) ? 13 : 15;
@@ -259,6 +262,7 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
     this->monitor_stop_requested_ = false;
     this->monitor_waiting_for_cycle_ = false;
     this->monitor_cycle_started_ = millis();
+    this->monitor_register_index_ = FOCUSED_MONITOR_A3;
     this->monitor_requests_ = 0;
     this->monitor_matched_ = 0;
     this->monitor_timeouts_ = 0;
@@ -266,8 +270,9 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
     this->monitor_cycles_completed_ = 0;
     this->monitor_payload_seen_.fill(false);
 
-    ESP_LOGI(TAG, "========== TOSHIBA PASSIVE RAW UART CAPTURE STARTED ==========");
-    ESP_LOGI(TAG, "capturing every checksum-valid assembled RX frame; no requests will be sent");
+    ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A3/A4 MONITOR STARTED ==========");
+    ESP_LOGI(TAG, "polling A3/A4 alternately every %ums; broad 0x90-0xCF sweep paused",
+             static_cast<unsigned>(FOCUSED_MONITOR_GAP_MS));
     return;
   }
 
@@ -275,13 +280,30 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
 }
 
 void ToshibaDiagnosticMonitorUart::process_scan_() {
+  const uint32_t now = millis();
+
   if (this->scan_active_) {
-    // Passive monitor: deliberately send nothing and remain armed until the
-    // Home Assistant switch is turned off.
+    // Focused FIX/louvre monitor. Alternate A3 and A4 rapidly so a transient
+    // fixed-position command/state has a realistic chance of being observed.
+    if (!this->command_queue_.empty() || !this->rx_message_.empty()) return;
+    if (now - this->last_command_timestamp_ < FOCUSED_MONITOR_GAP_MS) return;
+
+    const uint8_t reg = this->monitor_register_index_;
+    std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 6, 1, 48, 1, 0, 1};
+    payload.push_back(reg);
+
+    uint8_t sum = 0;
+    for (size_t i = 1; i < payload.size(); i++) sum += payload[i];
+    payload.push_back(static_cast<uint8_t>(0 - sum));
+
+    this->enqueue_command_(ToshibaCommand{
+        .cmd = static_cast<ToshibaCommandType>(reg),
+        .payload = std::move(payload),
+    });
+    this->monitor_requests_++;
+    this->monitor_register_index_ = (reg == FOCUSED_MONITOR_A3) ? FOCUSED_MONITOR_A4 : FOCUSED_MONITOR_A3;
     return;
   }
-
-  const uint32_t now = millis();
 
   if (!this->monitor_waiting_for_cycle_) {
     if (now - this->monitor_cycle_started_ < REGISTER_SWEEP_INTERVAL_MS) return;
@@ -334,9 +356,9 @@ void ToshibaDiagnosticMonitorUart::finish_monitor_() {
   this->monitor_waiting_for_cycle_ = false;
   this->monitor_cycle_started_ = millis();
 
-  ESP_LOGI(TAG, "========== TOSHIBA PASSIVE RAW UART CAPTURE STOPPED ==========");
-  ESP_LOGI(TAG, "elapsed=%ums captured=%u", static_cast<unsigned>(elapsed),
-           static_cast<unsigned>(this->monitor_matched_));
+  ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A3/A4 MONITOR STOPPED ==========");
+  ESP_LOGI(TAG, "elapsed=%ums requests=%u captured=%u", static_cast<unsigned>(elapsed),
+           static_cast<unsigned>(this->monitor_requests_), static_cast<unsigned>(this->monitor_matched_));
 }
 
 bool ToshibaDiagnosticMonitorUart::extract_monitor_payload_(const std::vector<uint8_t> &raw,
@@ -371,7 +393,7 @@ void ToshibaDiagnosticMonitorUart::remember_monitor_payload_(uint8_t reg,
 }
 
 void ToshibaDiagnosticMonitorUart::log_timer_bank_snapshot_() const {
-  ESP_LOGI(TAG, "========== TOSHIBA PASSIVE RAW UART SUMMARY ==========");
+  ESP_LOGI(TAG, "========== TOSHIBA FOCUSED MONITOR SUMMARY ==========");
   for (uint16_t reg = 0x80; reg <= 0xFF; reg++) {
     const size_t index = reg - 0x80;
     if (!this->monitor_payload_seen_[index]) continue;
@@ -388,12 +410,12 @@ void ToshibaDiagnosticMonitorUart::log_scan_packet_(const std::vector<uint8_t> &
   this->monitor_matched_++;
 
   if (reg >= 0) {
-    ESP_LOGI(TAG, "UART PASSIVE RX seq=%u t=%ums class=0x%02X reg=0x%02X length=%u checksum=OK",
+    ESP_LOGI(TAG, "UART FOCUSED RX seq=%u t=%ums class=0x%02X reg=0x%02X length=%u checksum=OK",
              static_cast<unsigned>(this->monitor_matched_), static_cast<unsigned>(elapsed),
              raw.size() > 3 ? static_cast<unsigned>(raw[3]) : 0U,
              static_cast<unsigned>(reg), static_cast<unsigned>(raw.size()));
   } else {
-    ESP_LOGI(TAG, "UART PASSIVE RX seq=%u t=%ums class=0x%02X reg=unknown length=%u checksum=OK",
+    ESP_LOGI(TAG, "UART FOCUSED RX seq=%u t=%ums class=0x%02X reg=unknown length=%u checksum=OK",
              static_cast<unsigned>(this->monitor_matched_), static_cast<unsigned>(elapsed),
              raw.size() > 3 ? static_cast<unsigned>(raw[3]) : 0U,
              static_cast<unsigned>(raw.size()));
@@ -427,6 +449,9 @@ void ToshibaDiagnosticMonitorUart::log_monitor_decoded_(const std::vector<uint8_
   std::vector<uint8_t> payload;
   if (this->extract_monitor_payload_(raw, reg, payload)) {
     this->remember_monitor_payload_(static_cast<uint8_t>(reg), payload);
+    ESP_LOGI(TAG, "FOCUSED REG reg=0x%02X len=%u payload=[%s]",
+             static_cast<unsigned>(reg), static_cast<unsigned>(payload.size()),
+             format_hex_pretty(payload).c_str());
   }
 }
 
