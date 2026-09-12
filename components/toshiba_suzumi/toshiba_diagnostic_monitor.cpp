@@ -13,9 +13,9 @@ static constexpr uint32_t REGISTER_SWEEP_INTERVAL_MS = 30000;
 static constexpr uint32_t REGISTER_SWEEP_GAP_MS = 120;
 static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x80;
 static constexpr uint8_t REGISTER_SWEEP_LAST = 0xFF;
-static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 150;
-static constexpr uint8_t FOCUSED_MONITOR_A3 = 0xA3;
-static constexpr uint8_t FOCUSED_MONITOR_A4 = 0xA4;
+static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 120;
+static constexpr uint8_t FOCUSED_MONITOR_FIRST = 0xA1;
+static constexpr uint8_t FOCUSED_MONITOR_LAST = 0xAF;
 
 void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentification &equipment) {
   // The protocol layer only accepts positive identity data from Toshiba.
@@ -271,7 +271,7 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
     this->monitor_stop_requested_ = false;
     this->monitor_waiting_for_cycle_ = false;
     this->monitor_cycle_started_ = millis();
-    this->monitor_register_index_ = FOCUSED_MONITOR_A3;
+    this->monitor_register_index_ = FOCUSED_MONITOR_FIRST;
     this->monitor_requests_ = 0;
     this->monitor_matched_ = 0;
     this->monitor_timeouts_ = 0;
@@ -279,8 +279,8 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
     this->monitor_cycles_completed_ = 0;
     this->monitor_payload_seen_.fill(false);
 
-    ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A3/A4 MONITOR STARTED ==========");
-    ESP_LOGI(TAG, "polling A3/A4 alternately every %ums; broad 0x80-0xFF sweep paused",
+    ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A-BANK MONITOR STARTED ==========");
+    ESP_LOGI(TAG, "polling undefined A-bank registers A1,A2,A5-AF every %ums; broad 0x80-0xFF sweep paused",
              static_cast<unsigned>(FOCUSED_MONITOR_GAP_MS));
     return;
   }
@@ -292,8 +292,8 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
   const uint32_t now = millis();
 
   if (this->scan_active_) {
-    // Focused FIX/louvre monitor. Alternate A3 and A4 rapidly so a transient
-    // fixed-position command/state has a realistic chance of being observed.
+    // Focused FIX/louvre monitor. Cycle the currently undefined A-bank registers
+    // rapidly, skipping known A0 (fan), A3 (swing) and A4 (louvre structure).
     // Focused mode owns the UART while enabled; bypass the normal command queue,
     // which is intentionally frozen during an active scan.
     if (!this->rx_message_.empty()) return;
@@ -313,7 +313,11 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
         .payload = std::move(payload),
     });
     this->monitor_requests_++;
-    this->monitor_register_index_ = (reg == FOCUSED_MONITOR_A3) ? FOCUSED_MONITOR_A4 : FOCUSED_MONITOR_A3;
+
+    uint8_t next = static_cast<uint8_t>(reg + 1);
+    if (next == 0xA3) next = 0xA5;
+    if (next > FOCUSED_MONITOR_LAST) next = FOCUSED_MONITOR_FIRST;
+    this->monitor_register_index_ = next;
     return;
   }
 
@@ -368,7 +372,7 @@ void ToshibaDiagnosticMonitorUart::finish_monitor_() {
   this->monitor_waiting_for_cycle_ = false;
   this->monitor_cycle_started_ = millis();
 
-  ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A3/A4 MONITOR STOPPED ==========");
+  ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A-BANK MONITOR STOPPED ==========");
   ESP_LOGI(TAG, "elapsed=%ums requests=%u captured=%u", static_cast<unsigned>(elapsed),
            static_cast<unsigned>(this->monitor_requests_), static_cast<unsigned>(this->monitor_matched_));
 }
