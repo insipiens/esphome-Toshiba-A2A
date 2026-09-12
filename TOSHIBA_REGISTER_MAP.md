@@ -9,14 +9,14 @@ This document records protocol findings from direct captures on the test system.
 | `0x80` | Power state | R/W | `0x30` ON, `0x31` OFF | mapped |
 | `0x87` | Power Select | R/W | `0x32` 50%, `0x4B` 75%, `0x64` 100% | mapped |
 | `0x90` | Unknown control | observed | `0x42` observed repeatedly during remote-control testing; candidate momentary louvre/FIX control, not yet assigned | experimental |
-| `0x94` | Comfort Sleep | observed / candidate R/W | `0x41` ON, `0x42` OFF. Both values now directly observed from remote-control operation. | confirmed values; write path still to be exercised deliberately |
+| `0x94` | Timer Off state/control | observed / candidate R/W | `0x41` active, `0x42` inactive. `0x41` was directly tied to Timer Off activation; prior Comfort Sleep attribution was incorrect. | confirmed values; write path still to be exercised deliberately |
 | `0xA0` | Fan speed | R/W | Quiet `0x31`; Low `0x32`; Low-Med `0x33`; Medium `0x34`; Med-High `0x35`; High `0x36`; Auto `0x41` | mapped |
 | `0xA3` | Swing / louvre / HADA | R/W | Off `0x31`; Vertical swing `0x41`; Horizontal swing `0x42`; Both `0x43`; fixed vertical positions `0x50`..`0x54`; HADA `0x60` | mapped, HADA directly observed |
 | `0xB0` | HVAC mode | R/W | Auto `0x41`; Cool `0x42`; Heat `0x43`; Dry `0x44`; Fan Only `0x45` | mapped |
 | `0xB3` | Target temperature | R/W | raw integer °C in ordinary operation | mapped |
 | `0xBB` | Room temperature | Read | `0x7F` invalid/unavailable | mapped |
 | `0xBE` | Outdoor temperature | Read | signed byte; `0x7F` invalid/unavailable | mapped |
-| `0xC7` | Unknown binary state/control | observed | `0x18` and `0x10` observed. Same active/inactive-style bit pattern used by other Toshiba binary states, but function is unresolved. | experimental |
+| `0xC7` | Pure | observed / candidate R/W | `0x18` active, `0x10` inactive; directly correlated with Pure activation/deactivation from the remote. | confirmed values; write path still to be exercised deliberately |
 | `0xCB` | Self-clean state | Read | `0x18` running, `0x10` off | mapped |
 | `0xD8` | Daily energy | Read | 24 hourly little-endian values in extended response | mapped |
 | `0xD9` | Weekly energy | declared | no parser/use yet | declared only |
@@ -31,7 +31,7 @@ This document records protocol findings from direct captures on the test system.
 
 ## Raw diagnostic entities
 
-The experimental scalar registers can be exposed as raw numeric sensors so Home Assistant can retain long-term history before their semantics are fully decoded:
+The scalar registers can be exposed as raw numeric sensors so Home Assistant can retain long-term history while write semantics and cross-model behaviour are still being established:
 
 ```yaml
 climate:
@@ -40,12 +40,12 @@ climate:
     register_90_raw:
       name: "Toshiba Register 0x90"
     register_94_raw:
-      name: "Toshiba Register 0x94"
+      name: "Toshiba Timer Off Raw"
     register_c7_raw:
-      name: "Toshiba Register 0xC7"
+      name: "Toshiba Pure Raw"
 ```
 
-When configured, the component publishes both unsolicited scalar updates and periodic reads of those registers. The entities deliberately expose the raw unsigned byte value rather than converting `0x90` or `0xC7` into an assumed function.
+When configured, the component publishes both unsolicited scalar updates and periodic reads of those registers. Keeping the raw byte history is useful even where a logical meaning is now known, because it preserves evidence for firmware/model differences and any additional states.
 
 ## `0xE4` IDU status
 
