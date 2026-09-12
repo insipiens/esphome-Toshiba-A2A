@@ -29,6 +29,24 @@ This document records protocol findings from direct captures on the test system.
 | `0xEA` | Date/time sync | Write | multi-byte payload; ACK ends `0x99 0x99` | mapped |
 | `0xF7` | Special functions | R/W | Standard `0x00`; Hi POWER `0x01`; Silent 1 `0x02`; ECO `0x03`; 8°C `0x04`; Sleep `0x05`; Floor `0x06`; Comfort `0x07`; Silent 2 `0x0A`; Fireplace 1 `0x20`; Fireplace 2 `0x30` | mapped |
 
+## Raw diagnostic entities
+
+The experimental scalar registers can be exposed as raw numeric sensors so Home Assistant can retain long-term history before their semantics are fully decoded:
+
+```yaml
+climate:
+  - platform: toshiba_suzumi
+    # ...normal configuration...
+    register_90_raw:
+      name: "Toshiba Register 0x90"
+    register_94_raw:
+      name: "Toshiba Register 0x94"
+    register_c7_raw:
+      name: "Toshiba Register 0xC7"
+```
+
+When configured, the component publishes both unsolicited scalar updates and periodic reads of those registers. The entities deliberately expose the raw unsigned byte value rather than converting `0x90` or `0xC7` into an assumed function.
+
 ## `0xE4` IDU status
 
 Current working interpretation:
@@ -57,7 +75,7 @@ Current working interpretation:
 +3 IDU-associated load / allocation-like quantity
 +4 unknown engineering quantity
 +5 unknown engineering quantity
-+6 current-like quantity
++6 ODU current-like quantity; exact physical scope unresolved
 +7 unresolved; remains 0x00 in current captures
 ```
 
@@ -71,7 +89,7 @@ This is evidence that `+4` and `+5` are real engineering fields rather than simp
 
 ### Observed `E5 +6` behaviour
 
-`+6` tracks compressor electrical activity closely enough to remain classified as current-like, but the exact physical scaling is still empirical. The component currently applies `raw / 10 * 0.827`.
+`+6` tracks ODU electrical activity closely enough to remain classified as current-like, but the exact physical scope and scaling are still empirical. The component currently applies `raw / 10 * 0.827`.
 
 Representative captures on the same system:
 
@@ -90,6 +108,8 @@ Representative captures on the same system:
 | Heat | very high running | `0x70` / 112 | about 9.3 A |
 
 The large range in Heat mode is particularly useful: `+6` is clearly not merely a mode flag or discrete state.
+
+A current working hypothesis is that `E5 +6` may be an ODU electrical quantity used together with the per-IDU `E5 +3` allocation/load-like field for Toshiba's per-IDU energy accounting. This remains an inference requiring simultaneous multi-IDU validation.
 
 ## Louvre controls still unresolved
 
