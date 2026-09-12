@@ -75,13 +75,15 @@ enum class ToshibaCommandType : uint8_t {
   DELAY = 1, // dummy command to issue a delay in communication
   POWER_STATE = 128,
   POWER_SEL = 135,
-  COMFORT_SLEEP = 148, // { ON = 65, OFF = 66 }
+  TIMER_OFF = 148,      // 0x94; observed 0x41 when Timer Off is activated, 0x42 inactive
+  COMFORT_SLEEP = 148,  // legacy alias retained temporarily; 0x94 is NOT Comfort Sleep
   FAN = 160,
   SWING = 163,
   MODE = 176,
   TARGET_TEMP = 179,
   ROOM_TEMP = 187,
   OUTDOOR_TEMP = 190,
+  PURE = 0xC7,          // observed 0x18 active, 0x10 inactive
   SELF_CLEAN = 0xCB,
   ENERGY_DAILY = 0xD8,
   ENERGY_WEEKLY = 0xD9,
