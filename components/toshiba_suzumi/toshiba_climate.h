@@ -73,6 +73,9 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void set_idu_heat_exchanger_temp_sensor(sensor::Sensor *sensor) { idu_heat_exchanger_temp_sensor_ = sensor; }
   void set_idu_junction_temp_sensor(sensor::Sensor *sensor) { idu_junction_temp_sensor_ = sensor; }
   void set_idu_fan_speed_sensor(sensor::Sensor *sensor) { idu_fan_speed_sensor_ = sensor; }
+  void set_register_90_raw_sensor(sensor::Sensor *sensor) { register_90_raw_sensor_ = sensor; }
+  void set_register_94_raw_sensor(sensor::Sensor *sensor) { register_94_raw_sensor_ = sensor; }
+  void set_register_c7_raw_sensor(sensor::Sensor *sensor) { register_c7_raw_sensor_ = sensor; }
   void set_idu_model_sensor(text_sensor::TextSensor *sensor) { idu_model_sensor_ = sensor; }
   void set_odu_model_sensor(text_sensor::TextSensor *sensor) { odu_model_sensor_ = sensor; }
   const std::string &get_idu_model() const { return idu_model_; }
@@ -138,6 +141,9 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   sensor::Sensor *idu_heat_exchanger_temp_sensor_ = nullptr;
   sensor::Sensor *idu_junction_temp_sensor_ = nullptr;
   sensor::Sensor *idu_fan_speed_sensor_ = nullptr;
+  sensor::Sensor *register_90_raw_sensor_ = nullptr;
+  sensor::Sensor *register_94_raw_sensor_ = nullptr;
+  sensor::Sensor *register_c7_raw_sensor_ = nullptr;
   text_sensor::TextSensor *idu_model_sensor_ = nullptr;
   text_sensor::TextSensor *odu_model_sensor_ = nullptr;
   time::RealTimeClock *time_ = nullptr;
@@ -227,6 +233,7 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
 
 class ToshibaDiagnosticMonitorUart : public ToshibaClimateUart {
  public:
+  void update() override;
   void scan() override { this->set_scan_enabled(true); }
   void set_scan_enabled(bool enabled) override;
   bool is_scan_enabled() const override { return this->scan_active_ && !this->monitor_stop_requested_; }
