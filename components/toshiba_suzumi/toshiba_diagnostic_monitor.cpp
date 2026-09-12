@@ -13,8 +13,8 @@ static constexpr uint32_t REGISTER_SWEEP_INTERVAL_MS = 30000;
 static constexpr uint32_t REGISTER_SWEEP_GAP_MS = 120;
 static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x80;
 static constexpr uint8_t REGISTER_SWEEP_LAST = 0xFF;
-static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 1000;
-static constexpr uint32_t FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS = 3000;
+static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 250;
+static constexpr uint32_t FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS = 750;
 static constexpr uint8_t FOCUSED_MONITOR_FIRST = 0xA1;
 static constexpr uint8_t FOCUSED_MONITOR_LAST = 0xAF;
 
@@ -289,7 +289,7 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
     this->monitor_payload_seen_.fill(false);
 
     ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A-BANK MONITOR STARTED ==========");
-    ESP_LOGI(TAG, "transactional polling A1,A2,A5-AF; 1s spacing, 3s response timeout; broad sweep paused");
+    ESP_LOGI(TAG, "polling A1,A2,A5-AF: capture values, 750ms response window, 250ms inter-request gap; broad sweep paused");
     return;
   }
 
@@ -300,13 +300,12 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
   const uint32_t now = millis();
 
   if (this->scan_active_) {
-    // One request at a time. Do not advance to the next A-bank register until
-    // the current request has either produced a matching response/no-data reply
-    // or timed out. This prevents unrelated normal traffic being mistaken for
-    // a focused result.
+    // One request at a time. A value/no-data reply completes the transaction;
+    // otherwise advance after a short bounded response window. Together with
+    // the 250ms inter-request gap this gives roughly one register per second.
     if (this->scan_request_sent_) {
       if (now - this->scan_register_started_ >= FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS) {
-        ESP_LOGI(TAG, "FOCUSED RX reg=0x%02X timeout after %ums",
+        ESP_LOGI(TAG, "FOCUSED RX reg=0x%02X no-response after %ums",
                  static_cast<unsigned>(this->scan_register_),
                  static_cast<unsigned>(FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS));
         this->monitor_timeouts_++;
@@ -393,7 +392,7 @@ void ToshibaDiagnosticMonitorUart::finish_monitor_() {
   this->monitor_cycle_started_ = millis();
 
   ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A-BANK MONITOR STOPPED ==========");
-  ESP_LOGI(TAG, "elapsed=%ums requests=%u matched=%u timeouts=%u unrelated=%u",
+  ESP_LOGI(TAG, "elapsed=%ums requests=%u matched=%u no_response=%u unrelated=%u",
            static_cast<unsigned>(elapsed), static_cast<unsigned>(this->monitor_requests_),
            static_cast<unsigned>(this->monitor_matched_), static_cast<unsigned>(this->monitor_timeouts_),
            static_cast<unsigned>(this->monitor_unrelated_));
@@ -439,9 +438,9 @@ void ToshibaDiagnosticMonitorUart::log_timer_bank_snapshot_() const {
     if (payload.empty()) {
       ESP_LOGI(TAG, "UART SUMMARY reg=0x%02X no-data", static_cast<unsigned>(reg));
     } else {
-      ESP_LOGI(TAG, "UART SUMMARY reg=0x%02X payload_length=%u payload=[%s]",
-               static_cast<unsigned>(reg), static_cast<unsigned>(payload.size()),
-               format_hex_pretty(payload).c_str());
+      ESP_LOGI(TAG, "UART SUMMARY reg=0x%02X value=[%s] len=%u",
+               static_cast<unsigned>(reg), format_hex_pretty(payload).c_str(),
+               static_cast<unsigned>(payload.size()));
     }
   }
 }
@@ -512,9 +511,9 @@ void ToshibaDiagnosticMonitorUart::log_monitor_decoded_(const std::vector<uint8_
   std::vector<uint8_t> payload;
   if (this->extract_monitor_payload_(raw, reg, payload)) {
     this->remember_monitor_payload_(static_cast<uint8_t>(reg), payload);
-    ESP_LOGI(TAG, "FOCUSED REG reg=0x%02X len=%u payload=[%s]",
-             static_cast<unsigned>(reg), static_cast<unsigned>(payload.size()),
-             format_hex_pretty(payload).c_str());
+    ESP_LOGI(TAG, "FOCUSED VALUE reg=0x%02X value=[%s] len=%u",
+             static_cast<unsigned>(reg), format_hex_pretty(payload).c_str(),
+             static_cast<unsigned>(payload.size()));
   }
 }
 
