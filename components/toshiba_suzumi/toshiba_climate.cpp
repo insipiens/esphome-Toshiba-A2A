@@ -508,6 +508,17 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       // Outdoor unit status - data offset depends on message length
       uint8_t odu_offset = (length == 22) ? 13 : 15;
       ESP_LOGI(TAG, "Received ODU status");
+      ESP_LOGI(TAG,
+               "E5 ODU_STATUS raw: +0=%02X(%u) +1=%02X(%u) +2=%02X(%u) +3=%02X(%u) "
+               "+4=%02X(%u) +5=%02X(%u) +6=%02X(%u) +7=%02X(%u)",
+               rawData[odu_offset + 0], rawData[odu_offset + 0],
+               rawData[odu_offset + 1], rawData[odu_offset + 1],
+               rawData[odu_offset + 2], rawData[odu_offset + 2],
+               rawData[odu_offset + 3], rawData[odu_offset + 3],
+               rawData[odu_offset + 4], rawData[odu_offset + 4],
+               rawData[odu_offset + 5], rawData[odu_offset + 5],
+               rawData[odu_offset + 6], rawData[odu_offset + 6],
+               rawData[odu_offset + 7], rawData[odu_offset + 7]);
       if (this->odu_discharge_temp_sensor_ != nullptr) {
         int8_t val = static_cast<int8_t>(rawData[odu_offset + 0]);
         if (val != 127) {
@@ -544,6 +555,17 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       // Indoor unit status - data offset depends on message length
       uint8_t idu_offset = (length == 22) ? 13 : 15;
       ESP_LOGI(TAG, "Received IDU status");
+      ESP_LOGI(TAG,
+               "E4 IDU_STATUS raw: +0=%02X(%u) +1=%02X(%u) +2=%02X(%u) +3=%02X(%u) "
+               "+4=%02X(%u) +5=%02X(%u) +6=%02X(%u) +7=%02X(%u)",
+               rawData[idu_offset + 0], rawData[idu_offset + 0],
+               rawData[idu_offset + 1], rawData[idu_offset + 1],
+               rawData[idu_offset + 2], rawData[idu_offset + 2],
+               rawData[idu_offset + 3], rawData[idu_offset + 3],
+               rawData[idu_offset + 4], rawData[idu_offset + 4],
+               rawData[idu_offset + 5], rawData[idu_offset + 5],
+               rawData[idu_offset + 6], rawData[idu_offset + 6],
+               rawData[idu_offset + 7], rawData[idu_offset + 7]);
       if (this->idu_heat_exchanger_temp_sensor_ != nullptr) {
         int8_t val = static_cast<int8_t>(rawData[idu_offset + 0]);
         if (val != 127) {
