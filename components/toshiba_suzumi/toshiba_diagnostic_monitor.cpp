@@ -9,10 +9,10 @@ namespace esphome {
 namespace toshiba_suzumi {
 
 static constexpr size_t CHUNK = 24;
-static constexpr uint32_t REGISTER_SWEEP_INTERVAL_MS = 10000;
+static constexpr uint32_t REGISTER_SWEEP_INTERVAL_MS = 30000;
 static constexpr uint32_t REGISTER_SWEEP_GAP_MS = 120;
-static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x90;
-static constexpr uint8_t REGISTER_SWEEP_LAST = 0xCF;
+static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x80;
+static constexpr uint8_t REGISTER_SWEEP_LAST = 0xFF;
 static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 150;
 static constexpr uint8_t FOCUSED_MONITOR_A3 = 0xA3;
 static constexpr uint8_t FOCUSED_MONITOR_A4 = 0xA4;
@@ -200,8 +200,9 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
     return;
   }
 
-  // Log every response in the main user-control/state bank. Payload bytes are
-  // preserved verbatim so multi-byte timer/control structures are not lost.
+  // Log every response in the complete known Toshiba register space. Payload
+  // bytes are preserved verbatim so multi-byte control/status structures are
+  // not lost during discovery.
   if (!this->scan_active_ && response_register >= REGISTER_SWEEP_FIRST && response_register <= REGISTER_SWEEP_LAST) {
     std::vector<uint8_t> payload;
     if (this->extract_monitor_payload_(raw, response_register, payload)) {
@@ -221,17 +222,25 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
       }
     }
 
-    // Only registers already understood by the base climate parser need to be
-    // passed onwards. Unknown registers are intentionally consumed here so the
-    // sweep does not produce an additional "Unknown sensor" warning per reply.
+    // Pass all registers already understood by the base climate parser onwards.
+    // Unknown registers are consumed here so the discovery sweep does not add
+    // an extra warning for every successful response.
     const bool base_handles_register =
+        response_register == static_cast<uint8_t>(ToshibaCommandType::POWER_STATE) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::POWER_SEL) ||
         response_register == static_cast<uint8_t>(ToshibaCommandType::FAN) ||
         response_register == static_cast<uint8_t>(ToshibaCommandType::SWING) ||
         response_register == static_cast<uint8_t>(ToshibaCommandType::MODE) ||
         response_register == static_cast<uint8_t>(ToshibaCommandType::TARGET_TEMP) ||
         response_register == static_cast<uint8_t>(ToshibaCommandType::ROOM_TEMP) ||
         response_register == static_cast<uint8_t>(ToshibaCommandType::OUTDOOR_TEMP) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::SELF_CLEAN);
+        response_register == static_cast<uint8_t>(ToshibaCommandType::PURE) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::SELF_CLEAN) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::ENERGY_DAILY) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::ENERGY_WEEKLY) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::ENERGY_MONTHLY) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::ENERGY_YEARLY) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::SPECIAL_MODE);
     if (!base_handles_register) return;
   }
 
@@ -271,7 +280,7 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
     this->monitor_payload_seen_.fill(false);
 
     ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A3/A4 MONITOR STARTED ==========");
-    ESP_LOGI(TAG, "polling A3/A4 alternately every %ums; broad 0x90-0xCF sweep paused",
+    ESP_LOGI(TAG, "polling A3/A4 alternately every %ums; broad 0x80-0xFF sweep paused",
              static_cast<unsigned>(FOCUSED_MONITOR_GAP_MS));
     return;
   }
@@ -316,7 +325,7 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
   }
 
   // Only queue one probe at a time. Normal climate/control traffic therefore
-  // gets priority between probes instead of sitting behind a 64-command batch.
+  // gets priority between probes instead of sitting behind a 128-command batch.
   if (!this->command_queue_.empty() || !this->rx_message_.empty()) return;
   if (now - this->last_command_timestamp_ < REGISTER_SWEEP_GAP_MS) return;
 
