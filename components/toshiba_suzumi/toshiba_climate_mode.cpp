@@ -171,6 +171,10 @@ const climate::ClimateSwingMode IntToClimateSwingMode(SWING mode) {
       return climate::CLIMATE_SWING_HORIZONTAL;
     case SWING::BOTH:
       return climate::CLIMATE_SWING_BOTH;
+    case SWING::HADA:
+      // HADA is transported through register 0xA3 but is not a Home Assistant
+      // climate swing mode. It will be exposed separately by the capability layer.
+      return climate::CLIMATE_SWING_OFF;
     default:
       ESP_LOGE(TAG, "Invalid swing mode %d.", mode);
       return climate::CLIMATE_SWING_OFF;
