@@ -35,6 +35,9 @@ CONF_COMPRESSOR_CURRENT = "compressor_current"
 CONF_IDU_HEAT_EXCHANGER_TEMP = "idu_heat_exchanger_temp"
 CONF_IDU_JUNCTION_TEMP = "idu_junction_temp"
 CONF_IDU_FAN_SPEED = "idu_fan_speed"
+CONF_REGISTER_90_RAW = "register_90_raw"
+CONF_REGISTER_94_RAW = "register_94_raw"
+CONF_REGISTER_C7_RAW = "register_c7_raw"
 CONF_IDU_MODEL = "idu_model"
 CONF_ODU_MODEL = "odu_model"
 CONF_PWR_SELECT = "power_select"
@@ -113,6 +116,12 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
             unit_of_measurement=UNIT_CELSIUS, accuracy_decimals=0,
             device_class=DEVICE_CLASS_TEMPERATURE, state_class=STATE_CLASS_MEASUREMENT),
         cv.Optional(CONF_IDU_FAN_SPEED): sensor.sensor_schema(
+            accuracy_decimals=0, state_class=STATE_CLASS_MEASUREMENT),
+        cv.Optional(CONF_REGISTER_90_RAW): sensor.sensor_schema(
+            accuracy_decimals=0, state_class=STATE_CLASS_MEASUREMENT),
+        cv.Optional(CONF_REGISTER_94_RAW): sensor.sensor_schema(
+            accuracy_decimals=0, state_class=STATE_CLASS_MEASUREMENT),
+        cv.Optional(CONF_REGISTER_C7_RAW): sensor.sensor_schema(
             accuracy_decimals=0, state_class=STATE_CLASS_MEASUREMENT),
         cv.Optional(CONF_IDU_MODEL): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_ODU_MODEL): text_sensor.text_sensor_schema(),
@@ -197,6 +206,9 @@ async def to_code(config):
         CONF_IDU_HEAT_EXCHANGER_TEMP: "set_idu_heat_exchanger_temp_sensor",
         CONF_IDU_JUNCTION_TEMP: "set_idu_junction_temp_sensor",
         CONF_IDU_FAN_SPEED: "set_idu_fan_speed_sensor",
+        CONF_REGISTER_90_RAW: "set_register_90_raw_sensor",
+        CONF_REGISTER_94_RAW: "set_register_94_raw_sensor",
+        CONF_REGISTER_C7_RAW: "set_register_c7_raw_sensor",
         CONF_ENERGY: "set_energy_sensor",
     }
     for key, setter in sensor_setters.items():
