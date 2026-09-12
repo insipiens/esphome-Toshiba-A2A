@@ -9,6 +9,9 @@ namespace esphome {
 namespace toshiba_suzumi {
 
 static constexpr size_t CHUNK = 24;
+static constexpr uint32_t REGISTER_SWEEP_INTERVAL_MS = 10000;
+static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x90;
+static constexpr uint8_t REGISTER_SWEEP_LAST = 0xCF;
 
 void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentification &equipment) {
   // The protocol layer only accepts positive identity data from Toshiba.
@@ -130,21 +133,7 @@ void ToshibaSpecialModeLevelSelect::control(const std::string &value) {
 
 void ToshibaDiagnosticMonitorUart::update() {
   if (this->scan_active_) return;
-
   ToshibaClimateUart::update();
-
-  // Poll the newly observed scalar registers only when their raw diagnostic
-  // sensors are configured. Keeping these values raw gives Home Assistant a
-  // long-term history without prematurely assigning semantics to 0x90/0xC7.
-  if (this->register_90_raw_sensor_ != nullptr) {
-    this->requestData(static_cast<ToshibaCommandType>(0x90));
-  }
-  if (this->register_94_raw_sensor_ != nullptr) {
-    this->requestData(ToshibaCommandType::COMFORT_SLEEP);
-  }
-  if (this->register_c7_raw_sensor_ != nullptr) {
-    this->requestData(static_cast<ToshibaCommandType>(0xC7));
-  }
 }
 
 void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
@@ -159,43 +148,87 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
     return;
   }
 
-  // Record scalar diagnostic registers in raw decimal form. 0x94 has a known
-  // Comfort Sleep mapping; 0x90 and 0xC7 deliberately remain unnamed until
-  // repeatable physical-control tests establish their meaning.
-  uint8_t scalar_register = 0;
-  uint8_t scalar_value = 0;
-  bool have_scalar = false;
-  if (raw.size() == 15) {
-    scalar_register = raw[12];
-    scalar_value = raw[13];
-    have_scalar = true;
-  } else if (raw.size() == 17) {
-    scalar_register = raw[14];
-    scalar_value = raw[15];
-    have_scalar = true;
+  const int16_t response_register = this->extract_response_register_(raw);
+
+  // During the current protocol investigation, suppress the temporary verbose
+  // E4/E5 raw dumps from the base parser while retaining the actual sensors.
+  // Explicit passive capture still records the complete frames when requested.
+  if (response_register == static_cast<uint8_t>(ToshibaCommandType::ODU_STATUS) &&
+      (raw.size() == 22 || raw.size() == 24)) {
+    const uint8_t offset = (raw.size() == 22) ? 13 : 15;
+    if (this->odu_discharge_temp_sensor_ != nullptr) {
+      const int8_t val = static_cast<int8_t>(raw[offset + 0]);
+      if (val != 127) this->odu_discharge_temp_sensor_->publish_state(val);
+    }
+    if (this->odu_suction_temp_sensor_ != nullptr) {
+      const int8_t val = static_cast<int8_t>(raw[offset + 1]);
+      if (val != 127) this->odu_suction_temp_sensor_->publish_state(val);
+    }
+    if (this->odu_heat_exchanger_temp_sensor_ != nullptr) {
+      const int8_t val = static_cast<int8_t>(raw[offset + 2]);
+      if (val != 127) this->odu_heat_exchanger_temp_sensor_->publish_state(val);
+    }
+    if (this->compressor_load_sensor_ != nullptr) {
+      const uint8_t raw_val = raw[offset + 3];
+      if (raw_val < 254) this->compressor_load_sensor_->publish_state(raw_val / 1.7f);
+    }
+    if (this->compressor_current_sensor_ != nullptr) {
+      const uint8_t raw_val = raw[offset + 6];
+      if (raw_val < 254) this->compressor_current_sensor_->publish_state(raw_val / 10.0f * 0.827f);
+    }
+    return;
   }
 
-  if (have_scalar) {
-    sensor::Sensor *diagnostic_sensor = nullptr;
-    if (scalar_register == 0x90) {
-      diagnostic_sensor = this->register_90_raw_sensor_;
-    } else if (scalar_register == 0x94) {
-      diagnostic_sensor = this->register_94_raw_sensor_;
-    } else if (scalar_register == 0xC7) {
-      diagnostic_sensor = this->register_c7_raw_sensor_;
+  if (response_register == static_cast<uint8_t>(ToshibaCommandType::IDU_STATUS) &&
+      (raw.size() == 22 || raw.size() == 24)) {
+    const uint8_t offset = (raw.size() == 22) ? 13 : 15;
+    if (this->idu_heat_exchanger_temp_sensor_ != nullptr) {
+      const int8_t val = static_cast<int8_t>(raw[offset + 0]);
+      if (val != 127) this->idu_heat_exchanger_temp_sensor_->publish_state(val);
+    }
+    if (this->idu_junction_temp_sensor_ != nullptr) {
+      const int8_t val = static_cast<int8_t>(raw[offset + 1]);
+      if (val != 127) this->idu_junction_temp_sensor_->publish_state(val);
+    }
+    if (this->idu_fan_speed_sensor_ != nullptr) {
+      this->idu_fan_speed_sensor_->publish_state(raw[offset + 2]);
+    }
+    return;
+  }
+
+  // Log every response in the main user-control/state bank. Payload bytes are
+  // preserved verbatim so multi-byte timer/control structures are not lost.
+  if (!this->scan_active_ && response_register >= REGISTER_SWEEP_FIRST && response_register <= REGISTER_SWEEP_LAST) {
+    std::vector<uint8_t> payload;
+    if (this->extract_monitor_payload_(raw, response_register, payload)) {
+      ESP_LOGI(TAG, "REG SWEEP reg=0x%02X len=%u payload=[%s]",
+               static_cast<unsigned>(response_register), static_cast<unsigned>(payload.size()),
+               format_hex_pretty(payload).c_str());
+
+      // Retain the three temporary raw entities if an existing YAML still has
+      // them configured. No additional Home Assistant entities are created by
+      // the sweep itself.
+      if (payload.size() == 1) {
+        sensor::Sensor *diagnostic_sensor = nullptr;
+        if (response_register == 0x90) diagnostic_sensor = this->register_90_raw_sensor_;
+        if (response_register == 0x94) diagnostic_sensor = this->register_94_raw_sensor_;
+        if (response_register == 0xC7) diagnostic_sensor = this->register_c7_raw_sensor_;
+        if (diagnostic_sensor != nullptr) diagnostic_sensor->publish_state(payload[0]);
+      }
     }
 
-    if (diagnostic_sensor != nullptr) {
-      ESP_LOGI(TAG, "Diagnostic register 0x%02X raw value: 0x%02X (%u)", scalar_register,
-               scalar_value, scalar_value);
-      diagnostic_sensor->publish_state(scalar_value);
-    }
-
-    // These are now intentionally recognised by the diagnostic layer. Do not
-    // pass 0x90/0x94/0xC7 into the legacy parser merely to emit "Unknown sensor".
-    if (scalar_register == 0x90 || scalar_register == 0x94 || scalar_register == 0xC7) {
-      return;
-    }
+    // Only registers already understood by the base climate parser need to be
+    // passed onwards. Unknown registers are intentionally consumed here so the
+    // sweep does not produce an additional "Unknown sensor" warning per reply.
+    const bool base_handles_register =
+        response_register == static_cast<uint8_t>(ToshibaCommandType::FAN) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::SWING) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::MODE) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::TARGET_TEMP) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::ROOM_TEMP) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::OUTDOOR_TEMP) ||
+        response_register == static_cast<uint8_t>(ToshibaCommandType::SELF_CLEAN);
+    if (!base_handles_register) return;
   }
 
   // Feed all forms of F7 response/publication into the divided entity layer
@@ -241,8 +274,36 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
 }
 
 void ToshibaDiagnosticMonitorUart::process_scan_() {
-  // Passive monitor: deliberately send nothing and remain armed until the
-  // Home Assistant switch is turned off.
+  if (this->scan_active_) {
+    // Passive monitor: deliberately send nothing and remain armed until the
+    // Home Assistant switch is turned off.
+    return;
+  }
+
+  const uint32_t now = millis();
+  if (now - this->monitor_cycle_started_ < REGISTER_SWEEP_INTERVAL_MS) return;
+  if (!this->command_queue_.empty() || !this->rx_message_.empty()) return;
+
+  // monitor_cycle_started_ doubles as the last automatic sweep timestamp while
+  // passive capture is inactive. This keeps the temporary investigation code
+  // self-contained without creating Home Assistant entities or extra config.
+  this->monitor_cycle_started_ = now;
+  ESP_LOGI(TAG, "========== REG SWEEP 0x%02X-0x%02X ==========" ,
+           REGISTER_SWEEP_FIRST, REGISTER_SWEEP_LAST);
+
+  for (uint16_t reg = REGISTER_SWEEP_FIRST; reg <= REGISTER_SWEEP_LAST; reg++) {
+    std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 6, 1, 48, 1, 0, 1};
+    payload.push_back(static_cast<uint8_t>(reg));
+
+    uint8_t sum = 0;
+    for (size_t i = 1; i < payload.size(); i++) sum += payload[i];
+    payload.push_back(static_cast<uint8_t>(0 - sum));
+
+    this->enqueue_command_(ToshibaCommand{
+        .cmd = static_cast<ToshibaCommandType>(reg),
+        .payload = std::move(payload),
+    });
+  }
 }
 
 void ToshibaDiagnosticMonitorUart::send_monitor_request_() {}
@@ -259,6 +320,7 @@ void ToshibaDiagnosticMonitorUart::finish_monitor_() {
   this->scan_matched_response_ = false;
   this->monitor_stop_requested_ = false;
   this->monitor_waiting_for_cycle_ = false;
+  this->monitor_cycle_started_ = millis();
 
   ESP_LOGI(TAG, "========== TOSHIBA PASSIVE RAW UART CAPTURE STOPPED ==========");
   ESP_LOGI(TAG, "elapsed=%ums captured=%u", static_cast<unsigned>(elapsed),
