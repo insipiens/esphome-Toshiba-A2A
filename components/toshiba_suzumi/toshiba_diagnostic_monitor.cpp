@@ -14,8 +14,16 @@ static constexpr uint32_t REGISTER_SWEEP_GAP_MS = 120;
 static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x80;
 static constexpr uint8_t REGISTER_SWEEP_LAST = 0xFF;
 static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 1000;
+static constexpr uint32_t FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS = 3000;
 static constexpr uint8_t FOCUSED_MONITOR_FIRST = 0xA1;
 static constexpr uint8_t FOCUSED_MONITOR_LAST = 0xAF;
+
+static uint8_t next_focused_register(uint8_t reg) {
+  uint8_t next = static_cast<uint8_t>(reg + 1);
+  if (next == 0xA3) next = 0xA5;
+  if (next > FOCUSED_MONITOR_LAST) next = FOCUSED_MONITOR_FIRST;
+  return next;
+}
 
 void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentification &equipment) {
   // The protocol layer only accepts positive identity data from Toshiba.
@@ -266,8 +274,9 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
 
     this->scan_active_ = true;
     this->scan_started_ = true;
-    this->scan_request_sent_ = true;
+    this->scan_request_sent_ = false;
     this->scan_matched_response_ = false;
+    this->scan_register_started_ = 0;
     this->monitor_stop_requested_ = false;
     this->monitor_waiting_for_cycle_ = false;
     this->monitor_cycle_started_ = millis();
@@ -280,8 +289,7 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
     this->monitor_payload_seen_.fill(false);
 
     ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A-BANK MONITOR STARTED ==========");
-    ESP_LOGI(TAG, "polling undefined A-bank registers A1,A2,A5-AF every %ums; broad 0x80-0xFF sweep paused",
-             static_cast<unsigned>(FOCUSED_MONITOR_GAP_MS));
+    ESP_LOGI(TAG, "transactional polling A1,A2,A5-AF; 1s spacing, 3s response timeout; broad sweep paused");
     return;
   }
 
@@ -292,10 +300,23 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
   const uint32_t now = millis();
 
   if (this->scan_active_) {
-    // Focused FIX/louvre monitor. Cycle the currently undefined A-bank registers
-    // at one-second intervals, skipping known A0 (fan), A3 (swing) and A4 (louvre structure).
-    // Focused mode owns the UART while enabled; bypass the normal command queue,
-    // which is intentionally frozen during an active scan.
+    // One request at a time. Do not advance to the next A-bank register until
+    // the current request has either produced a matching response/no-data reply
+    // or timed out. This prevents unrelated normal traffic being mistaken for
+    // a focused result.
+    if (this->scan_request_sent_) {
+      if (now - this->scan_register_started_ >= FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS) {
+        ESP_LOGI(TAG, "FOCUSED RX reg=0x%02X timeout after %ums",
+                 static_cast<unsigned>(this->scan_register_),
+                 static_cast<unsigned>(FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS));
+        this->monitor_timeouts_++;
+        this->scan_request_sent_ = false;
+        this->scan_matched_response_ = false;
+        this->monitor_register_index_ = next_focused_register(this->scan_register_);
+      }
+      return;
+    }
+
     if (!this->rx_message_.empty()) return;
     if (now - this->last_command_timestamp_ < FOCUSED_MONITOR_GAP_MS) return;
 
@@ -308,16 +329,15 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
     payload.push_back(static_cast<uint8_t>(0 - sum));
 
     this->scan_register_ = reg;
+    this->scan_register_started_ = now;
+    this->scan_request_sent_ = true;
+    this->scan_matched_response_ = false;
+    ESP_LOGI(TAG, "FOCUSED TX reg=0x%02X", static_cast<unsigned>(reg));
     this->send_to_uart(ToshibaCommand{
         .cmd = static_cast<ToshibaCommandType>(reg),
         .payload = std::move(payload),
     });
     this->monitor_requests_++;
-
-    uint8_t next = static_cast<uint8_t>(reg + 1);
-    if (next == 0xA3) next = 0xA5;
-    if (next > FOCUSED_MONITOR_LAST) next = FOCUSED_MONITOR_FIRST;
-    this->monitor_register_index_ = next;
     return;
   }
 
@@ -373,8 +393,10 @@ void ToshibaDiagnosticMonitorUart::finish_monitor_() {
   this->monitor_cycle_started_ = millis();
 
   ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A-BANK MONITOR STOPPED ==========");
-  ESP_LOGI(TAG, "elapsed=%ums requests=%u captured=%u", static_cast<unsigned>(elapsed),
-           static_cast<unsigned>(this->monitor_requests_), static_cast<unsigned>(this->monitor_matched_));
+  ESP_LOGI(TAG, "elapsed=%ums requests=%u matched=%u timeouts=%u unrelated=%u",
+           static_cast<unsigned>(elapsed), static_cast<unsigned>(this->monitor_requests_),
+           static_cast<unsigned>(this->monitor_matched_), static_cast<unsigned>(this->monitor_timeouts_),
+           static_cast<unsigned>(this->monitor_unrelated_));
 }
 
 bool ToshibaDiagnosticMonitorUart::extract_monitor_payload_(const std::vector<uint8_t> &raw,
@@ -414,32 +436,57 @@ void ToshibaDiagnosticMonitorUart::log_timer_bank_snapshot_() const {
     const size_t index = reg - 0x80;
     if (!this->monitor_payload_seen_[index]) continue;
     const auto &payload = this->monitor_last_payload_[index];
-    ESP_LOGI(TAG, "UART SUMMARY reg=0x%02X payload_length=%u payload=[%s]",
-             static_cast<unsigned>(reg), static_cast<unsigned>(payload.size()),
-             format_hex_pretty(payload).c_str());
+    if (payload.empty()) {
+      ESP_LOGI(TAG, "UART SUMMARY reg=0x%02X no-data", static_cast<unsigned>(reg));
+    } else {
+      ESP_LOGI(TAG, "UART SUMMARY reg=0x%02X payload_length=%u payload=[%s]",
+               static_cast<unsigned>(reg), static_cast<unsigned>(payload.size()),
+               format_hex_pretty(payload).c_str());
+    }
   }
 }
 
 void ToshibaDiagnosticMonitorUart::log_scan_packet_(const std::vector<uint8_t> &raw) {
-  const int16_t reg = this->extract_response_register_(raw);
   const uint32_t elapsed = millis() - this->monitor_cycle_started_;
-  this->monitor_matched_++;
 
-  if (reg >= 0) {
-    ESP_LOGI(TAG, "UART FOCUSED RX seq=%u t=%ums class=0x%02X reg=0x%02X length=%u checksum=OK",
+  // Toshiba's generic unsupported/no-data reply is 13 bytes long and carries
+  // no echoed register: its final byte is the checksum. Attribute that reply to
+  // the single outstanding focused request.
+  if (raw.size() == 13 && this->scan_request_sent_) {
+    this->monitor_matched_++;
+    this->remember_monitor_payload_(this->scan_register_, {});
+    ESP_LOGI(TAG, "FOCUSED RX seq=%u t=%ums reg=0x%02X no-data",
              static_cast<unsigned>(this->monitor_matched_), static_cast<unsigned>(elapsed),
-             raw.size() > 3 ? static_cast<unsigned>(raw[3]) : 0U,
-             static_cast<unsigned>(reg), static_cast<unsigned>(raw.size()));
-  } else {
-    ESP_LOGI(TAG, "UART FOCUSED RX seq=%u t=%ums class=0x%02X reg=unknown length=%u checksum=OK",
-             static_cast<unsigned>(this->monitor_matched_), static_cast<unsigned>(elapsed),
-             raw.size() > 3 ? static_cast<unsigned>(raw[3]) : 0U,
-             static_cast<unsigned>(raw.size()));
+             static_cast<unsigned>(this->scan_register_));
+    this->scan_request_sent_ = false;
+    this->scan_matched_response_ = true;
+    this->monitor_register_index_ = next_focused_register(this->scan_register_);
+    return;
   }
+
+  const int16_t reg = this->extract_response_register_(raw);
+  if (!this->scan_request_sent_ || reg != this->scan_register_) {
+    this->monitor_unrelated_++;
+    ESP_LOGD(TAG, "FOCUSED unrelated RX while waiting for 0x%02X: reg=%s",
+             static_cast<unsigned>(this->scan_register_),
+             reg >= 0 ? str_sprintf("0x%02X", static_cast<unsigned>(reg)).c_str() : "unknown");
+    this->parseResponse(raw);
+    return;
+  }
+
+  this->monitor_matched_++;
+  ESP_LOGI(TAG, "UART FOCUSED RX seq=%u t=%ums class=0x%02X reg=0x%02X length=%u checksum=OK",
+           static_cast<unsigned>(this->monitor_matched_), static_cast<unsigned>(elapsed),
+           raw.size() > 3 ? static_cast<unsigned>(raw[3]) : 0U,
+           static_cast<unsigned>(reg), static_cast<unsigned>(raw.size()));
 
   this->log_monitor_bytes_(raw, reg);
   this->log_monitor_decoded_(raw, reg);
   this->parseResponse(raw);
+
+  this->scan_request_sent_ = false;
+  this->scan_matched_response_ = true;
+  this->monitor_register_index_ = next_focused_register(this->scan_register_);
 }
 
 void ToshibaDiagnosticMonitorUart::log_monitor_bytes_(const std::vector<uint8_t> &raw, int16_t reg) const {
