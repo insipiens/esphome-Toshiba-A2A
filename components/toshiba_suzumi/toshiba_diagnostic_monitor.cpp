@@ -128,6 +128,25 @@ void ToshibaSpecialModeLevelSelect::control(const std::string &value) {
                                            this->option_one_, this->option_two_, value);
 }
 
+void ToshibaDiagnosticMonitorUart::update() {
+  if (this->scan_active_) return;
+
+  ToshibaClimateUart::update();
+
+  // Poll the newly observed scalar registers only when their raw diagnostic
+  // sensors are configured. Keeping these values raw gives Home Assistant a
+  // long-term history without prematurely assigning semantics to 0x90/0xC7.
+  if (this->register_90_raw_sensor_ != nullptr) {
+    this->requestData(static_cast<ToshibaCommandType>(0x90));
+  }
+  if (this->register_94_raw_sensor_ != nullptr) {
+    this->requestData(ToshibaCommandType::COMFORT_SLEEP);
+  }
+  if (this->register_c7_raw_sensor_ != nullptr) {
+    this->requestData(static_cast<ToshibaCommandType>(0xC7));
+  }
+}
+
 void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
   if (raw.size() > 12 && raw[3] == 0x11 &&
       raw[12] == static_cast<uint8_t>(ToshibaCommandType::EQUIPMENT_INFO)) {
@@ -138,6 +157,45 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
     }
     this->set_detected_equipment_(equipment);
     return;
+  }
+
+  // Record scalar diagnostic registers in raw decimal form. 0x94 has a known
+  // Comfort Sleep mapping; 0x90 and 0xC7 deliberately remain unnamed until
+  // repeatable physical-control tests establish their meaning.
+  uint8_t scalar_register = 0;
+  uint8_t scalar_value = 0;
+  bool have_scalar = false;
+  if (raw.size() == 15) {
+    scalar_register = raw[12];
+    scalar_value = raw[13];
+    have_scalar = true;
+  } else if (raw.size() == 17) {
+    scalar_register = raw[14];
+    scalar_value = raw[15];
+    have_scalar = true;
+  }
+
+  if (have_scalar) {
+    sensor::Sensor *diagnostic_sensor = nullptr;
+    if (scalar_register == 0x90) {
+      diagnostic_sensor = this->register_90_raw_sensor_;
+    } else if (scalar_register == 0x94) {
+      diagnostic_sensor = this->register_94_raw_sensor_;
+    } else if (scalar_register == 0xC7) {
+      diagnostic_sensor = this->register_c7_raw_sensor_;
+    }
+
+    if (diagnostic_sensor != nullptr) {
+      ESP_LOGI(TAG, "Diagnostic register 0x%02X raw value: 0x%02X (%u)", scalar_register,
+               scalar_value, scalar_value);
+      diagnostic_sensor->publish_state(scalar_value);
+    }
+
+    // These are now intentionally recognised by the diagnostic layer. Do not
+    // pass 0x90/0x94/0xC7 into the legacy parser merely to emit "Unknown sensor".
+    if (scalar_register == 0x90 || scalar_register == 0x94 || scalar_register == 0xC7) {
+      return;
+    }
   }
 
   // Feed all forms of F7 response/publication into the divided entity layer
