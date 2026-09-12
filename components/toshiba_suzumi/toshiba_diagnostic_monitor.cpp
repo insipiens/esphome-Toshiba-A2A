@@ -13,7 +13,7 @@ static constexpr uint32_t REGISTER_SWEEP_INTERVAL_MS = 30000;
 static constexpr uint32_t REGISTER_SWEEP_GAP_MS = 120;
 static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x80;
 static constexpr uint8_t REGISTER_SWEEP_LAST = 0xFF;
-static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 120;
+static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 1000;
 static constexpr uint8_t FOCUSED_MONITOR_FIRST = 0xA1;
 static constexpr uint8_t FOCUSED_MONITOR_LAST = 0xAF;
 
@@ -293,7 +293,7 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
 
   if (this->scan_active_) {
     // Focused FIX/louvre monitor. Cycle the currently undefined A-bank registers
-    // rapidly, skipping known A0 (fan), A3 (swing) and A4 (louvre structure).
+    // at one-second intervals, skipping known A0 (fan), A3 (swing) and A4 (louvre structure).
     // Focused mode owns the UART while enabled; bypass the normal command queue,
     // which is intentionally frozen during an active scan.
     if (!this->rx_message_.empty()) return;
