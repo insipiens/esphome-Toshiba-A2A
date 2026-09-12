@@ -10,6 +10,7 @@ namespace toshiba_suzumi {
 
 static constexpr size_t CHUNK = 24;
 static constexpr uint32_t REGISTER_SWEEP_INTERVAL_MS = 10000;
+static constexpr uint32_t REGISTER_SWEEP_GAP_MS = 120;
 static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x90;
 static constexpr uint8_t REGISTER_SWEEP_LAST = 0xCF;
 
@@ -281,28 +282,39 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
   }
 
   const uint32_t now = millis();
-  if (now - this->monitor_cycle_started_ < REGISTER_SWEEP_INTERVAL_MS) return;
+
+  if (!this->monitor_waiting_for_cycle_) {
+    if (now - this->monitor_cycle_started_ < REGISTER_SWEEP_INTERVAL_MS) return;
+
+    this->monitor_cycle_started_ = now;
+    this->monitor_register_index_ = REGISTER_SWEEP_FIRST;
+    this->monitor_waiting_for_cycle_ = true;
+    ESP_LOGI(TAG, "========== REG SWEEP 0x%02X-0x%02X ==========" ,
+             REGISTER_SWEEP_FIRST, REGISTER_SWEEP_LAST);
+  }
+
+  // Only queue one probe at a time. Normal climate/control traffic therefore
+  // gets priority between probes instead of sitting behind a 64-command batch.
   if (!this->command_queue_.empty() || !this->rx_message_.empty()) return;
+  if (now - this->last_command_timestamp_ < REGISTER_SWEEP_GAP_MS) return;
 
-  // monitor_cycle_started_ doubles as the last automatic sweep timestamp while
-  // passive capture is inactive. This keeps the temporary investigation code
-  // self-contained without creating Home Assistant entities or extra config.
-  this->monitor_cycle_started_ = now;
-  ESP_LOGI(TAG, "========== REG SWEEP 0x%02X-0x%02X ==========" ,
-           REGISTER_SWEEP_FIRST, REGISTER_SWEEP_LAST);
+  const uint8_t reg = this->monitor_register_index_;
+  std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 6, 1, 48, 1, 0, 1};
+  payload.push_back(reg);
 
-  for (uint16_t reg = REGISTER_SWEEP_FIRST; reg <= REGISTER_SWEEP_LAST; reg++) {
-    std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 6, 1, 48, 1, 0, 1};
-    payload.push_back(static_cast<uint8_t>(reg));
+  uint8_t sum = 0;
+  for (size_t i = 1; i < payload.size(); i++) sum += payload[i];
+  payload.push_back(static_cast<uint8_t>(0 - sum));
 
-    uint8_t sum = 0;
-    for (size_t i = 1; i < payload.size(); i++) sum += payload[i];
-    payload.push_back(static_cast<uint8_t>(0 - sum));
+  this->enqueue_command_(ToshibaCommand{
+      .cmd = static_cast<ToshibaCommandType>(reg),
+      .payload = std::move(payload),
+  });
 
-    this->enqueue_command_(ToshibaCommand{
-        .cmd = static_cast<ToshibaCommandType>(reg),
-        .payload = std::move(payload),
-    });
+  if (reg >= REGISTER_SWEEP_LAST) {
+    this->monitor_waiting_for_cycle_ = false;
+  } else {
+    this->monitor_register_index_++;
   }
 }
 
