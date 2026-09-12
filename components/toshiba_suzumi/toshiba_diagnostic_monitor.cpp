@@ -294,7 +294,9 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
   if (this->scan_active_) {
     // Focused FIX/louvre monitor. Alternate A3 and A4 rapidly so a transient
     // fixed-position command/state has a realistic chance of being observed.
-    if (!this->command_queue_.empty() || !this->rx_message_.empty()) return;
+    // Focused mode owns the UART while enabled; bypass the normal command queue,
+    // which is intentionally frozen during an active scan.
+    if (!this->rx_message_.empty()) return;
     if (now - this->last_command_timestamp_ < FOCUSED_MONITOR_GAP_MS) return;
 
     const uint8_t reg = this->monitor_register_index_;
@@ -305,7 +307,8 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
     for (size_t i = 1; i < payload.size(); i++) sum += payload[i];
     payload.push_back(static_cast<uint8_t>(0 - sum));
 
-    this->enqueue_command_(ToshibaCommand{
+    this->scan_register_ = reg;
+    this->send_to_uart(ToshibaCommand{
         .cmd = static_cast<ToshibaCommandType>(reg),
         .payload = std::move(payload),
     });
