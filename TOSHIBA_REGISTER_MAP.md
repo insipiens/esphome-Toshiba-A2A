@@ -519,6 +519,17 @@ Example:
 E6 00 = 230 Wh
 ```
 
+A later full-day capture proved that several fields aggregate exactly into the corresponding current-day `CD` record. For that capture the 24 hourly `CC +8` values summed to `726 Wh`, and the current-day `CD +8` field was exactly `D6 02 00 00 = 726 Wh`.
+
+Two additional additive relationships were observed in the same capture:
+
+```text
+sum(CC hourly +0 uint32)  = CD current-day +0 uint32
+sum(CC hourly +10 uint32) = CD current-day +12 uint32
+```
+
+The physical meanings of those two counters remain unresolved, so they should be treated as confirmed additive accumulators but not named yet.
+
 ### `0xCD` — Weekly view
 
 **Total response frame:** 218 bytes.
@@ -539,6 +550,8 @@ Example:
 B5 00 00 00 = 181 Wh = 0.181 kWh
 ```
 
+In the aggregation capture, the current-day `CD` record contained `D6 02 00 00 = 726 Wh`, exactly matching the sum of the 24 hourly `CC +8` values.
+
 ### `0xCE` — Monthly view
 
 **Total response frame:** 890 bytes.
@@ -552,6 +565,8 @@ Known field:
 ```text
 +8..+11 = electrical consumption, uint32 LE Wh
 ```
+
+The current-day 28-byte record can be byte-for-byte identical to the corresponding `CD` current-day record, confirming that `CD` and `CE` use the same daily-record schema over different calendar windows.
 
 ### `0xCF` — Yearly view
 
@@ -574,6 +589,10 @@ Example:
 ```
 
 Several other changing counters in the 28-byte records remain unresolved. Do not assign meanings without direct correlation.
+
+### Per-IDU versus system-wide energy quantities
+
+The Toshiba app exposes both individual-unit and system-wide energy figures. Some unresolved fields/register families may therefore represent one scope or the other. With only one genuine Wi-Fi adaptor currently attached under the sniffer, identical values cannot distinguish per-IDU from system-wide quantities. That distinction should remain unassigned until the second indoor unit is instrumented with its own genuine adaptor and the corresponding datasets can be compared directly.
 
 ## Registers `0xD8`-`0xDB` — Legacy/inherited energy labels
 
