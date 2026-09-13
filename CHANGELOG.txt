@@ -1,6 +1,20 @@
 ESPHome Toshiba A2A development
 ===============================
 
+Sep 13th 2026
+
+* expanded the UART register map from tentative observations into an evidence-graded protocol reference, separating confirmed sniffer observations from draft/provisional interpretations
+* validated aggregate F8 control traffic and documented command/state behaviour observed through the Toshiba Wi-Fi adaptor
+* mapped horizontal louvre FIX positions from ordered app tests; observed values 0x85, 0x8D, 0x95, 0x9D, 0xA5 and 0xAD correspond to six ordered positions, with the third position being straight ahead; degree-like encoding remains an interpretation
+* validated Hi Power switching through Wi-Fi sniffer traffic and retained feature-state semantics separately from the aggregate F8 command
+* validated ON-timer and OFF-timer command behaviour, including mirrored duration encoding; documented that the app exposes ON timer only while the unit is off and OFF timer only while the unit is on, while noting this restriction may be app-side logic
+* captured a complete ON-timer expiry sequence: the IDU unsolicited state push changes 0x90 to 0x42 at expiry and E4 subsequently shows fan activity; the wider logical-state interpretation remains explicitly DRAFT/provisional
+* confirmed CA as filter/service-time information: configured filter interval is returned in hours, including observed 1000 h (0x03E8) and 500 h (0x01F4) settings
+* documented CC-CD-CE-CF energy-monitoring/dashboard transfers and their large structured payloads; IDU versus system-wide field locality remains unresolved until multiple Wi-Fi-connected IDUs can be compared
+* recorded observed Toshiba app energy totals (hour/day/month context) as correlation targets for decoding the energy-monitoring payloads
+* improved documentation of register frame lengths, payload sections, request/response direction and validation status rather than treating registers as simple scalar values
+* retained unresolved fields and interpretations as draft/probable instead of promoting correlations to confirmed protocol semantics
+
 Sep 11th 2026
 
 * established independent `insipiens/esphome-Toshiba-A2A` repository from the substantially modified `esphome_toshiba_suzumi` codebase
