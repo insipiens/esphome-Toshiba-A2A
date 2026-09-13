@@ -2,6 +2,8 @@
 
 This document records protocol findings from direct captures on the test system. Status labels distinguish genuine Toshiba Wi-Fi-adaptor validation from inherited/component assumptions and still-unresolved fields.
 
+The summary table is an index. Detailed sections below describe frame class, total frame length, payload layout, value encoding, examples, and unresolved fields for the registers we have characterised sufficiently.
+
 ## Register summary
 
 | Register | Function | Direction | Current interpretation | Sniffer validation |
@@ -41,19 +43,19 @@ This document records protocol findings from direct captures on the test system.
 
 ## Protocol framing and message classes
 
-Frames begin:
+All observed frames begin:
 
 ```text
 02 00 03
 ```
 
-Bytes 5-6 contain the 16-bit big-endian protocol length. Complete frame length is:
+Bytes `5-6` contain the 16-bit big-endian protocol length. Complete frame length is:
 
 ```text
 frame_length = protocol_length + 8
 ```
 
-Register position depends on the message class:
+Observed message classes:
 
 ```text
 0x10  Wi-Fi adaptor request/write     register at byte 12
@@ -62,7 +64,43 @@ Register position depends on the message class:
 0x91  Wi-Fi ACK of unsolicited push   no register field
 ```
 
-Length-field reassembly has been validated against both short 13-22 byte control/status traffic and the large official energy frames:
+### Common short write form
+
+Single-byte control writes generally use a 15-byte frame:
+
+```text
+02 00 03 10 00 00 07 01 30 01 00 02 RR VV CS
+                                    ^^ ^^ ^^
+                                    reg value checksum
+```
+
+A generic successful write ACK is normally 16 bytes:
+
+```text
+02 00 03 90 00 00 08 01 30 01 00 00 00 01 RR CS
+```
+
+The ACK confirms receipt but generally does not echo the resulting state.
+
+### Common read request form
+
+Observed register reads use a 14-byte request:
+
+```text
+02 00 03 10 00 00 06 01 30 01 00 01 RR CS
+```
+
+Response size depends on the register.
+
+### Unsolicited IDU push form
+
+The IDU also emits class-`0x11` state/engineering updates. For a one-byte register payload the total frame is 15 bytes; for an 8-byte engineering payload (`E4`/`E5`) it is 22 bytes.
+
+The Wi-Fi adaptor acknowledges these with a 13-byte class-`0x91` frame. That ACK contains no register field.
+
+### Sniffer/reassembly validation
+
+Length-field reassembly has been validated against both short 13-22 byte traffic and the large official energy frames:
 
 ```text
 CC = 502 bytes
@@ -71,9 +109,150 @@ CE = 890 bytes
 CF = 358 bytes
 ```
 
-## `0xA3` louvre / FIX / swing encoding
+The logger may split a complete frame into multiple display lines, but this is only presentation chunking; protocol reassembly occurs first.
 
-Ordinary state/readback values:
+## Register `0x80` — Power
+
+**Direction:** Wi-Fi adaptor → IDU, class `0x10` write.
+
+**Write payload length:** 1 byte.
+
+**Total write frame length:** 15 bytes.
+
+```text
+30 = ON
+31 = OFF
+```
+
+Captured ON example:
+
+```text
+02 00 03 10 00 00 07 01 30 01 00 02 80 30 02
+```
+
+Captured OFF example:
+
+```text
+02 00 03 10 00 00 07 01 30 01 00 02 80 31 01
+```
+
+Both receive the generic 16-byte `0x90` ACK ending in register `80`.
+
+Power state is separate from `F8`. On shutdown the official adaptor can write `80 31` and then reiterate the stored `F8` configuration.
+
+## Register `0x87` — Power Select
+
+**Direction:** Wi-Fi adaptor → IDU, class `0x10` write.
+
+**Payload length:** 1 byte.
+
+**Total write frame length:** 15 bytes.
+
+```text
+32 = 50%
+4B = 75%
+64 = 100%
+```
+
+Example captured at 100%:
+
+```text
+02 00 03 10 00 00 07 01 30 01 00 02 87 64 C7
+```
+
+The IDU returns the generic 16-byte write ACK.
+
+## Registers `0x90` / `0x92` — ON/program timer
+
+These remain deliberately provisional.
+
+Observed idle values:
+
+```text
+90 = 42
+92 = 00 00
+```
+
+The symmetry with confirmed OFF-timer registers `94`/`96` strongly suggests:
+
+```text
+90 = ON/program timer enable/state
+92 = ON/program timer HH MM
+```
+
+However, the app's ON/program timer has not yet been deliberately exercised under the sniffer. Do not promote these values to confirmed until a set/change/clear capture is made.
+
+## Registers `0x94` / `0x96` — OFF timer
+
+The OFF timer is a two-register operation.
+
+### `0x96` programmed interval
+
+**Direction:** Wi-Fi adaptor → IDU, class `0x10` write.
+
+**Payload length:** 2 bytes.
+
+```text
++0 = hours
++1 = minutes
+```
+
+Examples:
+
+```text
+30 minutes -> 96 00 1E
+1 hour     -> 96 01 00
+```
+
+### `0x94` enable/state
+
+**Payload length:** 1 byte.
+
+```text
+41 = active / enable
+42 = inactive / clear
+```
+
+Official sequence:
+
+```text
+set 30 minutes:
+96 00 1E
+94 41
+
+set 1 hour:
+96 01 00
+94 41
+
+clear:
+94 42
+```
+
+The programmed interval and enable state are independent. Clearing does not require zeroing `0x96`.
+
+## Register `0xA0` — Fan command
+
+**Direction:** R/W in the established component protocol; command values independently corroborated by `F8` captures.
+
+**Logical payload:** one-byte fan selector.
+
+```text
+31 = Quiet
+32 = Low / level 1
+33 = Low-Med / level 2
+34 = Medium / level 3
+35 = Med-High / level 4
+36 = High / level 5
+41 = Auto
+```
+
+These are command enums, not live fan speed. Live fan/airflow feedback is carried by `E4 +2`.
+
+## Register `0xA3` — Louvre / FIX / swing / H.DA
+
+`A3` has different state/readback and command encodings.
+
+### Ordinary state/readback values
 
 ```text
 31 = no swing
@@ -83,77 +262,467 @@ Ordinary state/readback values:
 60 = H.DA
 ```
 
-The genuine Wi-Fi adaptor uses a different packed write encoding for several louvre operations.
+### Write frame
 
-Vertical FIX sweep:
+**Direction:** Wi-Fi adaptor → IDU, class `0x10`.
+
+**Payload length:** 1 byte.
+
+**Total frame length:** 15 bytes.
+
+```text
+02 00 03 10 00 00 07 01 30 01 00 02 A3 VV CS
+```
+
+ACK:
+
+```text
+02 00 03 90 00 00 08 01 30 01 00 00 00 01 A3 8F
+```
+
+The ACK does not contain the resulting louvre state.
+
+### FIX position captures
+
+Vertical sweep:
 
 ```text
 88 89 8A 8B 8C 8D
 ```
 
-Horizontal FIX sweep:
+Horizontal sweep:
 
 ```text
 85 8D 95 9D A5 AD
 ```
 
-The physical UI exposes five FIX positions on each axis. Six values occurred during each sweep, so one value in each sequence is a transition/default/current-state effect rather than a sixth physical position. Exact one-to-one position mapping remains to be established.
+The physical UI exposes five FIX positions on each axis. Six values occurred during each sweep, so one value in each sequence is a transition/default/current-state effect rather than a sixth physical position.
 
-The numerical pattern strongly supports separate packed horizontal and vertical subfields: vertical changes in `+1` steps and horizontal in `+8` steps.
-
-Genuine-adaptor swing writes:
+The numerical pattern strongly supports packed horizontal and vertical subfields:
 
 ```text
-Vertical swing         -> A3=AE
-Horizontal swing       -> A3=B6
-Vertical + horizontal  -> A3=80
-No swing transition    -> A3=80
-H.DA                   -> A3=60
+vertical changes:   +1
+horizontal changes: +8
 ```
 
-`AE`, `B6` and `60` are confirmed command values. `80` is repeatable but its exact state semantic remains unresolved. Importantly, the IDU itself also emitted unsolicited class-`0x11` pushes of `A3 80` immediately after power-on, so `80` is not merely a Wi-Fi-adaptor-only command code.
+Exact one-to-one mapping of the five physical positions still requires a position-by-position test.
 
-## `0xF8` aggregate operating configuration
-
-Fan Only at 22°C, fan levels 1-5:
+### Swing / H.DA commands
 
 ```text
-F8 45 16 32 00
-F8 45 16 33 00
-F8 45 16 34 00
-F8 45 16 35 00
-F8 45 16 36 00
+Vertical swing         -> AE
+Horizontal swing       -> B6
+Vertical + horizontal  -> 80
+No swing transition    -> 80
+H.DA                   -> 60
 ```
 
-Heat captures:
+`AE`, `B6` and `60` are confirmed command values. `80` is repeatable, but its exact semantic is unresolved.
+
+Importantly, `A3 80` is also emitted by the IDU itself in unsolicited class-`0x11` traffic immediately after power-on. Therefore `80` is not merely a Wi-Fi-adaptor-only command token.
+
+## Register `0xA4` — Structured louvre state
+
+**Direction:** Read.
+
+**Payload length:** 3 bytes.
+
+Observed examples:
 
 ```text
-F8 43 18 41 00   Heat, 24°C, Auto, Standard
-F8 43 14 41 00   Heat, 20°C, Auto, Standard
-F8 43 16 41 00   Heat, 22°C, Auto, Standard
-F8 43 16 41 01   Heat, 22°C, Auto, Hi POWER
-F8 43 13 41 03   Heat, 19°C, Auto, ECO/special-function value 03
+41 00 00
+42 00 00
+43 00 00
+60 00 00
 ```
 
-A controlled Hi POWER OFF→ON toggle changed only the fourth byte:
+Current interpretation:
 
 ```text
-F8 43 16 41 00
-F8 43 16 41 01
++0 = ordinary A3-style louvre/swing state
++1 = unresolved
++2 = unresolved
 ```
 
-The later `03` capture matches the established `F7` value for ECO. The best current interpretation is therefore:
+One isolated `53 2D 42` capture occurred during heavy sweep traffic and remains untrusted until reproduced.
+
+## Register `0xB0` — HVAC mode
+
+**Logical payload:** 1 byte.
 
 ```text
-byte 0 = HVAC mode
-byte 1 = target temperature, raw °C
-byte 2 = commanded fan enum
-byte 3 = special-function selector using the F7 enum
+41 = Auto
+42 = Cool
+43 = Heat
+44 = Dry
+45 = Fan Only
 ```
 
-This supersedes the earlier interpretation of byte 3 as a generic flags byte.
+These values are independently visible as `F8 +0`, which strongly corroborates the established mapping.
 
-Observed special-function values:
+## Register `0xB3` — Target temperature
+
+**Logical payload:** 1 byte.
+
+Normal operation uses raw integer °C.
+
+Examples independently captured in `F8 +1`:
+
+```text
+13 = 19°C
+14 = 20°C
+16 = 22°C
+18 = 24°C
+```
+
+## Register `0xBB` — Room temperature
+
+**Direction:** Read and unsolicited IDU push (`0x11`).
+
+**Payload length:** 1 byte.
+
+```text
+00..7E = raw integer °C in observed normal range
+7F     = invalid / unavailable
+```
+
+Example:
+
+```text
+BB 18 = 24°C
+```
+
+A one-byte unsolicited push uses a 15-byte total frame and is acknowledged by the adaptor with class `0x91`.
+
+## Register `0xBE` — Outdoor temperature
+
+**Direction:** Read and unsolicited IDU push (`0x11`).
+
+**Payload length:** 1 byte.
+
+The normal value is interpreted as a signed byte temperature.
+
+```text
+7F = invalid / unavailable
+```
+
+Examples:
+
+```text
+BE 13 = 19°C
+BE 14 = 20°C
+BE 15 = 21°C
+BE 7F = unavailable after ODU data disappears
+```
+
+## Register `0xC7` — PURE
+
+**Direction:** R/W.
+
+**Payload length:** 1 byte.
+
+```text
+18 = ON
+10 = OFF
+```
+
+Both directions were captured as genuine Toshiba Wi-Fi-adaptor writes. The immediate ACK is the generic write acknowledgement ending in register `C7`.
+
+## Register `0xCA` — Structured status/config block
+
+The genuine adaptor periodically requests `CA`.
+
+Observed payload:
+
+```text
+00 E8 03 00 00
+```
+
+**Observed payload length:** 5 bytes.
+
+The register's use by the official adaptor is confirmed; individual field semantics are not yet decoded.
+
+## Register `0xCB` — Self-clean state
+
+Existing component mapping:
+
+```text
+18 = running
+10 = off
+```
+
+This mapping has not yet been deliberately re-tested with the genuine-adaptor sniffer, so it remains established component knowledge rather than part of the latest validation campaign.
+
+## Registers `0xCC`-`0xCF` — Official Energy Monitoring
+
+Opening the Toshiba Energy Monitoring page causes explicit polling in order:
+
+```text
+CC
+CD
+CE
+CF
+```
+
+All four use a 14-byte class-`0x10` read request:
+
+```text
+02 00 03 10 00 00 06 01 30 01 00 01 RR CS
+```
+
+### Common response header
+
+Each dataset begins with a six-byte timestamp immediately after the register byte:
+
+```text
+7E MM DD HH mm ss
+```
+
+The month is zero-based.
+
+Example:
+
+```text
+7E 08 0D 10 05 26 = 13 Sep, 16:05:38
+```
+
+### `0xCC` — Daily view / hourly records
+
+**Total response frame:** 502 bytes.
+
+**Protocol length field:** `0x01EE`.
+
+**Dataset:** 24 × 20-byte records = 480 bytes.
+
+Each slot corresponds to one hour of the day.
+
+Known record field:
+
+```text
++8..+9 = electrical consumption, uint16 little-endian Wh
+```
+
+Example current-hour value:
+
+```text
+E6 00 = 230 Wh
+```
+
+The 20-byte hourly record contains additional fields that remain unresolved.
+
+### `0xCD` — Weekly view / daily records
+
+**Total response frame:** 218 bytes.
+
+**Protocol length field:** `0x00D2`.
+
+**Dataset:** 7 × 28-byte records = 196 bytes.
+
+Each slot corresponds to one day in the weekly graph.
+
+Known record field:
+
+```text
++8..+11 = electrical consumption, uint32 little-endian Wh
+```
+
+Example:
+
+```text
+B5 00 00 00 = 181 Wh = 0.181 kWh
+```
+
+The app displayed `0.18 kWh` for that day.
+
+### `0xCE` — Monthly view / day-of-month records
+
+**Total response frame:** 890 bytes.
+
+**Protocol length field:** `0x0372`.
+
+**Dataset:** 31 × 28-byte records = 868 bytes.
+
+Each slot corresponds to a day of the month.
+
+Known record field:
+
+```text
++8..+11 = electrical consumption, uint32 little-endian Wh
+```
+
+A capture a few seconds after the corresponding `CD` poll showed the same current-day accumulator advanced by 1 Wh, confirming that `CD` and `CE` expose the same electrical-consumption quantity over different calendar views.
+
+### `0xCF` — Yearly view / monthly records
+
+**Total response frame:** 358 bytes.
+
+**Protocol length field:** `0x015E`.
+
+**Dataset:** 12 × 28-byte records = 336 bytes.
+
+Each slot corresponds to a month.
+
+Known record field:
+
+```text
++8..+11 = electrical consumption, uint32 little-endian Wh
+```
+
+Example:
+
+```text
+2E 08 00 00 = 2094 Wh = 2.094 kWh
+```
+
+The app displayed `2.1 kWh` for September.
+
+### Common 28-byte record observations
+
+The `CD`/`CE`/`CF` records contain several other changing 32-bit and smaller quantities plus repeated sentinels such as:
+
+```text
+7F FF FF FF
+```
+
+Those additional fields are clearly meaningful but remain unassigned. Do not label them as runtime, heat/cool split, delivered heat, compressor energy, or allocation until directly correlated.
+
+### `D8`-`DB` relationship
+
+The inherited component contains `D8`-`DB` energy labels, but the official app demonstrably uses `CC`-`CF` for Energy Monitoring. The relationship between the two families remains unresolved and must not be assumed.
+
+## Registers `0xD8`-`0xDB` — Legacy/inherited energy labels
+
+Current inherited interpretation:
+
+```text
+D8 = daily energy / 24 hourly values
+D9 = weekly energy
+DA = monthly energy
+DB = yearly energy
+```
+
+Only `D8` has an existing component interpretation; `D9`-`DB` are largely declared protocol vocabulary. None has yet been validated as the official app's energy path.
+
+## Register `0xDE` — Wireless/Wi-Fi LED
+
+**Direction:** Wi-Fi adaptor → IDU, class `0x10` write.
+
+**Payload length:** 1 byte.
+
+```text
+00 = LED OFF
+05 = LED ON
+```
+
+The official adaptor used `DE` directly in the controlled test. The independent purpose of legacy/component register `DF` remains unresolved.
+
+## Register `0xE0` — Equipment/model information
+
+**Direction:** unsolicited IDU push, class `0x11`.
+
+This register carries IDU/ODU identity information and has been observed directly from the genuine adaptor connection.
+
+Payloads are longer structured records rather than one-byte state values. Exact subfield documentation should be derived from the separately decoded equipment-information captures rather than guessed here.
+
+The key protocol fact is that `E0` is IDU-originated state/identity traffic and the adaptor acknowledges it with class `0x91`.
+
+## Register `0xE4` — IDU engineering status
+
+**Direction:** unsolicited push and readable engineering state.
+
+**Payload length:** 8 bytes.
+
+**Typical unsolicited total frame length:** 22 bytes.
+
+Current layout:
+
+```text
++0 = IDU heat-exchanger / coil-related temperature
++1 = second IDU temperature / junction-related value; exact physical location unresolved
++2 = live fan/airflow feedback quantity
++3 = unresolved
++4 = unresolved
++5 = unresolved
++6 = unresolved
++7 = unresolved
+```
+
+`+2` is confirmed as a live fan/airflow feedback quantity because it varies independently of the commanded fan enum.
+
+Representative values:
+
+```text
+E4 +2 = 00   fan stopped / early heating startup
+E4 +2 = 43   live fan feedback during Fan Only test
+E4 +2 = 55   earlier/restricted Hi POWER heating phase
+E4 +2 = 61   sustained full Hi POWER value after roughly 12-14 minutes
+E4 +2 = 33   after target reduction / Hi POWER removal
+```
+
+`61` is the highest sustained raw value observed so far on this unit. It is a raw protocol value, not literal RPM.
+
+Example full payload:
+
+```text
+E4 32 32 61 00 00 00 00 00
+   ^^ ^^ ^^ ----------------
+   +0 +1 +2      unresolved
+```
+
+## Register `0xE5` — ODU/system engineering status
+
+**Direction:** unsolicited push and readable engineering state.
+
+**Payload length:** 8 bytes.
+
+**Typical unsolicited total frame length:** 22 bytes.
+
+Current interpretation:
+
+```text
++0 = temperature-like engineering quantity
++1 = temperature-like engineering quantity
++2 = temperature-like engineering quantity
++3 = load/allocation-like quantity; falls to zero when demand disappears
++4 = unresolved
++5 = unresolved
++6 = current-like quantity tracking ODU electrical activity
++7 = unresolved
+```
+
+Representative heating payload:
+
+```text
+E5 3A 11 12 59 00 00 6A 00
+```
+
+`+6` correlates strongly with measured electrical current, but the exact physical scope and engineering scale remain empirical. Any correction factor applied by the ESPHome component is implementation calibration, not part of the proven wire protocol.
+
+Observed unavailable/sentinel form:
+
+```text
+7F 7F 7F FE FE FE FE 00
+```
+
+During target reduction before shutdown, both `E5 +3` and `E5 +6` fell to zero while the indoor fan continued running. This supports their association with active compressor/load demand rather than HVAC mode alone.
+
+## Register `0xEA` — Date/time sync
+
+**Direction:** Write.
+
+This is a multi-byte time/date command previously mapped by the component. The latest sniffer campaign did not focus on re-validating its internal fields.
+
+The ACK pattern ends with:
+
+```text
+99 99
+```
+
+Detailed byte layout should remain tied to the existing implementation until a deliberate genuine-adaptor time-sync capture is made.
+
+## Register `0xF7` — Special-function selector
+
+Established enum:
 
 ```text
 00 = Standard
@@ -169,156 +738,110 @@ Observed special-function values:
 30 = Fireplace 2
 ```
 
-Every observed `F8` write is followed by the generic `F8 3A` ACK; the ACK does **not** echo the resulting state. Therefore the command encoding is decoded, but authoritative IDU readback of the active special function is still an open question. A physical-remote test is planned to determine whether the IDU pushes or returns this state via `F7`, `F8`, or another register.
+This enum is independently corroborated by `F8 +3`, where `00`, `01`, and `03` have been observed in genuine-adaptor traffic under corresponding operating conditions.
 
-On shutdown the official adaptor writes power OFF separately (`80 31`) and then can reiterate the current `F8` configuration. `F8` therefore represents stored operating configuration rather than proof that the unit is actively running.
+What remains unresolved is authoritative state feedback: the physical-remote test is still required to determine whether the IDU pushes or returns the active special function via `F7`, `F8`, or another state register.
 
-## OFF timer (`0x94` / `0x96`)
+## Register `0xF8` — Aggregate operating configuration
 
-Genuine adaptor captures:
+`F8` is now one of the best-characterised control messages.
 
-```text
-30 minutes:
-96 00 1E
-94 41
+### Write frame
 
-1 hour:
-96 01 00
-94 41
+**Direction:** Wi-Fi adaptor → IDU, class `0x10`.
 
-clear:
-94 42
-```
+**Payload length:** 4 bytes.
 
-Thus:
+**Total frame length:** 18 bytes.
 
 ```text
-0x96 = programmed interval HH MM
-0x94 = state/control: 41 active, 42 inactive
+02 00 03 10 00 00 0A 01 30 01 00 05 F8 MM TT FF SS CS
+                                             |  |  |  |
+                                             |  |  |  +-- special function
+                                             |  |  +----- fan command
+                                             |  +-------- target °C
+                                             +----------- HVAC mode
 ```
 
-The programmed interval and enable state are separate. Clearing does not require zeroing `0x96`.
-
-The app also exposes an ON/program timer. `0x90`/`0x92` remain genuinely unconfirmed because that app control has not yet been exercised under the sniffer.
-
-## PURE (`0xC7`)
+Payload structure:
 
 ```text
-PURE ON  -> C7 18
-PURE OFF -> C7 10
++0 = HVAC mode
++1 = target temperature, raw °C
++2 = commanded fan enum
++3 = special-function selector using F7 enum
 ```
 
-Both directions were captured as genuine Toshiba Wi-Fi-adaptor writes.
-
-## Wireless LED (`0xDE`)
+### Observed mode values
 
 ```text
-LED OFF -> DE 00
-LED ON  -> DE 05
+41 = Auto
+42 = Cool
+43 = Heat
+44 = Dry
+45 = Fan Only
 ```
 
-The official adaptor used `DE` directly in this test. The independent purpose of legacy/component register `DF` remains unresolved.
-
-## Official Energy Monitoring (`0xCC`-`0xCF`)
-
-Opening the Toshiba Energy Monitoring page causes explicit polling in order:
+### Observed fan values
 
 ```text
-CC
-CD
-CE
-CF
+31 = Quiet
+32..36 = manual fan levels
+41 = Auto
 ```
 
-### Timestamp
-
-Each dataset begins with:
+### Observed special-function values
 
 ```text
-7E MM DD HH mm ss
+00 = Standard
+01 = Hi POWER
+03 = ECO
 ```
 
-The month is zero-based. Example:
+The remaining `F7` enum values are established protocol vocabulary but have not all been re-exercised inside `F8` during this sniffer campaign.
+
+### Captured examples
+
+Fan Only at 22°C:
 
 ```text
-7E 08 0D 10 05 26 = 13 Sep, 16:05:38
+F8 45 16 32 00
+F8 45 16 33 00
+F8 45 16 34 00
+F8 45 16 35 00
+F8 45 16 36 00
 ```
 
-### Calendar structure
+Heat:
 
 ```text
-CC: 480 data bytes = 24 × 20-byte records  -> hourly slots / daily view
-CD: 196 data bytes =  7 × 28-byte records  -> daily slots / weekly view
-CE: 868 data bytes = 31 × 28-byte records  -> day-of-month / monthly view
-CF: 336 data bytes = 12 × 28-byte records  -> monthly slots / yearly view
+F8 43 18 41 00   Heat, 24°C, Auto, Standard
+F8 43 14 41 00   Heat, 20°C, Auto, Standard
+F8 43 16 41 00   Heat, 22°C, Auto, Standard
+F8 43 16 41 01   Heat, 22°C, Auto, Hi POWER
+F8 43 13 41 03   Heat, 19°C, Auto, ECO
 ```
 
-### Electrical-energy field
-
-The electrical-consumption field is at logical record offset `+8`.
-
-For `CD`, `CE` and `CF` it is a little-endian uint32 value in Wh. UI-correlated examples:
+A controlled Hi POWER OFF→ON toggle changed only byte `+3`:
 
 ```text
-CD current day: B5 00 00 00 = 181 Wh  -> app 0.18 kWh
-CF September:   2E 08 00 00 = 2094 Wh -> app 2.1 kWh
+F8 43 16 41 00
+F8 43 16 41 01
 ```
 
-Later simultaneous-period captures showed equal increments in the day and month counters, confirming that they are the same electrical-consumption quantity accumulated over different calendar periods.
+The later `03` capture matched the established ECO enum, proving byte `+3` is better understood as the special-function selector rather than a generic bitfield.
 
-For `CC`, the corresponding hourly field is a little-endian 16-bit Wh quantity at the same logical `+8` offset. Example at 16:05:
+### ACK
+
+Every observed `F8` write is followed by the generic 16-byte response ending:
 
 ```text
-E6 00 = 230 Wh
+F8 3A
 ```
 
-Several other counters in the 28-byte records change coherently but are not yet assigned physical meanings. They should remain explicitly unresolved rather than being guessed as runtime, output energy, heating/cooling split, or allocation quantities.
+The ACK does not echo the resulting operating state.
 
-The relationship between the official `CC`-`CF` history path and inherited `D8`-`DB` register names remains unresolved. `D8`-`DB` must not be treated as equivalent to the official app datasets without separate validation.
-
-## `0xE4` IDU engineering status
-
-Current working layout:
-
-```text
-+0 IDU heat-exchanger / coil-related temperature
-+1 second IDU temperature / junction-related value; exact physical location unresolved
-+2 live fan/airflow feedback quantity; not commanded fan enum and not literal RPM
-+3..+7 unresolved in current captures
-```
-
-`+2` is now well established as live fan/airflow feedback. It changes independently of the `A0`/`F8` fan command.
-
-Representative observations include:
-
-```text
-E4 +2 = 0x00   fan stopped / early heating startup
-E4 +2 = 0x43   live fan feedback during Fan Only test
-E4 +2 = 0x55   earlier/restricted Hi POWER heating phase
-E4 +2 = 0x61   sustained full Hi POWER value after roughly 12-14 minutes
-E4 +2 = 0x33   after target reduction / Hi POWER removal
-```
-
-`0x61` is the highest sustained value observed so far on this unit. It should be described as a raw live feedback value until its engineering scaling is independently established.
-
-## `0xE5` ODU/system engineering status
-
-Current working interpretation:
-
-```text
-+0 temperature-like engineering quantity
-+1 temperature-like engineering quantity
-+2 temperature-like engineering quantity
-+3 load/allocation-like quantity; zero when demand falls away
-+4 unresolved
-+5 unresolved
-+6 current-like quantity tracking ODU electrical activity
-+7 unresolved
-```
-
-`+6` correlates strongly with measured electrical current but exact physical scope and scaling remain empirical. The component's correction/scaling must therefore be documented separately from the protocol fact that the raw field tracks ODU electrical activity.
-
-During target reduction before shutdown, both `E5 +3` and `E5 +6` fell to zero while the indoor fan continued to run, supporting the interpretation that these fields are associated with active compressor/load demand rather than merely HVAC mode.
+Therefore the `F8` command format is decoded, but authoritative IDU readback of the active special function remains unresolved.
 
 ## Validation labels
 
@@ -326,4 +849,4 @@ During target reduction before shutdown, both `E5 +3` and `E5 +6` fell to zero w
 - **validated / established** — mapping is strongly established by repeated component and sniffer observations, even if not every enum member was re-exercised in the latest campaign.
 - **partially decoded** — register and some fields are validated, but exact scaling or remaining subfields are unresolved.
 - **not yet directly tested** — plausible inherited/structural interpretation awaiting a deliberate genuine-adaptor test.
-- **declared only** — exists in the inherited protocol vocabulary without sufficient live validation.
+- **declared only** — exists in inherited protocol vocabulary without sufficient live validation.
