@@ -6,26 +6,30 @@
 #   adaptor RXD      -> GPIO20  (IDU -> Wi-Fi adaptor, RX only)
 #   adaptor TXD      -> GPIO21  (Wi-Fi adaptor -> IDU, RX only)
 #
-# IMPORTANT:
-#   Measure RXD/TXD high level before direct connection. This YAML assumes the
-#   labelled test pads are on the adaptor's 3.3V logic side. Do not connect a
-#   5V logic signal directly to an ESP32-C3 GPIO.
+# Both GPIO20 and GPIO21 are receive-only. There is deliberately no TX pin in
+# either UART definition, so the sniffer never drives the Toshiba bus.
 #
-# Both GPIO20 and GPIO21 are configured as UART RX inputs. There is deliberately
-# no TX pin in either UART definition, so the sniffer does not drive the bus.
-#
-# Protocol observed on the Toshiba link:
+# Toshiba UART:
 #   9600 baud, 8 data bits, EVEN parity, 1 stop bit.
 #
-# Capture mechanism:
-#   ESPHome UART debug collects bytes independently in both directions. A frame
-#   is emitted after 20 ms of silence, giving timestamp, direction, byte count,
-#   and full hexadecimal payload. Run `esphome logs` and save the terminal output
-#   while issuing one Toshiba app/cloud command at a time.
+# Frame format observed:
+#   prefix 02 00 03
+#   bytes 5..6 = 16-bit big-endian protocol length
+#   complete frame length = protocol length + 8
 #
-# Expected log lines:
-#   IDU->WIFI  t=123456ms len=15 02.00.03....
-#   WIFI->IDU  t=123507ms len=15 02.00.03....
+# Message classes and register positions:
+#   0x10 Wi-Fi request/write   -> register byte 12
+#   0x90 IDU response          -> register byte 14
+#   0x11 IDU push/unsolicited  -> register byte 12
+#   0x91 Wi-Fi ACK of push     -> no register
+#
+# ESPHome UART debug still fires after 20 ms of silence, but large Toshiba
+# responses can contain gaps long enough to split a single protocol frame.
+# The lambdas below therefore maintain a persistent per-direction byte buffer,
+# resynchronise on 02 00 03, read the protocol length field and emit only when
+# a complete frame is available. Complete frames are printed in 100-byte
+# display chunks so even the 890-byte CE energy-history response stays intact
+# logically while remaining readable in ESPHome logs.
 
 substitutions:
   name: toshiba-wifi-sniffer
@@ -34,20 +38,29 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
+  platformio_options:
+    board_build.f_cpu: 80000000L
 
 esp32:
   board: esp32-c3-devkitm-1
   framework:
     type: esp-idf
 
-# Keep logging off the UART peripherals being used for capture.
 logger:
-  level: DEBUG
+  level: INFO
   hardware_uart: USB_SERIAL_JTAG
+  tx_buffer_size: 2048
 
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+    - ssid: !secret iot_wifi_ssid
+      password: !secret iot_wifi_password
+    - ssid: !secret wifi_ssid_3
+      password: !secret wifi_password_3
+  power_save_mode: HIGH
+  fast_connect: true
 
 api:
   encryption:
@@ -58,7 +71,7 @@ ota:
     password: !secret ota_password
 
 uart:
-  # Adaptor RXD is the signal arriving at the Wi-Fi adaptor from the IDU.
+  # Adaptor RXD: traffic from IDU to genuine Wi-Fi adaptor.
   - id: idu_to_wifi_uart
     rx_pin:
       number: GPIO20
@@ -77,13 +90,112 @@ uart:
         timeout: 20ms
       sequence:
         - lambda: |-
-            ESP_LOGI("toshiba_sniffer",
-                     "IDU->WIFI  t=%ums  len=%u  %s",
-                     (unsigned) millis(),
-                     (unsigned) bytes.size(),
-                     format_hex_pretty(bytes).c_str());
+            static std::vector<uint8_t> buffer;
+            static uint32_t last_partial_ms = 0;
 
-  # Adaptor TXD is the signal transmitted by the Wi-Fi adaptor toward the IDU.
+            const uint32_t now = millis();
+
+            // If a previous partial frame has sat idle for more than a second,
+            // flush it before appending fresh traffic. This is only a recovery
+            // path; normal framing is controlled by the Toshiba length field.
+            if (!buffer.empty() && last_partial_ms != 0 &&
+                (uint32_t) (now - last_partial_ms) > 1000) {
+              ESP_LOGW("toshiba_sniffer",
+                       "IDU->WIFI stale partial t=%ums len=%u %s",
+                       (unsigned) now,
+                       (unsigned) buffer.size(),
+                       format_hex_pretty(buffer).c_str());
+              buffer.clear();
+            }
+
+            buffer.insert(buffer.end(), bytes.begin(), bytes.end());
+            last_partial_ms = now;
+
+            while (true) {
+              // Resynchronise to Toshiba frame prefix 02 00 03.
+              size_t start = 0;
+              while (start + 2 < buffer.size() &&
+                     !(buffer[start] == 0x02 &&
+                       buffer[start + 1] == 0x00 &&
+                       buffer[start + 2] == 0x03)) {
+                ++start;
+              }
+
+              if (start > 0) {
+                if (start >= buffer.size() - 2) {
+                  buffer.erase(buffer.begin(), buffer.begin() + start);
+                  return;
+                }
+                ESP_LOGW("toshiba_sniffer",
+                         "IDU->WIFI resync dropped %u byte(s)",
+                         (unsigned) start);
+                buffer.erase(buffer.begin(), buffer.begin() + start);
+              }
+
+              if (buffer.size() < 7) return;
+
+              const size_t protocol_length =
+                  ((size_t) buffer[5] << 8) | buffer[6];
+              const size_t expected_length = protocol_length + 8;
+
+              if (expected_length < 8 || expected_length > 4096) {
+                ESP_LOGW("toshiba_sniffer",
+                         "IDU->WIFI invalid frame length %u; dropping prefix byte",
+                         (unsigned) expected_length);
+                buffer.erase(buffer.begin());
+                continue;
+              }
+
+              if (buffer.size() < expected_length) return;
+
+              std::vector<uint8_t> frame(buffer.begin(),
+                                         buffer.begin() + expected_length);
+              buffer.erase(buffer.begin(), buffer.begin() + expected_length);
+
+              int reg = -1;
+              if (frame.size() > 12) {
+                const uint8_t type = frame[3];
+                if (type == 0x11) {
+                  reg = frame[12];
+                } else if (type == 0x90 && frame.size() > 14) {
+                  reg = frame[14];
+                }
+              }
+
+              if (reg >= 0) {
+                ESP_LOGI("toshiba_sniffer",
+                         "IDU->WIFI FRAME t=%ums len=%u reg=%02X",
+                         (unsigned) now,
+                         (unsigned) frame.size(),
+                         reg);
+              } else {
+                ESP_LOGI("toshiba_sniffer",
+                         "IDU->WIFI FRAME t=%ums len=%u",
+                         (unsigned) now,
+                         (unsigned) frame.size());
+              }
+
+              constexpr size_t chunk_size = 100;
+              const size_t chunks = (frame.size() + chunk_size - 1) / chunk_size;
+              for (size_t i = 0; i < chunks; ++i) {
+                const size_t first = i * chunk_size;
+                const size_t last = std::min(first + chunk_size, frame.size());
+                std::vector<uint8_t> chunk(frame.begin() + first,
+                                           frame.begin() + last);
+                ESP_LOGI("toshiba_sniffer",
+                         "IDU->WIFI [%u/%u] %s",
+                         (unsigned) (i + 1),
+                         (unsigned) chunks,
+                         format_hex_pretty(chunk).c_str());
+              }
+
+              if (buffer.empty()) {
+                last_partial_ms = 0;
+                return;
+              }
+            }
+
+  # Adaptor TXD: traffic from genuine Wi-Fi adaptor to IDU.
   - id: wifi_to_idu_uart
     rx_pin:
       number: GPIO21
@@ -102,8 +214,103 @@ uart:
         timeout: 20ms
       sequence:
         - lambda: |-
-            ESP_LOGI("toshiba_sniffer",
-                     "WIFI->IDU  t=%ums  len=%u  %s",
-                     (unsigned) millis(),
-                     (unsigned) bytes.size(),
-                     format_hex_pretty(bytes).c_str());
+            static std::vector<uint8_t> buffer;
+            static uint32_t last_partial_ms = 0;
+
+            const uint32_t now = millis();
+
+            if (!buffer.empty() && last_partial_ms != 0 &&
+                (uint32_t) (now - last_partial_ms) > 1000) {
+              ESP_LOGW("toshiba_sniffer",
+                       "WIFI->IDU stale partial t=%ums len=%u %s",
+                       (unsigned) now,
+                       (unsigned) buffer.size(),
+                       format_hex_pretty(buffer).c_str());
+              buffer.clear();
+            }
+
+            buffer.insert(buffer.end(), bytes.begin(), bytes.end());
+            last_partial_ms = now;
+
+            while (true) {
+              size_t start = 0;
+              while (start + 2 < buffer.size() &&
+                     !(buffer[start] == 0x02 &&
+                       buffer[start + 1] == 0x00 &&
+                       buffer[start + 2] == 0x03)) {
+                ++start;
+              }
+
+              if (start > 0) {
+                if (start >= buffer.size() - 2) {
+                  buffer.erase(buffer.begin(), buffer.begin() + start);
+                  return;
+                }
+                ESP_LOGW("toshiba_sniffer",
+                         "WIFI->IDU resync dropped %u byte(s)",
+                         (unsigned) start);
+                buffer.erase(buffer.begin(), buffer.begin() + start);
+              }
+
+              if (buffer.size() < 7) return;
+
+              const size_t protocol_length =
+                  ((size_t) buffer[5] << 8) | buffer[6];
+              const size_t expected_length = protocol_length + 8;
+
+              if (expected_length < 8 || expected_length > 4096) {
+                ESP_LOGW("toshiba_sniffer",
+                         "WIFI->IDU invalid frame length %u; dropping prefix byte",
+                         (unsigned) expected_length);
+                buffer.erase(buffer.begin());
+                continue;
+              }
+
+              if (buffer.size() < expected_length) return;
+
+              std::vector<uint8_t> frame(buffer.begin(),
+                                         buffer.begin() + expected_length);
+              buffer.erase(buffer.begin(), buffer.begin() + expected_length);
+
+              int reg = -1;
+              if (frame.size() > 12) {
+                const uint8_t type = frame[3];
+                if (type == 0x10) {
+                  reg = frame[12];
+                }
+                // 0x91 is a generic ACK for an unsolicited IDU push and has
+                // no register field.
+              }
+
+              if (reg >= 0) {
+                ESP_LOGI("toshiba_sniffer",
+                         "WIFI->IDU FRAME t=%ums len=%u reg=%02X",
+                         (unsigned) now,
+                         (unsigned) frame.size(),
+                         reg);
+              } else {
+                ESP_LOGI("toshiba_sniffer",
+                         "WIFI->IDU FRAME t=%ums len=%u",
+                         (unsigned) now,
+                         (unsigned) frame.size());
+              }
+
+              constexpr size_t chunk_size = 100;
+              const size_t chunks = (frame.size() + chunk_size - 1) / chunk_size;
+              for (size_t i = 0; i < chunks; ++i) {
+                const size_t first = i * chunk_size;
+                const size_t last = std::min(first + chunk_size, frame.size());
+                std::vector<uint8_t> chunk(frame.begin() + first,
+                                           frame.begin() + last);
+                ESP_LOGI("toshiba_sniffer",
+                         "WIFI->IDU [%u/%u] %s",
+                         (unsigned) (i + 1),
+                         (unsigned) chunks,
+                         format_hex_pretty(chunk).c_str());
+              }
+
+              if (buffer.empty()) {
+                last_partial_ms = 0;
+                return;
+              }
+            }
