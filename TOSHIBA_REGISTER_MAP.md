@@ -8,9 +8,9 @@ The summary table is an index. Detailed sections below describe framing, payload
 
 | Register | Function | Direction | Current interpretation | Sniffer validation |
 | --- | --- | --- | --- | --- |
-| `0x80` | Logical/requested power state | R/W / pushed | `0x30` ON/armed, `0x31` OFF. `0x30` may be pushed while an ON timer is armed even though the unit is not yet physically running. | **confirmed** |
+| `0x80` | Logical/requested power state | R/W / pushed | `0x30` ON/armed, `0x31` OFF. `0x30` may be pushed while an ON timer is armed even though the unit is not yet physically running. | **confirmed value mapping; armed-state interpretation draft** |
 | `0x87` | Power Select | R/W | `0x32` 50%, `0x4B` 75%, `0x64` 100% | **confirmed** |
-| `0x90` | ON timer state/control | R/W / pushed | `0x41` active, `0x42` inactive/cancelled | **confirmed** |
+| `0x90` | ON timer state/control | R/W / pushed | `0x41` active, `0x42` inactive/cancelled | **confirmed values; expiry interpretation draft** |
 | `0x92` | ON timer programmed delay | Write | `HH MM`; `01 00` = 1 h, `0C 00` = 12 h | **confirmed** |
 | `0x94` | OFF timer state/control | R/W | `0x41` active, `0x42` inactive/cancelled | **confirmed** |
 | `0x96` | OFF timer programmed delay | R/W | `HH MM`; `00 1E` = 30 min, `01 00` = 1 h | **confirmed** |
@@ -22,7 +22,7 @@ The summary table is an index. Detailed sections below describe framing, payload
 | `0xBB` | Room temperature | Read / pushed | Raw integer °C; `7F` unavailable | **confirmed** |
 | `0xBE` | Outdoor temperature | Read / pushed | Signed byte; `7F` unavailable | **confirmed** |
 | `0xC7` | PURE | R/W | `18` ON, `10` OFF | **confirmed** |
-| `0xCA` | Structured status/config block | Read | Official adaptor polls about every 60 s; payload repeatedly observed as `00 E8 03 00 00` | **register use confirmed; semantics unresolved** |
+| `0xCA` | Filter/service information | Read | `+1..+2` = filter interval in hours, uint16 LE; e.g. `E8 03` = 1000 h, `F4 01` = 500 h. Other bytes unresolved. | **partially decoded / confirmed interval field** |
 | `0xCB` | Self-clean state | Read | Existing mapping `18` running, `10` off | **not deliberately re-tested with sniffer** |
 | `0xCC` | Daily-view energy history | Read | 502-byte response; 24 × 20-byte hourly records; record `+8` = hourly Wh | **confirmed** |
 | `0xCD` | Weekly-view energy history | Read | 218-byte response; 7 × 28-byte daily records; record `+8` = daily uint32 LE Wh | **confirmed** |
@@ -125,15 +125,19 @@ Captured writes:
 80 31   OFF
 ```
 
-The ON-timer experiment exposed an important distinction. When the unit was physically OFF, the adaptor programmed and enabled an ON timer, after which the IDU pushed:
+### DRAFT interpretation — logical/armed ON state
+
+During an ON-timer experiment, the adaptor first set `80 31`, then programmed and enabled the ON timer. The IDU subsequently pushed:
 
 ```text
 80 30
 ```
 
-The unit remained stopped and only its timer lamp was illuminated. Therefore `80=30` is a logical/requested ON state and must not be interpreted as proof that the fan or compressor is presently operating.
+while the unit remained physically stopped and only the timer lamp was illuminated. In the same armed state, `E4 +2` remained `00`.
 
-During that armed state, `E4 +2` remained `00`, providing independent evidence that actual indoor fan operation had not started.
+Observed fact: `80 30` can be present while the indoor fan is not running.
+
+Draft inference: `80 30` is better understood as logical/requested/armed ON state rather than proof of present physical operation. This distinction should remain provisional until reproduced across more timer and non-timer transitions.
 
 ## Register `0x87` — Power Select
 
@@ -153,7 +157,7 @@ Example:
 
 ## Registers `0x90` / `0x92` — ON timer
 
-The ON timer is now directly validated with the genuine adaptor.
+The ON timer is directly validated with the genuine adaptor.
 
 ### Availability / operating-state constraint
 
@@ -203,10 +207,10 @@ Confirmed set sequence:
 F8 ...           stored operating configuration
 92 HH MM         program delay
 90 41            enable ON timer
-IDU push: 80 30  logical state becomes armed ON
+IDU push: 80 30  draft interpretation: logical state becomes armed ON
 ```
 
-Confirmed cancellation includes an unsolicited IDU state push followed by the adaptor writing the same inactive value:
+Confirmed manual cancellation includes an unsolicited IDU state push followed by the adaptor writing the same inactive value:
 
 ```text
 IDU -> WiFi   90 42
@@ -215,6 +219,30 @@ IDU -> WiFi   generic ACK
 ```
 
 The programmed value and enable state are separate registers.
+
+### DRAFT — observed ON-timer expiry sequence
+
+One captured timer expiry produced the following sequence:
+
+```text
+before expiry:
+90 = 41       ON timer active
+80 = 30       logical/armed ON candidate
+E4 +2 = 00    indoor fan stopped
+
+at expiry:
+IDU -> WiFi   90 42
+WiFi -> IDU   class-0x91 ACK
+
+~5 seconds later:
+E4 +2 = 37    indoor fan activity present
+```
+
+The `90 42` transition was emitted unsolicited by the IDU at the time the programmed ON timer expired. The adaptor acknowledged it with the normal class-`0x91` push ACK.
+
+Observed fact: the timer-state transition preceded the first observed non-zero `E4 +2` fan feedback by about five seconds in this capture.
+
+Draft inference: `0x90` appears to provide authoritative ON-timer active/inactive state, while actual operation is represented independently by engineering/runtime state such as `E4`. This is based on a single expiry capture and should remain provisional until reproduced.
 
 ## Registers `0x94` / `0x96` — OFF timer
 
@@ -447,19 +475,30 @@ BE 7F = unavailable after ODU data disappears
 
 Both values were captured as genuine adaptor writes.
 
-## Register `0xCA` — Structured status/config block
+## Register `0xCA` — Filter/service information
 
-The genuine adaptor polls `CA` periodically, observed approximately once per minute.
+The genuine adaptor polls `CA` periodically, observed approximately once per minute while the unit's normal section is open in the Toshiba app.
 
 **Response payload length:** 5 bytes.
 
-Repeated payload:
+Current layout:
 
 ```text
-00 E8 03 00 00
++0       status/flag byte                  unresolved
++1..+2   configured filter interval hours  uint16 little-endian
++3..+4   unresolved
 ```
 
-If bytes `+1..+2` are treated as little-endian uint16 they equal `0x03E8 = 1000`, but there is currently no defensible physical interpretation for that value. `CA` remained unchanged while an ON timer was armed and after timer cancellation, arguing against it being live timer state.
+Confirmed examples from the app's **Set filter time** control:
+
+```text
+00 E8 03 00 00   -> configured filter time = 1000 hours
+01 F4 01 00 00   -> configured filter time = 500 hours
+```
+
+`E8 03` = `0x03E8` = 1000 and `F4 01` = `0x01F4` = 500, confirming the little-endian hours field at `+1..+2`.
+
+The simultaneous `+0` change from `00` to `01` is observed but not yet assigned; it may represent a status/configuration flag and should not be named without another controlled test. The meaning of `+3..+4` is also unresolved.
 
 ## Register `0xCB` — Self-clean state
 
@@ -647,6 +686,7 @@ Representative `+2` values:
 55 = earlier/restricted Hi POWER heating phase
 61 = sustained full Hi POWER value after roughly 12-14 minutes
 33 = after target reduction / Hi POWER removal
+37 = first observed fan activity about five seconds after one ON-timer expiry
 ```
 
 `61` is the highest sustained raw value observed so far. It is not literal RPM.
@@ -734,5 +774,6 @@ On shutdown the adaptor can write `80 31` and then reiterate the stored `F8` con
 - **confirmed** — directly correlated with genuine Toshiba Wi-Fi-adaptor traffic and reproduced.
 - **validated / established** — strongly established by repeated component and sniffer observations, even if every enum member was not re-exercised in the latest campaign.
 - **partially decoded** — register and some fields are validated, but exact scaling or remaining subfields are unresolved.
+- **draft / provisional inference** — observed wire behaviour is real, but the proposed semantic interpretation needs more reproductions before being promoted.
 - **not independently validated** — inherited/component interpretation awaiting direct genuine-adaptor confirmation.
 - **declared only** — exists in inherited protocol vocabulary without sufficient live validation.
