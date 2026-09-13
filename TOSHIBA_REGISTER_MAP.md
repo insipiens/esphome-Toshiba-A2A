@@ -31,6 +31,7 @@ This document records protocol findings from direct captures on the test system.
 | `0xE5` | ODU/system engineering status | Read | 8-byte extended status payload | partially characterised |
 | `0xEA` | Date/time sync | Write | multi-byte payload; ACK ends `0x99 0x99` | mapped |
 | `0xF7` | Special functions | R/W | Standard `0x00`; Hi POWER `0x01`; Silent 1 `0x02`; ECO `0x03`; 8°C `0x04`; Sleep `0x05`; Floor `0x06`; Comfort `0x07`; Silent 2 `0x0A`; Fireplace 1 `0x20`; Fireplace 2 `0x30` | mapped |
+| `0xF8` | Aggregate operating-state command | Write / observed | Genuine Wi-Fi adaptor writes a 4-byte state payload. In Fan Only at 22°C, fan levels 1..5 were `45 16 32 00` through `45 16 36 00`. This strongly identifies byte 0 as mode, byte 1 as target °C, byte 2 as commanded fan enum, byte 3 unresolved/flags. Immediate ACK ends `F8 3A`. | confirmed structure for captured Fan Only case |
 
 ## Genuine Wi-Fi adaptor `0xA3` louvre commands
 
@@ -127,6 +128,52 @@ B6 = horizontal swing command
 
 The old assumption that fixed vertical positions were simply `0x50..0x54` is not supported by these genuine-adaptor captures and should be treated as obsolete until independently proven on another model/firmware.
 
+## Genuine Wi-Fi adaptor `0xF8` aggregate-state writes
+
+Passive capture of fan-speed changes from 1 through 5 while the genuine adaptor was in Fan Only mode at 22°C produced these complete writes:
+
+```text
+Fan 1 -> F8 45 16 32 00
+Fan 2 -> F8 45 16 33 00
+Fan 3 -> F8 45 16 34 00
+Fan 4 -> F8 45 16 35 00
+Fan 5 -> F8 45 16 36 00
+```
+
+The full command frame is an extended write of the form:
+
+```text
+02 00 03 10 00 00 0A 01 30 01 00 05 F8 <mode> <target> <fan> <flags> <checksum>
+```
+
+For this controlled capture:
+
+```text
+byte 0 = 45  -> Fan Only mode
+byte 1 = 16  -> target temperature 22°C
+byte 2 = 32..36 -> commanded fan levels 1..5
+byte 3 = 00  -> unresolved / flags, unchanged throughout this test
+```
+
+Every `0xF8` write was acknowledged with:
+
+```text
+02 00 03 90 00 00 08 01 30 01 00 00 00 01 F8 3A
+```
+
+The immediate ACK contains no echoed state payload.
+
+An asynchronous IDU engineering packet observed during the same sequence contained:
+
+```text
+E4 14 15 43 00 00 00 00 00
+         ^^
+```
+
+so `E4 +2 = 0x43` was the contemporaneous live fan/airflow feedback while the commanded fan enum was `0x33`. This directly reinforces that `E4 +2` is a live feedback quantity, not the commanded fan selector value.
+
+These captures strongly support `0xF8` as an aggregate operating-state write used by the genuine Wi-Fi adaptor, at least for the captured mode/target/fan combination. Further controlled changes of mode, target temperature and special-state flags should reveal the remaining byte semantics.
+
 ## Current diagnostic sweep
 
 For protocol discovery, the component can sweep the user-control/state bank and log successful replies at INFO level while preserving complete payloads. This avoids creating dozens of temporary Home Assistant entities.
@@ -141,6 +188,7 @@ The most useful current captures are:
 0xA3 = 31/41/42/43/60  readback/state: Off / Vertical / Horizontal / Both / H.DA
 0xA4 = xx 00 00        structured louvre state; byte 0 mirrors A3
 0xC7 = 18 / 10         Pure active / inactive
+0xF8 = aggregate write [mode,target,fan,flags] from genuine Wi-Fi adaptor
 ```
 
 Large structured responses were observed near the top of the swept range, particularly around `0xCD`, together with checksum collisions during normal traffic. Treat `0xCC`-`0xCF` cautiously during automatic polling until their framing and purpose are understood.
