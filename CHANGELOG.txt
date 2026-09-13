@@ -3,6 +3,11 @@ ESPHome Toshiba A2A development
 
 Sep 13th 2026
 
+* split model handling into two lightweight runtime matrices: family-level control capabilities and exact-model airflow/performance ranges
+* made family capability mapping explicitly table-driven so capacity variants share the same control/function profile
+* replaced the large per-W-level/per-manual-level airflow lookup with compact exact-model cooling/heating endpoint ranges containing minimum/maximum fan feedback and minimum/maximum air volume
+* changed live airflow estimation to linear interpolation across those model-specific endpoints; values outside the known feedback range are deliberately not clamped so previously unseen fan speeds remain detectable
+* retained a lightweight five-step manual-fan fallback for IDU firmware that does not expose usable live fan feedback
 * expanded the UART register map from tentative observations into an evidence-graded protocol reference, separating confirmed sniffer observations from draft/provisional interpretations
 * validated aggregate F8 control traffic and documented command/state behaviour observed through the Toshiba Wi-Fi adaptor
 * mapped horizontal louvre FIX positions from ordered app tests; observed values 0x85, 0x8D, 0x95, 0x9D, 0xA5 and 0xAD correspond to six ordered positions, with the third position being straight ahead; degree-like encoding remains an interpretation
