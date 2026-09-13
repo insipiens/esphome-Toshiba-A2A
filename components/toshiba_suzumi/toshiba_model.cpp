@@ -39,6 +39,28 @@ constexpr uint32_t COMMON_RESIDENTIAL_FEATURES =
     FEATURE_SLEEP |
     FEATURE_COMFORT;
 
+struct ToshibaFamilyCapabilityEntry {
+  ToshibaIndoorUnitFamily family;
+  uint32_t features;
+};
+
+// Family capability matrix: functionality belongs to the indoor-unit family,
+// not to the capacity variant. Exact-model quantitative data such as airflow is
+// kept separately in the output component.
+static constexpr ToshibaFamilyCapabilityEntry TOSHIBA_FAMILY_CAPABILITIES[] = {
+    {ToshibaIndoorUnitFamily::J2FVG,
+     COMMON_RESIDENTIAL_FEATURES |
+         FEATURE_FLOOR |
+         FEATURE_AIR_OUTLET_SELECT},
+    {ToshibaIndoorUnitFamily::G3KVSG,
+     COMMON_RESIDENTIAL_FEATURES |
+         FEATURE_HORIZONTAL_AIRFLOW |
+         FEATURE_HADA_CARE},
+    {ToshibaIndoorUnitFamily::P2KVSG,
+     COMMON_RESIDENTIAL_FEATURES |
+         FEATURE_HORIZONTAL_AIRFLOW},
+};
+
 }  // namespace
 
 ToshibaIndoorUnitFamily indoor_unit_family_from_model(const std::string &model) {
@@ -61,28 +83,14 @@ ToshibaCapabilityProfile capability_profile_from_model(const std::string &model)
   ToshibaCapabilityProfile profile;
   const auto family = indoor_unit_family_from_model(model);
 
-  // Shared controls are modelled once. Family mappings only add controls that
-  // are physically specific to that indoor-unit construction/remote family.
-  switch (family) {
-    case ToshibaIndoorUnitFamily::J2FVG:
-      profile.features = COMMON_RESIDENTIAL_FEATURES |
-                         FEATURE_FLOOR |
-                         FEATURE_AIR_OUTLET_SELECT;
-      break;
-    case ToshibaIndoorUnitFamily::G3KVSG:
-      profile.features = COMMON_RESIDENTIAL_FEATURES |
-                         FEATURE_HORIZONTAL_AIRFLOW |
-                         FEATURE_HADA_CARE;
-      break;
-    case ToshibaIndoorUnitFamily::P2KVSG:
-      profile.features = COMMON_RESIDENTIAL_FEATURES |
-                         FEATURE_HORIZONTAL_AIRFLOW;
-      break;
-    default:
-      profile.features = FEATURE_COMMON_HVAC;
-      break;
+  for (const auto &entry : TOSHIBA_FAMILY_CAPABILITIES) {
+    if (entry.family == family) {
+      profile.features = entry.features;
+      return profile;
+    }
   }
 
+  profile.features = FEATURE_COMMON_HVAC;
   return profile;
 }
 
