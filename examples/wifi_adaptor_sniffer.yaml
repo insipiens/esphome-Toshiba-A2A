@@ -1,27 +1,31 @@
-# Passive Toshiba Wi-Fi adaptor / IDU UART sniffer.
+# Passive Toshiba Wi-Fi adaptor UART sniffer using an ESP32-C3 SuperMini.
 #
-# Purpose:
-#   Capture both directions of the genuine Toshiba Wi-Fi adaptor traffic while
-#   leaving the adaptor and IDU connected normally. This firmware MUST NOT
-#   transmit onto either Toshiba data line.
+# Wiring to the genuine Toshiba Wi-Fi adaptor test pads:
+#   adaptor VCC (5V) -> ESP32-C3 SuperMini 5V
+#   adaptor GND      -> ESP32-C3 SuperMini GND
+#   adaptor RXD      -> GPIO20  (IDU -> Wi-Fi adaptor, RX only)
+#   adaptor TXD      -> GPIO21  (Wi-Fi adaptor -> IDU, RX only)
 #
-# Existing ESP32-C3 interface board wiring:
-#   GPIO20 <- existing level-shifted Toshiba RX path
-#   GPIO21 <- existing level-shifted Toshiba TX path, used here as RX ONLY
-#   5V/GND <- IDU supply as normal
+# IMPORTANT:
+#   Measure RXD/TXD high level before direct connection. This YAML assumes the
+#   labelled test pads are on the adaptor's 3.3V logic side. Do not connect a
+#   5V logic signal directly to an ESP32-C3 GPIO.
 #
-# The genuine Wi-Fi adaptor is connected in parallel to the IDU connector.
-# Both ESP32 pins are configured as RX-only UARTs, so the ESP32 never drives
-# either data line.
+# Both GPIO20 and GPIO21 are configured as UART RX inputs. There is deliberately
+# no TX pin in either UART definition, so the sniffer does not drive the bus.
 #
-# Capture:
-#   Each UART direction is framed after 20 ms of silence and printed as one
-#   timestamped hex line. Save an ESPHome log session to a text file while
-#   issuing one Toshiba app/cloud command at a time.
+# Protocol observed on the Toshiba link:
+#   9600 baud, 8 data bits, EVEN parity, 1 stop bit.
 #
-# Expected log prefixes:
-#   WIFI->IDU  ...
-#   IDU->WIFI  ...
+# Capture mechanism:
+#   ESPHome UART debug collects bytes independently in both directions. A frame
+#   is emitted after 20 ms of silence, giving timestamp, direction, byte count,
+#   and full hexadecimal payload. Run `esphome logs` and save the terminal output
+#   while issuing one Toshiba app/cloud command at a time.
+#
+# Expected log lines:
+#   IDU->WIFI  t=123456ms len=15 02.00.03....
+#   WIFI->IDU  t=123507ms len=15 02.00.03....
 
 substitutions:
   name: toshiba-wifi-sniffer
@@ -36,6 +40,7 @@ esp32:
   framework:
     type: esp-idf
 
+# Keep logging off the UART peripherals being used for capture.
 logger:
   level: DEBUG
   hardware_uart: USB_SERIAL_JTAG
@@ -52,16 +57,19 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
-# GPIO20 normally serves as the controller RX pin. In sniff mode it remains
-# receive-only and observes the IDU -> Wi-Fi-adaptor direction.
 uart:
+  # Adaptor RXD is the signal arriving at the Wi-Fi adaptor from the IDU.
   - id: idu_to_wifi_uart
-    rx_pin: GPIO20
+    rx_pin:
+      number: GPIO20
+      mode:
+        input: true
+        pullup: false
     baud_rate: 9600
     data_bits: 8
     parity: EVEN
     stop_bits: 1
-    rx_buffer_size: 1024
+    rx_buffer_size: 2048
     debug:
       direction: RX
       dummy_receiver: true
@@ -69,21 +77,24 @@ uart:
         timeout: 20ms
       sequence:
         - lambda: |-
-            ESP_LOGI("toshiba_sniffer", "IDU->WIFI  t=%ums  len=%u  %s",
+            ESP_LOGI("toshiba_sniffer",
+                     "IDU->WIFI  t=%ums  len=%u  %s",
                      (unsigned) millis(),
                      (unsigned) bytes.size(),
                      format_hex_pretty(bytes).c_str());
 
-  # GPIO21 normally serves as the controller TX pin. For this firmware it is
-  # deliberately configured as an RX pin on a second UART peripheral. No TX
-  # pin exists in this configuration, so ESPHome cannot drive this line.
+  # Adaptor TXD is the signal transmitted by the Wi-Fi adaptor toward the IDU.
   - id: wifi_to_idu_uart
-    rx_pin: GPIO21
+    rx_pin:
+      number: GPIO21
+      mode:
+        input: true
+        pullup: false
     baud_rate: 9600
     data_bits: 8
     parity: EVEN
     stop_bits: 1
-    rx_buffer_size: 1024
+    rx_buffer_size: 2048
     debug:
       direction: RX
       dummy_receiver: true
@@ -91,7 +102,8 @@ uart:
         timeout: 20ms
       sequence:
         - lambda: |-
-            ESP_LOGI("toshiba_sniffer", "WIFI->IDU  t=%ums  len=%u  %s",
+            ESP_LOGI("toshiba_sniffer",
+                     "WIFI->IDU  t=%ums  len=%u  %s",
                      (unsigned) millis(),
                      (unsigned) bytes.size(),
                      format_hex_pretty(bytes).c_str());
