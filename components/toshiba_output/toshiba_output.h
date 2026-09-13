@@ -112,26 +112,18 @@ class ToshibaOutputEstimator : public PollingComponent {
   bool resolve_airflow_(AirflowMode mode, float &airflow_m3h) const {
     const std::string &model = climate_->get_idu_model();
 
-    // Where an E4+2 feedback calibration exists for this model, use the actual
-    // Toshiba fan/air-velocity feedback. This makes Auto, Quiet and intermediate
-    // controller-selected operating points directly usable instead of inferring
-    // airflow from the commanded fan setting.
+    // Prefer the live Toshiba fan feedback. The compact model table supplies only
+    // the min/max fan and air-volume endpoints; airflow is linearly interpolated.
     if (fan_feedback_ != nullptr && std::isfinite(fan_feedback_->state)) {
       if (interpolate_feedback_airflow(model.c_str(), mode, fan_feedback_->state, airflow_m3h))
         return true;
     }
 
-    // Models without a feedback calibration retain the documented fixed/manual
-    // fan lookup until their own E4+2-to-airflow relationship is established.
+    // Firmware without usable live fan feedback falls back to the commanded
+    // five-step fan level mapped across the same model-specific endpoint range.
     ManualFanLevel fan_level;
     if (!resolve_manual_fan_(fan_level)) return false;
-
-    const bool hi_power = climate_->is_hi_power_active();
-    const auto *airflow_entry = find_manual_airflow(model.c_str(), mode, fan_level, hi_power);
-    if (airflow_entry == nullptr) return false;
-
-    airflow_m3h = static_cast<float>(airflow_entry->airflow_m3h);
-    return true;
+    return estimate_manual_airflow(model.c_str(), mode, fan_level, airflow_m3h);
   }
 
   bool resolve_manual_fan_(ManualFanLevel &level) const {
