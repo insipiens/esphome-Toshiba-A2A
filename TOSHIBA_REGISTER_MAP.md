@@ -10,8 +10,8 @@ This document records protocol findings from direct captures on the test system.
 | `0x87` | Power Select | R/W | `0x32` 50%, `0x4B` 75%, `0x64` 100% | mapped |
 | `0x90` | Probable ON timer state/control | observed | `0x42` observed when no ON timer was active. Strongly suspected companion to `0x92`, mirroring the confirmed OFF-timer pair `0x94`/`0x96`; direct ON-timer test still required. | probable |
 | `0x92` | Probable ON timer programmed value | observed | Two-byte payload. Baseline `00 00`. Strongly suspected `HH MM`, mirroring confirmed OFF-timer register `0x96`; direct ON-timer test still required. | probable |
-| `0x94` | OFF timer state/control | observed / candidate R/W | `0x41` active, `0x42` inactive. Directly correlated with OFF-timer activation/deactivation. Prior Comfort Sleep attribution was incorrect. | confirmed |
-| `0x96` | OFF timer programmed value | observed / candidate R/W | Two-byte `HH MM` payload. Direct tests: 30 min -> `00 1E`; 6 h -> `06 00`. Value remained fixed while timer was active, so this is the programmed duration/value rather than a visible countdown. | confirmed |
+| `0x94` | OFF timer state/control | R/W | `0x41` enable/start, `0x42` disable/clear. Genuine Wi-Fi adaptor writes `0x96` first, then `0x94=41`; clearing writes only `0x94=42`. | confirmed |
+| `0x96` | OFF timer programmed value | R/W | Two-byte `HH MM` programmed interval. Genuine adaptor captures: 30 min -> `00 1E`; 1 h -> `01 00`. Stored interval is separate from enable state. | confirmed |
 | `0xA0` | Fan speed | R/W | Quiet `0x31`; Low `0x32`; Low-Med `0x33`; Medium `0x34`; Med-High `0x35`; High `0x36`; Auto `0x41` | mapped |
 | `0xA3` | Swing / louvre / H.DA | R/W | Readback/state values observed: Off `0x31`; Vertical swing `0x41`; Horizontal swing `0x42`; Both `0x43`; H.DA `0x60`. Genuine Toshiba Wi-Fi adaptor write-side commands use a different encoding for several louvre functions; see dedicated section below. | mapped readback; write encoding partially characterised |
 | `0xA4` | Structured louvre/swing state | Read | 3-byte payload. Byte 0 mirrors `0xA3` during swing testing: `41 00 00`, `42 00 00`, `43 00 00`, `60 00 00`. Bytes 1-2 unresolved. One isolated `53 2D 42` capture occurred during heavy sweep traffic and is treated as suspect/corrupted until reproduced. | partially characterised |
@@ -19,19 +19,25 @@ This document records protocol findings from direct captures on the test system.
 | `0xB3` | Target temperature | R/W | raw integer °C in ordinary operation | mapped |
 | `0xBB` | Room temperature | Read | `0x7F` invalid/unavailable | mapped |
 | `0xBE` | Outdoor temperature | Read | signed byte; `0x7F` invalid/unavailable | mapped |
-| `0xC7` | Pure | observed / candidate R/W | `0x18` active, `0x10` inactive; directly correlated with Pure activation/deactivation from the remote. | confirmed values; write path still to be exercised deliberately |
+| `0xC7` | Pure | R/W | `0x18` ON, `0x10` OFF. Both values directly captured as genuine Wi-Fi adaptor writes and previously observed in state/readback. | confirmed |
+| `0xCA` | Structured status/configuration block | Read | Genuine Wi-Fi adaptor periodically requests this register. Observed reply payload `00 E8 03 00 00`; exact semantics unresolved. | observed |
 | `0xCB` | Self-clean state | Read | `0x18` running, `0x10` off | mapped |
-| `0xD8` | Daily energy | Read | 24 hourly little-endian values in extended response | mapped |
+| `0xCC` | Energy-monitoring/history block | Read | Genuine Wi-Fi adaptor explicitly requests this when the Energy Monitoring page is opened. Observed full response length 502 bytes. | confirmed association; structure unresolved |
+| `0xCD` | Energy-monitoring/history block | Read | Genuine Wi-Fi adaptor explicitly requests this when the Energy Monitoring page is opened. Observed full response length 218 bytes. | confirmed association; structure unresolved |
+| `0xCE` | Energy-monitoring/history block | Read | Genuine Wi-Fi adaptor explicitly requests this when the Energy Monitoring page is opened. Observed full response length 890 bytes. | confirmed association; structure unresolved |
+| `0xCF` | Energy-monitoring/history block | Read | Genuine Wi-Fi adaptor explicitly requests this when the Energy Monitoring page is opened. Observed full response length 358 bytes. | confirmed association; structure unresolved |
+| `0xD8` | Daily energy | Read | 24 hourly little-endian values in extended response. Relationship to the official app's `0xCC`-`0xCF` history blocks remains to be established. | mapped |
 | `0xD9` | Weekly energy | declared | no parser/use yet | declared only |
 | `0xDA` | Monthly energy | declared | no parser/use yet | declared only |
 | `0xDB` | Yearly energy | declared | no parser/use yet | declared only |
-| `0xDE` / `0xDF` | Wi-Fi LED control | Write | component uses paired writes | mapped |
-| `0xE0` | Equipment information | pushed/asynchronous | IDU + ODU identity records observed in class-`0x11` messages; active read not established | observed |
-| `0xE4` | IDU engineering status | Read | 8-byte extended status payload | partially characterised |
-| `0xE5` | ODU/system engineering status | Read | 8-byte extended status payload | partially characterised |
+| `0xDE` | Wireless/Wi-Fi LED control | Write | Genuine adaptor: `0x00` LED OFF, `0x05` LED ON. Immediate ACK ends `DE 54`. | confirmed |
+| `0xDF` | Wi-Fi-related control | Write | Existing component uses this alongside `0xDE`; exact independent purpose still unresolved. | partially characterised |
+| `0xE0` | Equipment information | pushed/asynchronous | IDU + ODU identity records observed in class-`0x11` messages. Genuine adaptor receives this unsolicited and acknowledges it. | confirmed pushed record |
+| `0xE4` | IDU engineering status | pushed/read | 8-byte extended status payload. Genuine adaptor receives unsolicited `E4` updates and acknowledges them. | partially characterised |
+| `0xE5` | ODU/system engineering status | Read / pushed | 8-byte extended status payload | partially characterised |
 | `0xEA` | Date/time sync | Write | multi-byte payload; ACK ends `0x99 0x99` | mapped |
 | `0xF7` | Special functions | R/W | Standard `0x00`; Hi POWER `0x01`; Silent 1 `0x02`; ECO `0x03`; 8°C `0x04`; Sleep `0x05`; Floor `0x06`; Comfort `0x07`; Silent 2 `0x0A`; Fireplace 1 `0x20`; Fireplace 2 `0x30` | mapped |
-| `0xF8` | Aggregate operating-state command | Write / observed | Genuine Wi-Fi adaptor writes a 4-byte state payload. In Fan Only at 22°C, fan levels 1..5 were `45 16 32 00` through `45 16 36 00`. This strongly identifies byte 0 as mode, byte 1 as target °C, byte 2 as commanded fan enum, byte 3 unresolved/flags. Immediate ACK ends `F8 3A`. | confirmed structure for captured Fan Only case |
+| `0xF8` | Aggregate operating-state command | Write / observed | Genuine Wi-Fi adaptor writes a 4-byte state payload. In Fan Only at 22°C, fan levels 1..5 were `45 16 32 00` through `45 16 36 00`. Byte 0=mode, byte 1=target °C, byte 2=commanded fan enum, byte 3 unresolved/flags. Immediate ACK ends `F8 3A`. | confirmed structure for captured Fan Only case |
 
 ## Genuine Wi-Fi adaptor `0xA3` louvre commands
 
@@ -75,7 +81,7 @@ A3=AD
 
 The physical UI/remote exposes five vertical FIX positions (top/horizontal airflow through bottom/downward airflow) and five horizontal FIX positions (far left through far right). Six distinct writes were captured in each test sequence, so the exact five-position-to-code assignment still needs one position-at-a-time correlation. Do not yet label all six captured values as six physical positions.
 
-The numerical structure is nevertheless strong evidence that `0xA3` FIX writes contain separate horizontal and vertical subfields: the vertical sequence increments by `+1`, while the horizontal sequence increments by `+8`. The repeated `0x8D` in both runs further supports a combined two-axis command value. The exact bit-field semantics and any extra/default transition code remain unresolved.
+The numerical structure is strong evidence that `0xA3` FIX writes contain separate horizontal and vertical subfields: the vertical sequence increments by `+1`, while the horizontal sequence increments by `+8`. The repeated `0x8D` in both runs further supports a combined two-axis command value. The exact bit-field semantics and any extra/default transition code remain unresolved.
 
 ### Swing-mode write captures
 
@@ -106,7 +112,7 @@ Horizontal swing -> A3=B6
 next state       -> A3=80
 ```
 
-Therefore `0xAE` and `0xB6` are confirmed genuine-adaptor write commands for vertical and horizontal swing respectively, and `0x60` is used directly for H.DA. `0x80` is repeatably used in the V+H / no-swing transition path, but the current captures do not distinguish whether `0x80` itself uniquely means Both, Off, a toggle/transition, or a neutral combined-louvre command. More controlled state/readback correlation is required before assigning it a unique semantic meaning.
+Therefore `0xAE` and `0xB6` are confirmed genuine-adaptor write commands for vertical and horizontal swing respectively, and `0x60` is used directly for H.DA. `0x80` is repeatably used in the V+H / no-swing transition path, but the current captures do not distinguish whether `0x80` itself uniquely means Both, Off, a toggle/transition, or a neutral combined-louvre command.
 
 This write-side command encoding is distinct from the previously observed `0xA3` state/readback values:
 
@@ -149,10 +155,10 @@ The full command frame is an extended write of the form:
 For this controlled capture:
 
 ```text
-byte 0 = 45  -> Fan Only mode
-byte 1 = 16  -> target temperature 22°C
+byte 0 = 45     -> Fan Only mode
+byte 1 = 16     -> target temperature 22°C
 byte 2 = 32..36 -> commanded fan levels 1..5
-byte 3 = 00  -> unresolved / flags, unchanged throughout this test
+byte 3 = 00     -> unresolved / flags, unchanged throughout this test
 ```
 
 Every `0xF8` write was acknowledged with:
@@ -161,59 +167,128 @@ Every `0xF8` write was acknowledged with:
 02 00 03 90 00 00 08 01 30 01 00 00 00 01 F8 3A
 ```
 
-The immediate ACK contains no echoed state payload.
+An asynchronous IDU engineering packet observed during the same sequence contained `E4 14 15 43 00 00 00 00 00`, so `E4 +2 = 0x43` was the contemporaneous live fan/airflow feedback while the commanded fan enum was `0x33`. This directly reinforces that `E4 +2` is a live feedback quantity, not the commanded fan selector value.
 
-An asynchronous IDU engineering packet observed during the same sequence contained:
+## Genuine Wi-Fi adaptor OFF-timer writes
+
+The genuine adaptor implements the OFF timer as a two-register operation:
 
 ```text
-E4 14 15 43 00 00 00 00 00
-         ^^
+30 minutes:
+96 00 1E
+94 41
+
+1 hour:
+96 01 00
+94 41
+
+clear timer:
+94 42
 ```
 
-so `E4 +2 = 0x43` was the contemporaneous live fan/airflow feedback while the commanded fan enum was `0x33`. This directly reinforces that `E4 +2` is a live feedback quantity, not the commanded fan selector value.
+Thus:
 
-These captures strongly support `0xF8` as an aggregate operating-state write used by the genuine Wi-Fi adaptor, at least for the captured mode/target/fan combination. Further controlled changes of mode, target temperature and special-state flags should reveal the remaining byte semantics.
+```text
+0x96 = programmed interval, HH MM
+0x94 = enable/state: 41 active, 42 inactive
+```
+
+The adaptor writes the interval first and then enables the timer. Clearing the timer does not require zeroing `0x96`; it simply writes `0x94=42`. This confirms that programmed duration and enable state are independent.
+
+## Pure control
+
+Genuine adaptor writes directly confirm symmetric `0xC7` control:
+
+```text
+PURE ON  -> C7 18
+PURE OFF -> C7 10
+```
+
+The immediate ACK is the generic register-write acknowledgement ending `C7 6B`.
+
+## Wireless LED control
+
+Genuine adaptor writes directly establish `0xDE`:
+
+```text
+Wireless LED OFF -> DE 00
+Wireless LED ON  -> DE 05
+```
+
+Both are acknowledged with the generic register-write ACK ending `DE 54`.
+
+## Official Energy Monitoring traffic
+
+Opening the Energy Monitoring page in the Toshiba app causes the genuine Wi-Fi adaptor to explicitly request, in order:
+
+```text
+CC
+CD
+CE
+CF
+```
+
+This directly establishes `0xCC`-`0xCF` as part of the official energy-monitoring/history acquisition path rather than incidental diagnostic registers.
+
+Observed protocol response lengths are:
+
+```text
+CC: length field 0x01EE -> 502-byte complete frame
+CD: length field 0x00D2 -> 218-byte complete frame
+CE: length field 0x0372 -> 890-byte complete frame
+CF: length field 0x015E -> 358-byte complete frame
+```
+
+The current sniffer logger splits large responses into 150-byte log chunks, but these are fragments of single protocol frames, not independent responses. For example `CC` appears as `150 + 150 + 150 + 52 = 502` bytes and `CE` as `150 + 150 + 150 + 150 + 150 + 140 = 890` bytes.
+
+The energy/history blocks contain repeated structured records, many zero/unused fields, and repeated `7F FF` / `7F FF FF FF` sentinels. Exact record size, period mapping and scaling are not yet decoded.
+
+### Timestamp header
+
+The leading record header in `CC`-`CF` has now been correlated exactly with capture time:
+
+```text
+7E MM DD HH mm ss
+```
+
+where the month byte is zero-based. Example captured on 13 September at 15:09:40:
+
+```text
+CC 7E 08 0D 0F 09 28
+      |  |  |  |  |
+      |  |  |  |  +-- 0x28 = 40 seconds
+      |  |  |  +----- 0x09 = 09 minutes
+      |  |  +-------- 0x0F = 15 hours
+      |  +----------- 0x0D = day 13
+      +-------------- 0x08 = September (zero-based month)
+```
+
+Successive captures corroborated the seconds precisely:
+
+```text
+CD ... 0F 09 2A -> 15:09:42
+CE ... 0F 09 2C -> 15:09:44
+CF ... 0F 09 2F -> 15:09:47
+```
+
+Do not yet replace the existing `D8`-`DB` labels solely from this observation: `CC`-`CF` are unquestionably used by the official Energy Monitoring UI, while the exact relationship between the two register families remains unresolved.
 
 ## Current diagnostic sweep
 
-For protocol discovery, the component can sweep the user-control/state bank and log successful replies at INFO level while preserving complete payloads. This avoids creating dozens of temporary Home Assistant entities.
-
-The most useful current captures are:
+For protocol discovery, the component can sweep the user-control/state bank and log successful replies at INFO level while preserving complete payloads. The most useful current captures are:
 
 ```text
 0x90 = 42              probable ON timer inactive
 0x92 = 00 00           probable ON timer value
 0x94 = 41 / 42         OFF timer active / inactive
-0x96 = HH MM           OFF timer programmed value
+0x96 = HH MM           OFF timer programmed interval
 0xA3 = 31/41/42/43/60  readback/state: Off / Vertical / Horizontal / Both / H.DA
 0xA4 = xx 00 00        structured louvre state; byte 0 mirrors A3
-0xC7 = 18 / 10         Pure active / inactive
-0xF8 = aggregate write [mode,target,fan,flags] from genuine Wi-Fi adaptor
+0xC7 = 18 / 10         Pure ON / OFF
+0xCC-0xCF               official Energy Monitoring/history blocks
+0xDE = 00 / 05         Wireless LED OFF / ON
+0xF8                    aggregate write [mode,target,fan,flags]
 ```
-
-Large structured responses were observed near the top of the swept range, particularly around `0xCD`, together with checksum collisions during normal traffic. Treat `0xCC`-`0xCF` cautiously during automatic polling until their framing and purpose are understood.
-
-## Timer bank
-
-The timer registers now show a clear paired structure:
-
-```text
-0x90  probable ON timer enable/state
-0x92  probable ON timer programmed value (likely HH MM)
-
-0x94  OFF timer enable/state
-0x96  OFF timer programmed value (HH MM)
-```
-
-Confirmed OFF-timer examples:
-
-```text
-OFF timer 00:30 -> 0x94=41, 0x96=00 1E
-OFF timer 06:00 -> 0x94=41, 0x96=06 00
-cancelled         -> 0x94=42, 0x96=00 00
-```
-
-The repeated fixed `0x96` value while the timer remained enabled indicates that this register holds the programmed timer value, not an externally readable remaining-time countdown.
 
 ## `0xE4` IDU status
 
@@ -294,12 +369,13 @@ The physical high-wall remote exposes separate FIX controls for up/down and left
 - immediate IDU response to each genuine-adaptor `A3` write is only the generic `A3 8F` ACK and does not feed the resulting state back in that packet;
 - `0xA4` remains a 3-byte read-side louvre/swing record whose byte 0 mirrors the ordinary `A3` readback mode.
 
-The next useful experiment is controlled one-position-at-a-time correlation for all five vertical and horizontal FIX positions, plus explicit readback/state polling after each genuine-adaptor swing write.
+The next useful louvre experiment is controlled one-position-at-a-time correlation for all five vertical and horizontal FIX positions, plus explicit readback/state polling after each genuine-adaptor swing write.
 
 ## Evidence labels
 
 - **mapped** — repeatable protocol mapping used by the component.
 - **confirmed** — directly correlated with a known physical control and reproduced.
+- **confirmed association** — register usage is directly tied to an official app function, while internal record semantics remain unresolved.
 - **confirmed values** — values directly observed under known physical control changes, but full read/write semantics may still need testing.
 - **probable** — strong structural/behavioural inference awaiting one direct confirmation test.
 - **partially characterised** — field exists and some meaning is strongly supported, but exact scale or physical scope is unresolved.
