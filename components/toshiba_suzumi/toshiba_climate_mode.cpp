@@ -97,9 +97,9 @@ static const char *const FIXED_POSITION_NAMES[] = {
     "Position 1", "Position 2", "Position 3", "Position 4", "Position 5", "Position 6"};
 
 // Toshiba service manuals call the physical up/down flap a horizontal louver;
-// expose the user-facing effect as vertical air direction.  The six fixed
-// values are the genuine RB-N106S-G writes captured during the ordered P2
-// vertical FIX sweep.  The old inherited 0x50..0x54 mapping is no longer used.
+// expose the user-facing effect as vertical air direction. The six packed
+// values below are the genuine adaptor writes captured during the prescribed
+// P2 vertical FIX sweep. The old inherited 0x50..0x54 values are superseded.
 static const VerticalAirDirection VERTICAL_AIR_DIRECTIONS[] = {
     {SWING::OFF, "Off"},
     {SWING::VERTICAL, "Swing"},
@@ -120,7 +120,7 @@ bool DecodePackedFixPosition(uint8_t raw, uint8_t &horizontal_index, uint8_t &ve
   // Controlled Toshiba-app captures showed:
   //   vertical sweep:   88 89 8A 8B 8C 8D
   //   horizontal sweep: 85 8D 95 9D A5 AD
-  // This is a packed 3-bit + 3-bit position structure with the top bit set.
+  // This is strong evidence for a packed 3-bit + 3-bit position structure.
   if ((raw & 0xC0) != 0x80) return false;
   horizontal_index = (raw & 0x38) >> 3;
   vertical_index = raw & 0x07;
@@ -145,12 +145,8 @@ const optional<SWING> StringToVerticalAirDirection(const std::string &position) 
 }
 
 const char* SwingToVerticalAirDirection(SWING mode) {
-  if (mode == SWING::HORIZONTAL) {
-    return "Off";
-  }
-  if (mode == SWING::BOTH) {
-    return "Swing";
-  }
+  if (mode == SWING::HORIZONTAL) return "Off";
+  if (mode == SWING::BOTH) return "Swing";
 
   uint8_t horizontal_index = 0;
   uint8_t vertical_index = 0;
@@ -159,9 +155,7 @@ const char* SwingToVerticalAirDirection(SWING mode) {
   }
 
   for (auto const &direction : VERTICAL_AIR_DIRECTIONS) {
-    if (mode == direction.swing) {
-      return direction.name;
-    }
+    if (mode == direction.swing) return direction.name;
   }
   return nullptr;
 }
@@ -172,19 +166,21 @@ bool IsFixedVerticalAirDirection(SWING mode) {
   return DecodePackedFixPosition(static_cast<uint8_t>(mode), horizontal_index, vertical_index);
 }
 
-const SWING ClimateSwingModeToInt(climate::ClimateSwingMode mode) {
+const uint8_t ClimateSwingModeToCommand(climate::ClimateSwingMode mode) {
+  // IMPORTANT: A3 write commands are different from ordinary A3 readback state.
+  // Direct genuine-adaptor captures establish AE/B6/80 for swing writes.
   switch (mode) {
     case climate::CLIMATE_SWING_OFF:
-      return SWING::OFF;
+      return A3_CMD_OFF_TRANSITION;
     case climate::CLIMATE_SWING_BOTH:
-      return SWING::BOTH;
+      return A3_CMD_BOTH_SWING;
     case climate::CLIMATE_SWING_VERTICAL:
-      return SWING::VERTICAL;
+      return A3_CMD_VERTICAL_SWING;
     case climate::CLIMATE_SWING_HORIZONTAL:
-      return SWING::HORIZONTAL;
+      return A3_CMD_HORIZONTAL_SWING;
     default:
       ESP_LOGE(TAG, "Invalid swing mode %d.", mode);
-      return SWING::OFF;
+      return A3_CMD_OFF_TRANSITION;
   }
 }
 
