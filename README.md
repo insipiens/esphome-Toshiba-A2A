@@ -64,7 +64,7 @@ The current rewrite includes, or is in the process of introducing:
 - fixed vertical-air-direction control in addition to ESPHome's standard swing modes;
 - IDU/ODU terminology in place of inherited FCU/CDU naming;
 - extended `0xE4` IDU and `0xE5` ODU/system telemetry handling;
-- correction of interpretations that measurements showed were too strong — for example, the IDU fan field is not claimed to be literal RPM;
+- established interpretation of `E4 +2` as live IDU fan-speed feedback at approximately 10 rpm per count (RPM/10) on the tested units, with model-specific airflow mapping derived separately from fan/air-path geometry;
 - passive raw UART capture and diagnostic tooling for observing Toshiba-originated traffic without injecting scan requests;
 - controlled active register investigation where appropriate;
 - Home Assistant entities for equipment identity and engineering telemetry;
@@ -113,6 +113,7 @@ The original `esphome_toshiba_suzumi` project lists a substantially wider set of
 - The `0xE0` class-`0x11` message can contain the IDU model and ODU model in two fixed equipment records and is used as the working basis for automatic model identification.
 - A valid `0xE0` message may contain `NULL` for the IDU model on some units/firmware. The project reports model unavailable rather than inventing an identity.
 - `0xE4` and `0xE5` engineering/status data can differ dramatically between indoor units connected to the same outdoor system.
+- `E4 +2` is live indoor-fan speed feedback at approximately 10 rpm/count on the tested units. The higher values seen on high-wall units such as the P2KVSGB represent genuinely higher blower RPM, not a different UART scale; airflow conversion remains model-specific.
 - On some units a field may return sentinel values when actively polled yet appear with meaningful live values in Toshiba-pushed class-`0x11` traffic. "Register did not answer a poll" is therefore not equivalent to "feature does not exist".
 - Cross-testing the same ESP adapter on different IDUs showed that some missing engineering telemetry follows the indoor unit/controller rather than the ESP hardware.
 - The historical `0xF7` values are a protocol encoding, not a good Home Assistant UI model. Toshiba presents functions such as ECO, Hi POWER, Fireplace, Outdoor Silent and Floor as distinct controls even when their protocol representation shares a register.
