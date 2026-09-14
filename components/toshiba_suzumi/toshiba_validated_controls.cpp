@@ -191,6 +191,25 @@ void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
   this->sendCmd(ToshibaCommandType::DEFROST, 0x02);
 }
 
+void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::string &value) {
+  auto index = FixedPositionIndexFromName(value);
+  if (!index.has_value()) {
+    ESP_LOGW(TAG, "Unknown vertical FIX index: %s", value.c_str());
+    return;
+  }
+
+  this->fix_vertical_index_ = index.value();
+  const uint8_t raw = EncodePackedFixPosition(this->fix_horizontal_index_, this->fix_vertical_index_);
+  ESP_LOGD(TAG, "Setting vertical FIX %s -> A3=%02X (H=%u V=%u)%s", value.c_str(), raw,
+           this->fix_horizontal_index_, this->fix_vertical_index_,
+           this->have_packed_fix_state_ ? "" : " using provisional retained H");
+  this->sendCmd(ToshibaCommandType::SWING, raw);
+  if (this->vertical_air_direction_select_ != nullptr)
+    this->vertical_air_direction_select_->publish_state(value);
+  this->swing_mode = climate::CLIMATE_SWING_OFF;
+  this->publish_state();
+}
+
 void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::string &value) {
   auto index = FixedPositionIndexFromName(value);
   if (!index.has_value()) {
@@ -198,9 +217,6 @@ void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::st
     return;
   }
 
-  // A3 FIX is a packed H/V byte. Preserve the latest vertical field while
-  // changing only horizontal. The select is deliberately indexed; physical
-  // left/centre/right translation will be assigned after empirical testing.
   this->fix_horizontal_index_ = index.value();
   const uint8_t raw = EncodePackedFixPosition(this->fix_horizontal_index_, this->fix_vertical_index_);
   ESP_LOGD(TAG, "Setting horizontal FIX %s -> A3=%02X (H=%u V=%u)%s", value.c_str(), raw,
@@ -341,6 +357,10 @@ void ToshibaPureSwitch::write_state(bool state) {
 
 void ToshibaDefrostButton::press_action() {
   this->parent_->on_press_defrost_(this->strong_);
+}
+
+void ToshibaValidatedVerticalAirDirectionSelect::control(const std::string &value) {
+  this->parent_->on_set_vertical_fixed_position_(value);
 }
 
 void ToshibaHorizontalAirDirectionSelect::control(const std::string &value) {
