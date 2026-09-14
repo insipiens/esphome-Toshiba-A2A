@@ -18,6 +18,7 @@ Sep 14th 2026
 * added evidence-limited family+mode helpers for P2 Function availability, fan choices and Power Select cancellation rules; unvalidated families deliberately return no mode-rule result rather than inheriting P2 behaviour
 * added PURE and Start Defrost to the P2 family capability vocabulary without generalising those new findings to untested families
 * promoted `E4 +2` from a generic raw fan/airflow quantity to the established live IDU fan-speed feedback, with an approximately 10 rpm/count scale (`24` ≈ 240 rpm, `60` ≈ 600 rpm, `103` ≈ 1030 rpm); recorded that the higher P2KVSGB values are genuine higher blower speeds from the different high-wall fan/air-path geometry rather than a different protocol scale
+* refined the directly observed RAS-B10P2KVSGB-E live fan-speed envelope from `55..103` to `51..103` (~510..1030 rpm): `103` was reproduced at Fan-Only level 5 and under the documented maximum-heating-fan condition, while sustained low-demand heating produced `51/52`; updated the model-specific airflow/output interpolation to use the new lower anchor and to treat E4 +2 telemetry as authoritative over requested settings
 
 Sep 13th 2026
 
