@@ -4,6 +4,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/button/button.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
@@ -46,6 +47,12 @@ struct ToshibaCommand {
 
 class ToshibaSpecialModeSwitch;
 class ToshibaSpecialModeLevelSelect;
+class ToshibaValidatedFunctionSwitch;
+class ToshibaValidatedSilentSelect;
+class ToshibaValidatedPowerSelect;
+class ToshibaPureSwitch;
+class ToshibaDefrostButton;
+class ToshibaHorizontalAirDirectionSelect;
 
 class ToshibaClimateUart : public PollingComponent, public climate::Climate, public uart::UARTDevice {
  public:
@@ -108,6 +115,8 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void set_min_temp(uint8_t min_temp) { min_temp_ = min_temp; }
   void set_time_sync_interval(uint32_t interval) { time_sync_interval_ = interval; }
 
+  // Legacy divided controls retained for backwards compatibility. New P2
+  // configurations use the validated-control subclass below.
   void set_eco_switch(ToshibaSpecialModeSwitch *entity) { eco_switch_ = entity; }
   void set_hi_power_switch(ToshibaSpecialModeSwitch *entity) { hi_power_switch_ = entity; }
   void set_eight_degree_heat_switch(ToshibaSpecialModeSwitch *entity) { eight_degree_heat_switch_ = entity; }
@@ -267,6 +276,54 @@ class ToshibaDiagnosticMonitorUart : public ToshibaClimateUart {
   void log_timer_bank_snapshot_() const;
 };
 
+// Normal installations now use this subclass. It keeps the diagnostic transport
+// but adds the directly validated P2 fan/function rules and the observed A3/C7/CB
+// semantics without changing the legacy base behaviour for other families.
+class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
+ public:
+  void set_horizontal_air_direction_select(select::Select *sel) { horizontal_air_direction_select_ = sel; }
+  void set_pure_switch(ToshibaPureSwitch *entity) { pure_switch_ = entity; }
+  void set_defrost_active_sensor(binary_sensor::BinarySensor *sensor) { defrost_active_sensor_ = sensor; }
+
+  // These hide the legacy setters when codegen targets this subclass.
+  void set_eco_switch(ToshibaValidatedFunctionSwitch *entity) { validated_eco_switch_ = entity; }
+  void set_hi_power_switch(ToshibaValidatedFunctionSwitch *entity) { validated_hi_power_switch_ = entity; }
+  void set_eight_degree_heat_switch(ToshibaValidatedFunctionSwitch *entity) { validated_eight_degree_heat_switch_ = entity; }
+  void set_outdoor_silent_select(ToshibaValidatedSilentSelect *entity) { validated_outdoor_silent_select_ = entity; }
+
+ protected:
+  void control(const climate::ClimateCall &call) override;
+  void parseResponse(std::vector<uint8_t> raw_data) override;
+
+  ToshibaHvacMode current_hvac_mode_() const;
+  bool validated_function_allowed_(ToshibaFeature feature, ToshibaHvacMode mode) const;
+  bool validated_fan_allowed_(uint8_t fan_option, ToshibaHvacMode mode) const;
+  void clear_validated_f7_entities_();
+  void publish_validated_f7_mode_(SPECIAL_MODE mode);
+  void on_set_validated_special_mode_(SPECIAL_MODE mode, bool enabled);
+  void on_set_validated_silent_(const std::string &value);
+  void on_set_validated_power_level_(const std::string &value);
+  void on_set_pure_(bool enabled);
+  void on_press_defrost_(bool strong);
+  void on_set_horizontal_air_direction_(const std::string &value);
+  void publish_horizontal_air_direction_(uint8_t raw);
+
+  select::Select *horizontal_air_direction_select_ = nullptr;
+  ToshibaPureSwitch *pure_switch_ = nullptr;
+  binary_sensor::BinarySensor *defrost_active_sensor_ = nullptr;
+  ToshibaValidatedFunctionSwitch *validated_eco_switch_ = nullptr;
+  ToshibaValidatedFunctionSwitch *validated_hi_power_switch_ = nullptr;
+  ToshibaValidatedFunctionSwitch *validated_eight_degree_heat_switch_ = nullptr;
+  ToshibaValidatedSilentSelect *validated_outdoor_silent_select_ = nullptr;
+
+  friend class ToshibaValidatedFunctionSwitch;
+  friend class ToshibaValidatedSilentSelect;
+  friend class ToshibaValidatedPowerSelect;
+  friend class ToshibaPureSwitch;
+  friend class ToshibaDefrostButton;
+  friend class ToshibaHorizontalAirDirectionSelect;
+};
+
 class ToshibaPwrModeSelect : public select::Select, public esphome::Parented<ToshibaClimateUart> {
  protected:
   void control(const std::string &value) override;
@@ -304,6 +361,48 @@ class ToshibaSpecialModeLevelSelect : public select::Select, public esphome::Par
   SPECIAL_MODE level_two_{SPECIAL_MODE::STANDARD};
   std::string option_one_;
   std::string option_two_;
+};
+
+class ToshibaValidatedFunctionSwitch : public switch_::Switch,
+                                       public esphome::Parented<ToshibaValidatedControlUart> {
+ public:
+  void set_special_mode(uint8_t mode) { mode_ = static_cast<SPECIAL_MODE>(mode); }
+
+ protected:
+  void write_state(bool state) override;
+  SPECIAL_MODE mode_{SPECIAL_MODE::STANDARD};
+};
+
+class ToshibaValidatedSilentSelect : public select::Select,
+                                     public esphome::Parented<ToshibaValidatedControlUart> {
+ protected:
+  void control(const std::string &value) override;
+};
+
+class ToshibaValidatedPowerSelect : public select::Select,
+                                    public esphome::Parented<ToshibaValidatedControlUart> {
+ protected:
+  void control(const std::string &value) override;
+};
+
+class ToshibaPureSwitch : public switch_::Switch, public esphome::Parented<ToshibaValidatedControlUart> {
+ protected:
+  void write_state(bool state) override;
+};
+
+class ToshibaDefrostButton : public button::Button, public esphome::Parented<ToshibaValidatedControlUart> {
+ public:
+  void set_strong(bool strong) { strong_ = strong; }
+
+ protected:
+  void press_action() override;
+  bool strong_{false};
+};
+
+class ToshibaHorizontalAirDirectionSelect : public select::Select,
+                                             public esphome::Parented<ToshibaValidatedControlUart> {
+ protected:
+  void control(const std::string &value) override;
 };
 
 }  // namespace toshiba_suzumi
