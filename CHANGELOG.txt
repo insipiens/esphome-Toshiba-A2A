@@ -3,6 +3,8 @@ ESPHome Toshiba A2A development
 
 Sep 14th 2026
 
+* decoded the complete pushed `0xE0` equipment-identification payload as two 50-byte records (IDU then ODU), each containing a 21-byte model field followed by three fixed-width ASCII identity fields; captured examples now cover B13J2, older B10J2 firmware and the newer B10P2 while preserving unresolved field semantics
+* exposed all six non-model `0xE0` identity fields as optional ESPHome text sensors (`idu_identity_1..3`, `odu_identity_1..3`); blank/`NULL` publications do not erase known values, and restore methods allow the YAML to persist them across reboot in the same way as the IDU/ODU model strings
 * decoded A3 FIX as one packed two-axis byte: bit 7 marks FIX, bits 5..3 carry the horizontal field and bits 2..0 carry the vertical field; changing one axis preserves the other in the same command byte
 * replaced the inherited fixed-louvre constants with the genuine RB-N106S-G captures from the P2 unit: vertical sweep `88 89 8A 8B 8C 8D` and horizontal sequence `85 8D 95 9D A5 AD`; these are combined H/V states rather than twelve unrelated constants
 * exposed five indexed FIX choices (`Position 1`..`Position 5`) for both vertical and horizontal entities, deliberately postponing physical direction labels until empirical testing; horizontal writes now preserve the last decoded vertical field in the packed A3 value
