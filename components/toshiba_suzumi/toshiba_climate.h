@@ -83,7 +83,13 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void set_register_94_raw_sensor(sensor::Sensor *sensor) { register_94_raw_sensor_ = sensor; }
   void set_register_c7_raw_sensor(sensor::Sensor *sensor) { register_c7_raw_sensor_ = sensor; }
   void set_idu_model_sensor(text_sensor::TextSensor *sensor) { idu_model_sensor_ = sensor; }
+  void set_idu_identity_1_sensor(text_sensor::TextSensor *sensor) { idu_identity_1_sensor_ = sensor; }
+  void set_idu_identity_2_sensor(text_sensor::TextSensor *sensor) { idu_identity_2_sensor_ = sensor; }
+  void set_idu_identity_3_sensor(text_sensor::TextSensor *sensor) { idu_identity_3_sensor_ = sensor; }
   void set_odu_model_sensor(text_sensor::TextSensor *sensor) { odu_model_sensor_ = sensor; }
+  void set_odu_identity_1_sensor(text_sensor::TextSensor *sensor) { odu_identity_1_sensor_ = sensor; }
+  void set_odu_identity_2_sensor(text_sensor::TextSensor *sensor) { odu_identity_2_sensor_ = sensor; }
+  void set_odu_identity_3_sensor(text_sensor::TextSensor *sensor) { odu_identity_3_sensor_ = sensor; }
   const std::string &get_idu_model() const { return idu_model_; }
   void restore_idu_model(const std::string &model) {
     if (model.empty()) return;
@@ -92,10 +98,40 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
     this->capabilities_ = capability_profile_from_model(model);
     if (this->idu_model_sensor_ != nullptr) this->idu_model_sensor_->publish_state(model);
   }
+  void restore_idu_identity_1(const std::string &value) {
+    if (value.empty()) return;
+    this->idu_identity_1_ = value;
+    if (this->idu_identity_1_sensor_ != nullptr) this->idu_identity_1_sensor_->publish_state(value);
+  }
+  void restore_idu_identity_2(const std::string &value) {
+    if (value.empty()) return;
+    this->idu_identity_2_ = value;
+    if (this->idu_identity_2_sensor_ != nullptr) this->idu_identity_2_sensor_->publish_state(value);
+  }
+  void restore_idu_identity_3(const std::string &value) {
+    if (value.empty()) return;
+    this->idu_identity_3_ = value;
+    if (this->idu_identity_3_sensor_ != nullptr) this->idu_identity_3_sensor_->publish_state(value);
+  }
   void restore_odu_model(const std::string &model) {
     if (model.empty()) return;
     this->odu_model_ = model;
     if (this->odu_model_sensor_ != nullptr) this->odu_model_sensor_->publish_state(model);
+  }
+  void restore_odu_identity_1(const std::string &value) {
+    if (value.empty()) return;
+    this->odu_identity_1_ = value;
+    if (this->odu_identity_1_sensor_ != nullptr) this->odu_identity_1_sensor_->publish_state(value);
+  }
+  void restore_odu_identity_2(const std::string &value) {
+    if (value.empty()) return;
+    this->odu_identity_2_ = value;
+    if (this->odu_identity_2_sensor_ != nullptr) this->odu_identity_2_sensor_->publish_state(value);
+  }
+  void restore_odu_identity_3(const std::string &value) {
+    if (value.empty()) return;
+    this->odu_identity_3_ = value;
+    if (this->odu_identity_3_sensor_ != nullptr) this->odu_identity_3_sensor_->publish_state(value);
   }
   optional<SPECIAL_MODE> get_special_mode() const { return special_mode_; }
   bool is_hi_power_active() const { return special_mode_.has_value() && special_mode_.value() == SPECIAL_MODE::HI_POWER; }
@@ -149,7 +185,13 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   sensor::Sensor *register_94_raw_sensor_ = nullptr;
   sensor::Sensor *register_c7_raw_sensor_ = nullptr;
   text_sensor::TextSensor *idu_model_sensor_ = nullptr;
+  text_sensor::TextSensor *idu_identity_1_sensor_ = nullptr;
+  text_sensor::TextSensor *idu_identity_2_sensor_ = nullptr;
+  text_sensor::TextSensor *idu_identity_3_sensor_ = nullptr;
   text_sensor::TextSensor *odu_model_sensor_ = nullptr;
+  text_sensor::TextSensor *odu_identity_1_sensor_ = nullptr;
+  text_sensor::TextSensor *odu_identity_2_sensor_ = nullptr;
+  text_sensor::TextSensor *odu_identity_3_sensor_ = nullptr;
   time::RealTimeClock *time_ = nullptr;
   sensor::Sensor *energy_sensor_ = nullptr;
   sensor::Sensor *power_sensor_ = nullptr;
@@ -157,7 +199,13 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   ToshibaIndoorUnitFamily idu_family_{ToshibaIndoorUnitFamily::UNKNOWN};
   ToshibaCapabilityProfile capabilities_{};
   std::string idu_model_;
+  std::string idu_identity_1_;
+  std::string idu_identity_2_;
+  std::string idu_identity_3_;
   std::string odu_model_;
+  std::string odu_identity_1_;
+  std::string odu_identity_2_;
+  std::string odu_identity_3_;
 
   ToshibaSpecialModeSwitch *eco_switch_ = nullptr;
   ToshibaSpecialModeSwitch *hi_power_switch_ = nullptr;
