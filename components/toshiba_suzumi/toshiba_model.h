@@ -14,6 +14,15 @@ enum class ToshibaIndoorUnitFamily : uint8_t {
   P2KVSG,
 };
 
+enum class ToshibaHvacMode : uint8_t {
+  UNKNOWN = 0,
+  AUTO,
+  COOL,
+  HEAT,
+  DRY,
+  FAN,
+};
+
 enum ToshibaFeature : uint32_t {
   FEATURE_NONE = 0,
   FEATURE_COMMON_HVAC = 1UL << 0,
@@ -31,6 +40,15 @@ enum ToshibaFeature : uint32_t {
   FEATURE_HADA_CARE = 1UL << 12,
   FEATURE_SLEEP = 1UL << 13,         // F7 Sleep
   FEATURE_COMFORT = 1UL << 14,       // F7 Comfort
+  FEATURE_PURE = 1UL << 15,
+  FEATURE_START_DEFROST = 1UL << 16, // momentary Function action; observed as CB 02 on P2KVSG
+};
+
+enum ToshibaFanOption : uint8_t {
+  FAN_OPTION_NONE = 0,
+  FAN_OPTION_MANUAL = 1U << 0,
+  FAN_OPTION_AUTO = 1U << 1,
+  FAN_OPTION_QUIET = 1U << 2,
 };
 
 struct ToshibaCapabilityProfile {
@@ -74,6 +92,14 @@ ToshibaEquipmentIdentification decode_equipment_identification(const std::vector
 ToshibaIndoorUnitFamily indoor_unit_family_from_model(const std::string &model);
 const char *indoor_unit_family_to_string(ToshibaIndoorUnitFamily family);
 ToshibaCapabilityProfile capability_profile_from_model(const std::string &model);
+
+// These helpers deliberately contain only mode rules validated on real hardware.
+// An empty result means "not validated for this family/mode", not "unsupported".
+ToshibaCapabilityProfile validated_function_profile_for_mode(ToshibaIndoorUnitFamily family,
+                                                              ToshibaHvacMode mode);
+uint8_t validated_fan_options_for_mode(ToshibaIndoorUnitFamily family, ToshibaHvacMode mode);
+ToshibaCapabilityProfile power_select_cancel_profile(ToshibaIndoorUnitFamily family,
+                                                      ToshibaHvacMode mode);
 
 }  // namespace toshiba_suzumi
 }  // namespace esphome
