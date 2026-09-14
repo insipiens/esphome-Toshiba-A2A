@@ -26,6 +26,10 @@ bool is_model_field_available(const std::string &value) {
   return !value.empty() && value != "NULL" && value.rfind("RAS-", 0) == 0;
 }
 
+bool is_identity_field_available(const std::string &value) {
+  return !value.empty() && value != "NULL";
+}
+
 constexpr uint32_t COMMON_RESIDENTIAL_FEATURES =
     FEATURE_COMMON_HVAC |
     FEATURE_ECO |
@@ -168,7 +172,7 @@ ToshibaEquipmentIdentification decode_equipment_identification(const std::vector
 
   // Captured equipment-identification publication:
   //   02 00 03 11 .. .. 6A 01 30 01 00 65 E0 [100-byte payload] checksum
-  // Payload = two 50-byte equipment records. Each starts with a 21-byte model field.
+  // Payload = two 50-byte equipment records.
   if (raw_data.size() < 114 || raw_data[0] != 0x02 || raw_data[2] != 0x03 || raw_data[3] != 0x11 ||
       raw_data[12] != 0xE0) {
     return result;
@@ -177,12 +181,34 @@ ToshibaEquipmentIdentification decode_equipment_identification(const std::vector
   constexpr size_t IDU_RECORD_OFFSET = 13;
   constexpr size_t ODU_RECORD_OFFSET = IDU_RECORD_OFFSET + 50;
   constexpr size_t MODEL_FIELD_WIDTH = 21;
+  constexpr size_t IDENTITY_1_OFFSET = 21;
+  constexpr size_t IDENTITY_1_WIDTH = 13;
+  constexpr size_t IDENTITY_2_OFFSET = 34;
+  constexpr size_t IDENTITY_2_WIDTH = 9;
+  constexpr size_t IDENTITY_3_OFFSET = 43;
+  constexpr size_t IDENTITY_3_WIDTH = 7;
 
   result.valid = true;
+
   result.idu_model = decode_ascii_field(raw_data, IDU_RECORD_OFFSET, MODEL_FIELD_WIDTH);
+  result.idu_identity_1 = decode_ascii_field(raw_data, IDU_RECORD_OFFSET + IDENTITY_1_OFFSET, IDENTITY_1_WIDTH);
+  result.idu_identity_2 = decode_ascii_field(raw_data, IDU_RECORD_OFFSET + IDENTITY_2_OFFSET, IDENTITY_2_WIDTH);
+  result.idu_identity_3 = decode_ascii_field(raw_data, IDU_RECORD_OFFSET + IDENTITY_3_OFFSET, IDENTITY_3_WIDTH);
+
   result.odu_model = decode_ascii_field(raw_data, ODU_RECORD_OFFSET, MODEL_FIELD_WIDTH);
+  result.odu_identity_1 = decode_ascii_field(raw_data, ODU_RECORD_OFFSET + IDENTITY_1_OFFSET, IDENTITY_1_WIDTH);
+  result.odu_identity_2 = decode_ascii_field(raw_data, ODU_RECORD_OFFSET + IDENTITY_2_OFFSET, IDENTITY_2_WIDTH);
+  result.odu_identity_3 = decode_ascii_field(raw_data, ODU_RECORD_OFFSET + IDENTITY_3_OFFSET, IDENTITY_3_WIDTH);
+
   result.idu_model_available = is_model_field_available(result.idu_model);
   result.odu_model_available = is_model_field_available(result.odu_model);
+
+  if (!is_identity_field_available(result.idu_identity_1)) result.idu_identity_1.clear();
+  if (!is_identity_field_available(result.idu_identity_2)) result.idu_identity_2.clear();
+  if (!is_identity_field_available(result.idu_identity_3)) result.idu_identity_3.clear();
+  if (!is_identity_field_available(result.odu_identity_1)) result.odu_identity_1.clear();
+  if (!is_identity_field_available(result.odu_identity_2)) result.odu_identity_2.clear();
+  if (!is_identity_field_available(result.odu_identity_3)) result.odu_identity_3.clear();
 
   if (result.idu_model_available) {
     result.idu_family = indoor_unit_family_from_model(result.idu_model);
