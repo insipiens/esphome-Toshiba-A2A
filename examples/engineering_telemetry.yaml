@@ -52,9 +52,9 @@ climate:
     idu_junction_temp:
       name: "IDU Junction Temperature"
     idu_fan_speed:
-      # Raw/live Toshiba fan or air-velocity feedback. It is not claimed to be
-      # literal fan RPM.
-      name: "IDU Fan/Airflow Raw"
+      # E4+2 is live IDU fan-speed feedback. On the tested units one count is
+      # approximately 10 rpm (for example 61 ~= 610 rpm).
+      name: "IDU Fan Speed (RPM/10)"
 
     odu_discharge_temp:
       name: "ODU Discharge Temperature"
