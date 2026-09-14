@@ -44,11 +44,17 @@ enum class SWING {
   BOTH = 67,
   VERTICAL = 65,
   HORIZONTAL = 66,
-  VERTICAL_FIX_POSITION_1 = 80,
-  VERTICAL_FIX_POSITION_2 = 81,
-  VERTICAL_FIX_POSITION_3 = 82,
-  VERTICAL_FIX_POSITION_4 = 83,
-  VERTICAL_FIX_POSITION_5 = 84,
+
+  // Genuine RB-N106S-G captures on the P2 high-wall unit show fixed-louvre
+  // commands as packed A3 values, not the old inherited 0x50..0x54 values.
+  // A prescribed vertical sweep produced 0x88..0x8D.  The upper packed field
+  // remained fixed while the low three-bit vertical position advanced 0..5.
+  VERTICAL_FIX_POSITION_1 = 0x88,
+  VERTICAL_FIX_POSITION_2 = 0x89,
+  VERTICAL_FIX_POSITION_3 = 0x8A,
+  VERTICAL_FIX_POSITION_4 = 0x8B,
+  VERTICAL_FIX_POSITION_5 = 0x8C,
+  VERTICAL_FIX_POSITION_6 = 0x8D,
   HADA = 96
 };
 enum class STATE { ON = 48, OFF = 49 };
@@ -84,7 +90,8 @@ enum class ToshibaCommandType : uint8_t {
   ROOM_TEMP = 187,
   OUTDOOR_TEMP = 190,
   PURE = 0xC7,          // observed 0x18 active, 0x10 inactive
-  SELF_CLEAN = 0xCB,
+  DEFROST = 0xCB,       // P2: commands 00 stop, 01 strong, 02 normal; pushed 10/11 states confirmed
+  SELF_CLEAN = 0xCB,    // legacy alias retained for non-P2 behaviour pending separate re-validation
   ENERGY_DAILY = 0xD8,
   ENERGY_WEEKLY = 0xD9,
   ENERGY_MONTHLY = 0xDA,
@@ -117,6 +124,8 @@ const std::string IntToPowerLevel(PWR_LEVEL mode);
 const optional<SWING> StringToVerticalAirDirection(const std::string &position);
 const char* SwingToVerticalAirDirection(SWING mode);
 bool IsFixedVerticalAirDirection(SWING mode);
+bool DecodePackedFixPosition(uint8_t raw, uint8_t &horizontal_index, uint8_t &vertical_index);
+const char *FixedPositionName(uint8_t zero_based_index);
 
 const optional<SPECIAL_MODE> PresetToSpecialMode(const char* preset);
 const char* SpecialModeToPreset(SPECIAL_MODE mode);
