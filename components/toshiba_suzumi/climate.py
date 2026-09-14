@@ -47,9 +47,6 @@ CONF_SELF_CLEAN = "self_clean"
 CONF_TIME_SYNC_INTERVAL = "time_sync_interval"
 CONF_ENERGY = "energy"
 
-# Toshiba app Function controls. Fan remains on the climate entity; Function is
-# represented by the independent controls below because the app grouping spans
-# several UART registers rather than one synthetic selector.
 CONF_ECO = "eco"
 CONF_HI_POWER = "hi_power"
 CONF_FIREPLACE = "fireplace"
@@ -63,8 +60,6 @@ CONF_START_DEFROST = "start_defrost"
 CONF_STRONG_DEFROST = "strong_defrost"
 CONF_DEFROST_ACTIVE = "defrost_active"
 
-# Legacy configuration retained for existing YAML. It remains functional but
-# no longer defines the preferred HA representation.
 CONF_SPECIAL_MODE = "special_mode"
 CONF_SPECIAL_MODE_MODES = "modes"
 CONF_SUPPORTED_PRESETS = "supported_presets"
@@ -84,8 +79,6 @@ ToshibaValidatedFunctionSwitch = toshiba_ns.class_("ToshibaValidatedFunctionSwit
 ToshibaValidatedSilentSelect = toshiba_ns.class_("ToshibaValidatedSilentSelect", select.Select)
 ToshibaPureSwitch = toshiba_ns.class_("ToshibaPureSwitch", switch.Switch)
 ToshibaDefrostButton = toshiba_ns.class_("ToshibaDefrostButton", button.Button)
-
-# Legacy divided-control classes used only for still-unvalidated families/functions.
 ToshibaSpecialModeSwitch = toshiba_ns.class_("ToshibaSpecialModeSwitch", switch.Switch)
 ToshibaSpecialModeLevelSelect = toshiba_ns.class_("ToshibaSpecialModeLevelSelect", select.Select)
 
@@ -172,7 +165,6 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
             cv.GenerateID(): cv.declare_id(ToshibaDefrostButton),
         }),
 
-        # Legacy/unvalidated divided controls retained for compatibility.
         cv.Optional(CONF_SLEEP): switch.switch_schema(ToshibaSpecialModeSwitch).extend({
             cv.GenerateID(): cv.declare_id(ToshibaSpecialModeSwitch),
         }),
@@ -256,21 +248,14 @@ async def to_code(config):
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_pwr_select(sel))
 
-    # Standard swing belongs on the climate entity. The vertical select exposes
-    # only the six directly captured fixed positions, avoiding duplicate Off/
-    # Swing controls with a different A3 write encoding.
-    vertical_fixed_options = ["Position 1", "Position 2", "Position 3",
-                              "Position 4", "Position 5", "Position 6"]
+    fixed_options = ["Position 1", "Position 2", "Position 3", "Position 4", "Position 5"]
     if CONF_VERTICAL_AIR_DIRECTION in config:
-        sel = await select.new_select(config[CONF_VERTICAL_AIR_DIRECTION], options=vertical_fixed_options)
+        sel = await select.new_select(config[CONF_VERTICAL_AIR_DIRECTION], options=fixed_options)
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_vertical_air_direction_select(sel))
 
-    # Horizontal swing is confirmed. Horizontal FIX produced six packed values
-    # while Toshiba exposes five UI positions, so fixed horizontal choices are
-    # deliberately withheld until the extra captured state is assigned.
     if CONF_HORIZONTAL_AIR_DIRECTION in config:
-        sel = await select.new_select(config[CONF_HORIZONTAL_AIR_DIRECTION], options=["Off", "Swing"])
+        sel = await select.new_select(config[CONF_HORIZONTAL_AIR_DIRECTION], options=fixed_options)
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_horizontal_air_direction_select(sel))
 
@@ -285,8 +270,6 @@ async def to_code(config):
     await _register_special_switch(config, var, CONF_ECO, SPECIAL_MODE_VALUES[CONF_ECO], "set_eco_switch")
     await _register_special_switch(config, var, CONF_HI_POWER, SPECIAL_MODE_VALUES[CONF_HI_POWER], "set_hi_power_switch")
     await _register_special_switch(config, var, CONF_EIGHT_DEGREE_HEAT, SPECIAL_MODE_VALUES[CONF_EIGHT_DEGREE_HEAT], "set_eight_degree_heat_switch")
-
-    # Legacy/unvalidated function entities continue to use the original divided controls.
     await _register_special_switch(config, var, CONF_SLEEP, SPECIAL_MODE_VALUES[CONF_SLEEP], "set_sleep_switch")
     await _register_special_switch(config, var, CONF_FLOOR, SPECIAL_MODE_VALUES[CONF_FLOOR], "set_floor_switch")
     await _register_special_switch(config, var, CONF_COMFORT, SPECIAL_MODE_VALUES[CONF_COMFORT], "set_comfort_switch")
