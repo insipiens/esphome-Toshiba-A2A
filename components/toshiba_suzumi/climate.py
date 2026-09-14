@@ -256,15 +256,21 @@ async def to_code(config):
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_pwr_select(sel))
 
-    position_options = ["Off", "Swing", "Position 1", "Position 2", "Position 3",
-                        "Position 4", "Position 5", "Position 6"]
+    # Standard swing belongs on the climate entity. The vertical select exposes
+    # only the six directly captured fixed positions, avoiding duplicate Off/
+    # Swing controls with a different A3 write encoding.
+    vertical_fixed_options = ["Position 1", "Position 2", "Position 3",
+                              "Position 4", "Position 5", "Position 6"]
     if CONF_VERTICAL_AIR_DIRECTION in config:
-        sel = await select.new_select(config[CONF_VERTICAL_AIR_DIRECTION], options=position_options)
+        sel = await select.new_select(config[CONF_VERTICAL_AIR_DIRECTION], options=vertical_fixed_options)
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_vertical_air_direction_select(sel))
 
+    # Horizontal swing is confirmed. Horizontal FIX produced six packed values
+    # while Toshiba exposes five UI positions, so fixed horizontal choices are
+    # deliberately withheld until the extra captured state is assigned.
     if CONF_HORIZONTAL_AIR_DIRECTION in config:
-        sel = await select.new_select(config[CONF_HORIZONTAL_AIR_DIRECTION], options=position_options)
+        sel = await select.new_select(config[CONF_HORIZONTAL_AIR_DIRECTION], options=["Off", "Swing"])
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_horizontal_air_direction_select(sel))
 
@@ -321,14 +327,9 @@ async def to_code(config):
     if DISABLE_WIFI_LED in config:
         cg.add(var.disable_wifi_led(config[DISABLE_WIFI_LED]))
 
-    # Presence of the divided 8-degree entity means the climate setpoint retains
-    # the existing 5..13 °C range. The validated P2 control path rejects those
-    # low setpoints outside Heat.
     if CONF_EIGHT_DEGREE_HEAT in config:
         cg.add(var.set_min_temp(5))
 
-    # Legacy preset configuration remains operational during migration, but the
-    # preferred P2 interface deliberately exposes Function entities instead.
     if CONF_SUPPORTED_PRESETS in config:
         presets = config[CONF_SUPPORTED_PRESETS]
         cg.add(var.set_supported_presets(presets))
