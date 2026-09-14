@@ -23,7 +23,7 @@ The summary table is an index. Detailed sections below describe framing, payload
 | `0xBE` | Outdoor temperature | Read / pushed | Signed byte; `7F` unavailable | **confirmed** |
 | `0xC7` | PURE | R/W | `18` ON, `10` OFF | **confirmed** |
 | `0xCA` | Filter/service information | Read | `+1..+2` = filter interval in hours, uint16 LE; e.g. `E8 03` = 1000 h, `F4 01` = 500 h. Other bytes unresolved. | **partially decoded / confirmed interval field** |
-| `0xCB` | Self-clean state | Read | Existing mapping `18` running, `10` off | **not deliberately re-tested with sniffer** |
+| `0xCB` | Defrost control/state | Write / pushed | commands: `00` stop, `01` Strong Defrost request, `02` Normal Defrost request; pushed state: `10` inactive, `11` Strong Defrost active; `12` is the expected Normal Defrost active partner but remains unobserved | **commands `00/01/02` confirmed; states `10/11` confirmed; `12` inferred only** |
 | `0xCC` | Daily-view energy history | Read | 502-byte response; 24 × 20-byte hourly records; record `+8` = hourly Wh | **confirmed** |
 | `0xCD` | Weekly-view energy history | Read | 218-byte response; 7 × 28-byte daily records; record `+8` = daily uint32 LE Wh | **confirmed** |
 | `0xCE` | Monthly-view energy history | Read | 890-byte response; 31 × 28-byte day records; record `+8` = daily uint32 LE Wh | **confirmed** |
@@ -500,16 +500,69 @@ Confirmed examples from the app's **Set filter time** control:
 
 The simultaneous `+0` change from `00` to `01` is observed but not yet assigned; it may represent a status/configuration flag and should not be named without another controlled test. The meaning of `+3..+4` is also unresolved.
 
-## Register `0xCB` — Self-clean state
+## Register `0xCB` — Defrost control/state
 
-Existing component mapping:
+Direct genuine-adaptor testing now shows that `CB` carries both defrost requests and IDU-originated defrost state, with different value ranges depending on direction/message class.
+
+### Wi-Fi adaptor -> IDU commands
+
+Confirmed one-byte writes:
 
 ```text
-18 = running
-10 = off
+CB 00 = stop/cancel forced defrost
+CB 01 = request Strong Defrost
+CB 02 = request Normal Defrost
 ```
 
-Not deliberately re-tested in this sniffer campaign.
+`CB 01` was captured when the Toshiba app explicitly started **Strong Defrost**. `CB 02` was captured from the separate **Start Defrost** action used for normal defrost.
+
+A generic class-`0x90` ACK confirms that the IDU received the request. It does **not** prove that normal defrost was actually entered. In one controlled test, `CB 02` was sent twice and acknowledged twice, but the IDU refused to enter normal defrost under the current operating conditions and emitted no active-state transition.
+
+### IDU -> Wi-Fi pushed state
+
+Confirmed class-`0x11` state pushes:
+
+```text
+CB 10 = defrost inactive / stopped
+CB 11 = Strong Defrost active
+```
+
+Observed Strong Defrost sequence:
+
+```text
+WiFi -> IDU   CB 01   request Strong Defrost
+IDU  -> WiFi  ACK
+IDU  -> WiFi  CB 11   Strong Defrost active
+```
+
+Observed stop sequence:
+
+```text
+WiFi -> IDU   CB 00   stop/cancel forced defrost
+IDU  -> WiFi  ACK
+IDU  -> WiFi  CB 10   inactive / stopped
+```
+
+This produces a clear command/state pattern:
+
+```text
+commands: 00, 01, 02
+states:   10, 11, 12?
+```
+
+`CB 12` is therefore the obvious candidate for **Normal Defrost active**, but it has not yet been observed and must remain explicitly provisional until a successful normal-defrost activation produces the corresponding push.
+
+### Additional observed command
+
+During one Strong Defrost start sequence, the adaptor sent a later:
+
+```text
+CB 03
+```
+
+approximately four seconds after `CB 01`/`CB 11`. Its purpose is unresolved and it should not yet be assigned a semantic name.
+
+The older inherited `CB 18 = self-clean running / CB 10 = off` interpretation is superseded by these direct defrost captures for the tested P2 unit; any self-clean mapping must be re-established separately rather than conflated with defrost state.
 
 ## Registers `0xCC`-`0xCF` — Official Energy Monitoring
 
