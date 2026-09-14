@@ -8,11 +8,8 @@
 #   - climate entity: HVAC mode, temperature, Fan Speed and standard swing
 #   - Function entities: Power Select, ECO, Hi POWER, Silent Operation, PURE,
 #     8 °C Heat and defrost actions
-#   - vertical FIX is a separate six-position select because Home Assistant's
-#     climate swing modes cannot represent Toshiba's fixed louvre positions
-#   - horizontal FIX is deliberately not exposed yet: six A3 states were
-#     captured while Toshiba presents five UI positions, so the exact mapping
-#     still needs one more controlled test
+#   - vertical and horizontal FIX are separate five-position indexed selects;
+#     physical direction labels will be assigned after empirical testing
 #
 # P2 mode rules are enforced in the component. In particular Dry forces Auto
 # fan, and changing Power Select in Auto/Cool/Heat cancels ECO/Hi POWER/Silent
@@ -69,16 +66,12 @@ climate:
       name: "IDU Fan Speed (RPM/10)"
 
     # Standard Off/Vertical/Horizontal/Both swing remains on the climate entity.
-    # This select is only the directly captured six-position vertical FIX sweep
-    # (A3 88..8D), avoiding two competing swing controls.
+    # FIX positions are deliberately indexed 1..5 until physical translation is
+    # established empirically. A3 FIX preserves the other axis in the packed byte.
     vertical_air_direction:
       name: "Vertical Fixed Position"
-
-    # Optional explicit horizontal swing control. Fixed horizontal positions are
-    # intentionally withheld until the five UI positions are tied unambiguously
-    # to the six captured packed A3 states.
     horizontal_air_direction:
-      name: "Horizontal Swing"
+      name: "Horizontal Fixed Position"
 
     # Toshiba app Function group.
     power_select:
@@ -96,9 +89,6 @@ climate:
     start_defrost:
       name: "Function - Start Defrost"
 
-    # Strong Defrost was captured separately from normal Start Defrost. It is
-    # deliberately exposed as a separate action and is restricted to Heat on the
-    # validated P2 path.
     strong_defrost:
       name: "Strong Defrost"
     defrost_active:
