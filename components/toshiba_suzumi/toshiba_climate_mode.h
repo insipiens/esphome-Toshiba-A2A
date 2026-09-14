@@ -44,18 +44,20 @@ enum class SWING {
   VERTICAL = 0x41,
   HORIZONTAL = 0x42,
   BOTH = 0x43,
-  VERTICAL_FIX_POSITION_1 = 0x88,
-  VERTICAL_FIX_POSITION_2 = 0x89,
-  VERTICAL_FIX_POSITION_3 = 0x8A,
-  VERTICAL_FIX_POSITION_4 = 0x8B,
-  VERTICAL_FIX_POSITION_5 = 0x8C,
-  VERTICAL_FIX_POSITION_6 = 0x8D,
+
+  // Representative packed FIX values with H=1. The actual command must retain
+  // the other axis and is constructed with EncodePackedFixPosition(). Toshiba
+  // exposes five user-selectable FIX positions per axis; field value 0 is an
+  // observed baseline/unselected state, not a sixth UI position.
+  VERTICAL_FIX_POSITION_1 = 0x89,
+  VERTICAL_FIX_POSITION_2 = 0x8A,
+  VERTICAL_FIX_POSITION_3 = 0x8B,
+  VERTICAL_FIX_POSITION_4 = 0x8C,
+  VERTICAL_FIX_POSITION_5 = 0x8D,
   HADA = 0x60
 };
 
 // Genuine RB-N106S-G A3 commands captured on the tested P2 unit.
-// BOTH and OFF_TRANSITION both use 0x80 in captures; authoritative IDU pushed
-// state must therefore be used to distinguish the resulting state.
 static constexpr uint8_t A3_CMD_OFF_TRANSITION = 0x80;
 static constexpr uint8_t A3_CMD_BOTH_SWING = 0x80;
 static constexpr uint8_t A3_CMD_VERTICAL_SWING = 0xAE;
@@ -112,8 +114,6 @@ const MODE ClimateModeToInt(climate::ClimateMode mode);
 const climate::ClimateMode IntToClimateMode(MODE mode);
 
 const uint8_t ClimateSwingModeToCommand(climate::ClimateSwingMode mode);
-// Compatibility entry point used by the base climate implementation. Its
-// returned SWING value carries the genuine A3 write byte, not readback state.
 inline SWING ClimateSwingModeToInt(climate::ClimateSwingMode mode) {
   return static_cast<SWING>(ClimateSwingModeToCommand(mode));
 }
@@ -130,7 +130,9 @@ const optional<SWING> StringToVerticalAirDirection(const std::string &position);
 const char* SwingToVerticalAirDirection(SWING mode);
 bool IsFixedVerticalAirDirection(SWING mode);
 bool DecodePackedFixPosition(uint8_t raw, uint8_t &horizontal_index, uint8_t &vertical_index);
-const char *FixedPositionName(uint8_t zero_based_index);
+uint8_t EncodePackedFixPosition(uint8_t horizontal_index, uint8_t vertical_index);
+const char *FixedPositionName(uint8_t position_index);
+const optional<uint8_t> FixedPositionIndexFromName(const std::string &value);
 
 const optional<SPECIAL_MODE> PresetToSpecialMode(const char* preset);
 const char* SpecialModeToPreset(SPECIAL_MODE mode);
