@@ -76,8 +76,6 @@ void ToshibaValidatedControlUart::clear_validated_f7_entities_() {
 }
 
 void ToshibaValidatedControlUart::publish_validated_f7_mode_(SPECIAL_MODE mode) {
-  // F7 is one Toshiba selector: its divided UI entities are mutually exclusive.
-  // PURE and Power Select use other registers and are intentionally untouched.
   this->clear_validated_f7_entities_();
   switch (mode) {
     case SPECIAL_MODE::ECO:
@@ -118,7 +116,6 @@ void ToshibaValidatedControlUart::on_set_validated_special_mode_(SPECIAL_MODE mo
   }
 
   const SPECIAL_MODE requested = enabled ? mode : SPECIAL_MODE::STANDARD;
-  ESP_LOGD(TAG, "Setting validated Toshiba Function %s", SpecialModeToPreset(requested));
   this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(requested));
   this->special_mode_ = requested;
   this->publish_validated_f7_mode_(requested);
@@ -152,8 +149,6 @@ void ToshibaValidatedControlUart::on_set_validated_power_level_(const std::strin
     return;
   }
 
-  // Direct P2 capture: changing Power Select in Auto/Cool/Heat cancels ECO,
-  // Hi POWER and Silent Operation. PURE remains independent on C7.
   if (this->special_mode_.has_value()) {
     const ToshibaFeature active_feature = feature_for_special_mode(this->special_mode_.value());
     const auto cancel = power_select_cancel_profile(this->idu_family_, this->current_hvac_mode_());
@@ -197,38 +192,49 @@ void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
 }
 
 void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::string &value) {
-  // Only the horizontal swing command itself is exposed. The capture contains
-  // six packed horizontal FIX values but the Toshiba UI presents five positions;
-  // until the extra captured state is assigned, manufacturing a 1..5 mapping
-  // would be unjustified.
-  uint8_t raw = 0;
-  if (str_equals_case_insensitive(value, "Off")) raw = A3_CMD_OFF_TRANSITION;
-  else if (str_equals_case_insensitive(value, "Swing")) raw = A3_CMD_HORIZONTAL_SWING;
-  else {
-    ESP_LOGW(TAG, "Horizontal FIX position mapping is not yet sufficiently resolved: %s", value.c_str());
+  auto index = FixedPositionIndexFromName(value);
+  if (!index.has_value()) {
+    ESP_LOGW(TAG, "Unknown horizontal FIX index: %s", value.c_str());
     return;
   }
 
+  // A3 FIX is a packed H/V byte. Preserve the latest vertical field while
+  // changing only horizontal. The select is deliberately indexed; physical
+  // left/centre/right translation will be assigned after empirical testing.
+  this->fix_horizontal_index_ = index.value();
+  const uint8_t raw = EncodePackedFixPosition(this->fix_horizontal_index_, this->fix_vertical_index_);
+  ESP_LOGD(TAG, "Setting horizontal FIX %s -> A3=%02X (H=%u V=%u)%s", value.c_str(), raw,
+           this->fix_horizontal_index_, this->fix_vertical_index_,
+           this->have_packed_fix_state_ ? "" : " using provisional retained V");
   this->sendCmd(ToshibaCommandType::SWING, raw);
   if (this->horizontal_air_direction_select_ != nullptr)
     this->horizontal_air_direction_select_->publish_state(value);
-
-  this->swing_mode = str_equals_case_insensitive(value, "Swing")
-                         ? climate::CLIMATE_SWING_HORIZONTAL
-                         : climate::CLIMATE_SWING_OFF;
+  this->swing_mode = climate::CLIMATE_SWING_OFF;
   this->publish_state();
 }
 
-void ToshibaValidatedControlUart::publish_horizontal_air_direction_(uint8_t raw) {
-  if (this->horizontal_air_direction_select_ == nullptr) return;
+void ToshibaValidatedControlUart::publish_packed_fix_state_(uint8_t raw) {
+  uint8_t horizontal = 0;
+  uint8_t vertical = 0;
+  if (!DecodePackedFixPosition(raw, horizontal, vertical)) return;
 
-  if (raw == static_cast<uint8_t>(SWING::HORIZONTAL) || raw == static_cast<uint8_t>(SWING::BOTH)) {
-    this->horizontal_air_direction_select_->publish_state("Swing");
-    return;
-  }
-  if (raw == static_cast<uint8_t>(SWING::OFF) || raw == static_cast<uint8_t>(SWING::VERTICAL)) {
-    this->horizontal_air_direction_select_->publish_state("Off");
-  }
+  this->fix_horizontal_index_ = horizontal;
+  this->fix_vertical_index_ = vertical;
+  this->have_packed_fix_state_ = true;
+
+  const char *horizontal_name = FixedPositionName(horizontal);
+  if (horizontal_name != nullptr && this->horizontal_air_direction_select_ != nullptr)
+    this->horizontal_air_direction_select_->publish_state(horizontal_name);
+
+  const char *vertical_name = FixedPositionName(vertical);
+  if (vertical_name != nullptr && this->vertical_air_direction_select_ != nullptr)
+    this->vertical_air_direction_select_->publish_state(vertical_name);
+
+  ESP_LOGD(TAG, "A3 packed FIX state %02X -> H=%u V=%u", raw, horizontal, vertical);
+}
+
+void ToshibaValidatedControlUart::publish_horizontal_air_direction_(uint8_t raw) {
+  this->publish_packed_fix_state_(raw);
 }
 
 void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
@@ -267,7 +273,6 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
 
   ToshibaClimateUart::control(call);
 
-  // Direct P2 app behaviour: Dry exposes Auto fan only.
   if (call.get_mode().has_value() && *call.get_mode() == climate::CLIMATE_MODE_DRY &&
       this->idu_family_ == ToshibaIndoorUnitFamily::P2KVSG) {
     this->sendCmd(ToshibaCommandType::FAN, static_cast<uint8_t>(FAN::FAN_AUTO));
