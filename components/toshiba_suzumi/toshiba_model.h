@@ -64,7 +64,13 @@ struct ToshibaEquipmentIdentification {
   bool idu_model_available{false};
   bool odu_model_available{false};
   std::string idu_model;
+  std::string idu_identity_1;
+  std::string idu_identity_2;
+  std::string idu_identity_3;
   std::string odu_model;
+  std::string odu_identity_1;
+  std::string odu_identity_2;
+  std::string odu_identity_3;
   ToshibaIndoorUnitFamily idu_family{ToshibaIndoorUnitFamily::UNKNOWN};
   ToshibaCapabilityProfile capabilities;
 };
@@ -80,12 +86,12 @@ struct ToshibaEquipmentIdentification {
  *
  * Each 50-byte record is:
  *   +0..20   model field (21 bytes, ASCII then NUL padding)
- *   +21..33  identifier field (13 bytes; meaning unresolved)
- *   +34..42  identifier field (9 bytes; meaning unresolved)
- *   +43..49  identifier field (7 bytes; meaning unresolved)
+ *   +21..33  identity field 1 (13 bytes; meaning unresolved)
+ *   +34..42  identity field 2 (9 bytes; meaning unresolved)
+ *   +43..49  identity field 3 (7 bytes; meaning unresolved)
  *
- * A literal NULL/blank IDU model is retained as an unavailable-model anomaly;
- * the ODU model is never substituted for it.
+ * A literal NULL/blank field is treated as unavailable. Positive identity
+ * values are retained by the climate component and may be persisted by YAML.
  */
 ToshibaEquipmentIdentification decode_equipment_identification(const std::vector<uint8_t> &raw_data);
 
