@@ -64,11 +64,15 @@ static constexpr ToshibaAirflowRange TOSHIBA_AIRFLOW_RANGES[] = {
     AFR("RAS-B10G3KVSG-E", COOLING, 50.0f, 103.0f, 280, 720),
     AFR("RAS-B10G3KVSG-E", HEATING, 50.0f, 98.0f, 280, 660),
 
-    // P2KVSGB provisional airflow range. The 55..103 E4+2 fan-speed envelope is
-    // directly observed on the installed unit (~550..1030 rpm); airflow
+    // P2KVSGB provisional airflow range. Direct telemetry on the installed
+    // RAS-B10P2KVSGB-E establishes an observed live E4+2 envelope of 51..103
+    // (~510..1030 rpm). 103 has been reproduced at Fan-Only level 5 and under
+    // the documented maximum-heating-fan condition. 51/52 has been sustained
+    // during low-demand heating. Treat E4+2 as authoritative rather than
+    // inferring fan speed from the requested fan/function setting. Airflow
     // endpoints remain provisional until exact P2 service data is available.
-    AFR("RAS-B10P2KVSGB-E", COOLING, 55.0f, 103.0f, 312, 660),
-    AFR("RAS-B10P2KVSGB-E", HEATING, 55.0f, 103.0f, 328, 660),
+    AFR("RAS-B10P2KVSGB-E", COOLING, 51.0f, 103.0f, 312, 660),
+    AFR("RAS-B10P2KVSGB-E", HEATING, 51.0f, 103.0f, 328, 660),
 };
 
 #undef AFR
