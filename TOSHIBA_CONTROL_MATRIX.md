@@ -322,11 +322,15 @@ Current working interpretation of extended status fields includes:
 ```text
 +0 IDU heat-exchanger temperature
 +1 junction/secondary temperature
-+2 raw live fan/air-velocity feedback quantity — NOT literal RPM
++2 live IDU fan-speed feedback, approximately RPM / 10 (~10 rpm/count)
 +3..7 unresolved / commonly zero in observed frames
 ```
 
-Physical vane-anemometer testing on the B13 console showed close correspondence between the raw `+2` value and approximately 0.1 m/s per count at the measured outlet position. That does not establish universal physical velocity calibration; outlet position, louvre state and profile matter.
+`E4 +2` is distinct from the `0xA0`/`F8 +2` command enum. Across the directly tested units it uses the same approximately 10 rpm/count scale. The higher values observed on the `RAS-B10P2KVSGB-E` high-wall unit represent genuinely higher blower RPM caused by the different fan and air-path geometry, not a different protocol encoding.
+
+Examples include `24` ≈ 240 rpm and `60` ≈ 600 rpm on the console-family data, while the installed P2 high-wall unit has produced values up to `103` ≈ 1030 rpm. Airflow must still be mapped per exact model because a given RPM does not imply the same m³/h across different fan diameters and air paths.
+
+Physical vane-anemometer testing on the B13 console also showed close correspondence between `E4 +2` and outlet air velocity at the measured position, but that is a secondary consequence of fan speed for that geometry rather than a universal 0.1 m/s/count protocol definition.
 
 ### `0xE5` ODU/system status
 
