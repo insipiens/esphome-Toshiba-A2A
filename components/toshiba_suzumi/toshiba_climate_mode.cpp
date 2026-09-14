@@ -42,11 +42,6 @@ const climate::ClimateMode IntToClimateMode(MODE mode) {
   }
 }
 
-/**
- * Convert a custom fan mode string to a Toshiba fan mode code
- * @param mode The custom fan mode string to convert
- * @return The Toshiba fan mode code
- */
 const optional<FAN> StringToFanLevel(const char* mode) {
   if (mode == CUSTOM_FAN_LEVEL_2) {
     return FAN::FANMODE_2;
@@ -57,11 +52,6 @@ const optional<FAN> StringToFanLevel(const char* mode) {
   }
 }
 
-/**
- * Convert a Toshiba fan mode code to a custom fan mode string
- * @param mode The Toshiba fan mode code to convert
- * @return The custom fan mode string
- */
 const char* IntToCustomFanMode(FAN mode) {
   switch (mode) {
     case FAN::FANMODE_2:
@@ -103,17 +93,39 @@ struct VerticalAirDirection {
   const char *name;
 };
 
+static const char *const FIXED_POSITION_NAMES[] = {
+    "Position 1", "Position 2", "Position 3", "Position 4", "Position 5", "Position 6"};
+
 // Toshiba service manuals call the physical up/down flap a horizontal louver;
-// expose the user-facing effect as vertical air direction.
+// expose the user-facing effect as vertical air direction.  The six fixed
+// values are the genuine RB-N106S-G writes captured during the ordered P2
+// vertical FIX sweep.  The old inherited 0x50..0x54 mapping is no longer used.
 static const VerticalAirDirection VERTICAL_AIR_DIRECTIONS[] = {
     {SWING::OFF, "Off"},
     {SWING::VERTICAL, "Swing"},
-    {SWING::VERTICAL_FIX_POSITION_1, "Top"},
-    {SWING::VERTICAL_FIX_POSITION_2, "Middle Top"},
-    {SWING::VERTICAL_FIX_POSITION_3, "Middle"},
-    {SWING::VERTICAL_FIX_POSITION_4, "Middle Bottom"},
-    {SWING::VERTICAL_FIX_POSITION_5, "Bottom"},
+    {SWING::VERTICAL_FIX_POSITION_1, "Position 1"},
+    {SWING::VERTICAL_FIX_POSITION_2, "Position 2"},
+    {SWING::VERTICAL_FIX_POSITION_3, "Position 3"},
+    {SWING::VERTICAL_FIX_POSITION_4, "Position 4"},
+    {SWING::VERTICAL_FIX_POSITION_5, "Position 5"},
+    {SWING::VERTICAL_FIX_POSITION_6, "Position 6"},
 };
+
+const char *FixedPositionName(uint8_t zero_based_index) {
+  if (zero_based_index > 5) return nullptr;
+  return FIXED_POSITION_NAMES[zero_based_index];
+}
+
+bool DecodePackedFixPosition(uint8_t raw, uint8_t &horizontal_index, uint8_t &vertical_index) {
+  // Controlled Toshiba-app captures showed:
+  //   vertical sweep:   88 89 8A 8B 8C 8D
+  //   horizontal sweep: 85 8D 95 9D A5 AD
+  // This is a packed 3-bit + 3-bit position structure with the top bit set.
+  if ((raw & 0xC0) != 0x80) return false;
+  horizontal_index = (raw & 0x38) >> 3;
+  vertical_index = raw & 0x07;
+  return horizontal_index <= 5 && vertical_index <= 5;
+}
 
 const optional<SWING> StringToVerticalAirDirection(const std::string &position) {
   for (auto const &direction : VERTICAL_AIR_DIRECTIONS) {
@@ -121,16 +133,31 @@ const optional<SWING> StringToVerticalAirDirection(const std::string &position) 
       return direction.swing;
     }
   }
+
+  // Backwards-compatible aliases for older YAML/UI names. They now resolve to
+  // observed P2 codes instead of the superseded inherited 0x50..0x54 values.
+  if (str_equals_case_insensitive(position, "Top")) return SWING::VERTICAL_FIX_POSITION_1;
+  if (str_equals_case_insensitive(position, "Middle Top")) return SWING::VERTICAL_FIX_POSITION_2;
+  if (str_equals_case_insensitive(position, "Middle")) return SWING::VERTICAL_FIX_POSITION_3;
+  if (str_equals_case_insensitive(position, "Middle Bottom")) return SWING::VERTICAL_FIX_POSITION_5;
+  if (str_equals_case_insensitive(position, "Bottom")) return SWING::VERTICAL_FIX_POSITION_6;
   return nullopt;
 }
 
 const char* SwingToVerticalAirDirection(SWING mode) {
   if (mode == SWING::HORIZONTAL) {
-    mode = SWING::OFF;
+    return "Off";
   }
   if (mode == SWING::BOTH) {
-    mode = SWING::VERTICAL;
+    return "Swing";
   }
+
+  uint8_t horizontal_index = 0;
+  uint8_t vertical_index = 0;
+  if (DecodePackedFixPosition(static_cast<uint8_t>(mode), horizontal_index, vertical_index)) {
+    return FixedPositionName(vertical_index);
+  }
+
   for (auto const &direction : VERTICAL_AIR_DIRECTIONS) {
     if (mode == direction.swing) {
       return direction.name;
@@ -140,9 +167,9 @@ const char* SwingToVerticalAirDirection(SWING mode) {
 }
 
 bool IsFixedVerticalAirDirection(SWING mode) {
-  auto value = static_cast<uint8_t>(mode);
-  return value >= static_cast<uint8_t>(SWING::VERTICAL_FIX_POSITION_1) &&
-         value <= static_cast<uint8_t>(SWING::VERTICAL_FIX_POSITION_5);
+  uint8_t horizontal_index = 0;
+  uint8_t vertical_index = 0;
+  return DecodePackedFixPosition(static_cast<uint8_t>(mode), horizontal_index, vertical_index);
 }
 
 const SWING ClimateSwingModeToInt(climate::ClimateSwingMode mode) {
@@ -172,20 +199,12 @@ const climate::ClimateSwingMode IntToClimateSwingMode(SWING mode) {
     case SWING::BOTH:
       return climate::CLIMATE_SWING_BOTH;
     case SWING::HADA:
-      // HADA is transported through register 0xA3 but is not a Home Assistant
-      // climate swing mode. It will be exposed separately by the capability layer.
       return climate::CLIMATE_SWING_OFF;
     default:
-      ESP_LOGE(TAG, "Invalid swing mode %d.", mode);
       return climate::CLIMATE_SWING_OFF;
   }
 }
 
-/**
- * Convert a standard climate fan mode to a Toshiba fan mode code
- * @param mode The climate fan mode to convert
- * @return The Toshiba fan mode
- */
 const optional<FAN> ClimateFanModeToInt(climate::ClimateFanMode mode) {
   switch (mode) {
     case climate::CLIMATE_FAN_AUTO:
@@ -271,11 +290,6 @@ const char* SpecialModeToPreset(SPECIAL_MODE mode) {
   }
 }
 
-/**
- * Convert a preset string to a climate preset code.
- * Return nullopt if the preset is not supported by the climate component
- * and we need to use a custom preset.
- */
 const optional<climate::ClimatePreset> StringToClimatePreset(const char *preset) {
   if (str_equals_case_insensitive(preset, SPECIAL_MODE_STANDARD)) {
     return climate::CLIMATE_PRESET_NONE;
@@ -326,7 +340,6 @@ const optional<climate::ClimatePreset> SpecialModeToClimatePreset(SPECIAL_MODE m
     case SPECIAL_MODE::COMFORT:
       return climate::CLIMATE_PRESET_COMFORT;
     default:
-      // For modes that don't have standard equivalents, return none
       return nullopt;
   }
 }
