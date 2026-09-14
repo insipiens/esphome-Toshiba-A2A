@@ -3,6 +3,14 @@ ESPHome Toshiba A2A development
 
 Sep 14th 2026
 
+* documented J2 manual semantics for Power Select, Silent Operation, Hi POWER, Fireplace and 8 °C heating, with explicit separation between Toshiba-documented behaviour, direct remote observations and still-unproven multi-head/UART interactions
+* recorded that Power Select limits maximum current and that Silent Operation explicitly constrains outdoor-unit operation/capacity; on a shared multi-split these are treated as outdoor-unit-affecting controls, without claiming that their logical state is necessarily broadcast or globally stored across all IDUs
+* recorded that the J2 remote cycles Power Select and Silent choices through one user interface but that this alone does not prove internal mutual exclusion; added a concrete `0x87` versus F7/F8 coexistence/cancellation test plan
+* recorded the J2 manual description of Hi POWER as automatic room-temperature and airflow control for faster heating/cooling, distinguishing it from pure outdoor-unit current/noise caps while retaining the possibility of indirect system-wide effects through shared compressor loading
+* recorded Fireplace as a thermo-off indoor-fan circulation policy, plus Toshiba's restriction that Fireplace does not work with an IMS multi-system combination
+* directly observed on the physical J2 remote that `Normal / Fireplace 1 / Fireplace 2 / 8 °C heat` form a cycling mutually exclusive display state; documented this as the preferred J2 UI model while keeping underlying UART clearing/coexistence semantics unproven
+* recorded 8 °C heating as a low-energy 5–13 °C setback/frost-protection regime rather than a normal occupied-room optimisation actuator
+* added `J2_MANUAL_CONTROL_NOTES.md` and documented the optimisation implication that fan speed remains the cleanest clearly local J2 actuator, with the B13J2 serving as the instrumented reference for deriving fan-control policy for the less-instrumented B10J2 units
 * decoded the complete pushed `0xE0` equipment-identification payload as two 50-byte records (IDU then ODU), each containing a 21-byte model field followed by three fixed-width ASCII identity fields; captured examples now cover B13J2, older B10J2 firmware and the newer B10P2 while preserving unresolved field semantics
 * exposed all six non-model `0xE0` identity fields as optional ESPHome text sensors (`idu_identity_1..3`, `odu_identity_1..3`); blank/`NULL` publications do not erase known values, and restore methods allow the YAML to persist them across reboot in the same way as the IDU/ODU model strings
 * decoded A3 FIX as one packed two-axis byte: bit 7 marks FIX, bits 5..3 carry the horizontal field and bits 2..0 carry the vertical field; changing one axis preserves the other in the same command byte
