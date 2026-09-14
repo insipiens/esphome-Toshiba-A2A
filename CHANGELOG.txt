@@ -10,7 +10,11 @@ Sep 14th 2026
 * confirmed Silent Operation states through genuine-adaptor F8 traffic: Standard `00`, Silent 1 `02`, Silent 2 `0A`; Hi POWER remains `01` and ECO `03`
 * confirmed Power Select compatibility behaviour on P2: changing 100/75/50% in Auto/Cool/Heat cancels ECO, Hi POWER and Silent Operation back to Standard, while PURE remains independent
 * confirmed PURE is a separate Function control and is available in all five HVAC modes tested on P2
-* directly captured Start Defrost as momentary command `CB 02`; CD/CE traffic following the action is ordinary energy-history polling and not part of the defrost command
+* expanded the direct `0xCB` defrost mapping: `CB 01` requests Strong Defrost, `CB 02` requests Normal Defrost, `CB 00` stops/cancels forced defrost; IDU pushes `CB 11` when Strong Defrost is active and `CB 10` when inactive/stopped
+* recorded that `CB 02` can be ACKed while normal defrost is refused by operating conditions, proving the generic ACK confirms receipt rather than successful entry into defrost
+* recorded `CB 12` only as the inferred Normal Defrost active partner to the observed `10/11` state pattern; it remains unconfirmed until a successful normal-defrost activation is captured
+* recorded an additional `CB 03` write seen during one Strong Defrost startup sequence, deliberately leaving its meaning unresolved
+* removed the older assumption that the observed CB values could simply be treated as self-clean state on the tested P2 unit; self-clean now requires separate re-validation
 * added evidence-limited family+mode helpers for P2 Function availability, fan choices and Power Select cancellation rules; unvalidated families deliberately return no mode-rule result rather than inheriting P2 behaviour
 * added PURE and Start Defrost to the P2 family capability vocabulary without generalising those new findings to untested families
 
