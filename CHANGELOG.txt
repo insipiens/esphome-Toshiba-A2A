@@ -3,6 +3,12 @@ ESPHome Toshiba A2A development
 
 Sep 14th 2026
 
+* replaced the inherited fixed-louvre A3 values with the genuine RB-N106S-G captures from the P2 unit: vertical ordered FIX sweep `88 89 8A 8B 8C 8D` and horizontal ordered FIX sweep `85 8D 95 9D A5 AD`; added decoding of the strongly supported packed horizontal/vertical position fields
+* added a validated P2 control layer for the normal ESPHome board: the climate entity remains the Fan/HVAC interface while Toshiba app `Function` controls are exposed as separate Power Select, ECO, Hi POWER, Silent Operation, PURE, 8 °C Heat and defrost entities rather than climate presets
+* enforced the directly observed P2 mode rules: Dry forces Auto fan; manual/Quiet fan requests are rejected in Dry; ECO/Hi POWER/Silent are limited to Auto/Cool/Heat; 8 °C Heat is limited to Heat; normal Start Defrost is limited to Auto/Heat
+* implemented F7 mutual-exclusion state handling for ECO/Hi POWER/Silent/8 °C while preserving independent Function controls on other registers; changing Power Select in Auto/Cool/Heat cancels ECO/Hi POWER/Silent but leaves PURE unchanged
+* added direct PURE `C7 18/10` control/readback and separate normal/strong defrost buttons using `CB 02/01`; P2 `CB 10/11` is handled as inactive/Strong-Defrost-active state rather than the superseded self-clean assumption, while `CB 12` remains explicitly unconfirmed
+* added separate vertical and horizontal air-direction selectors with six FIX positions plus the standard Home Assistant Off/Vertical/Horizontal/Both swing modes; added a dedicated `RAS-B10P2KVSGB-E` example configuration
 * mapped the Toshiba app's `Fan Speed` and `Function` groupings on the directly tested RAS-B10P2KVSGB-E instead of treating protocol registers as the UI model
 * confirmed fan commands remain the established A0/F8 fan enum: Quiet `31`, manual levels `32..36`, Auto `41`; F8 +2 mirrors the selected fan command rather than introducing a separate generic manual-mode value
 * recorded P2 mode-dependent Function matrix: Power Select and PURE in Auto/Cool/Heat/Dry/Fan; ECO, Hi POWER and Silent Operation in Auto/Cool/Heat; 8 °C heat in Heat; Start Defrost in Heat and Auto
