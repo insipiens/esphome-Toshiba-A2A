@@ -39,24 +39,34 @@ enum class FAN {
   FAN_HIGH = 54,
   FAN_AUTO = 65
 };
-enum class SWING {
-  OFF = 49,
-  BOTH = 67,
-  VERTICAL = 65,
-  HORIZONTAL = 66,
 
-  // Genuine RB-N106S-G captures on the P2 high-wall unit show fixed-louvre
-  // commands as packed A3 values, not the old inherited 0x50..0x54 values.
-  // A prescribed vertical sweep produced 0x88..0x8D.  The upper packed field
-  // remained fixed while the low three-bit vertical position advanced 0..5.
+// A3 ordinary pushed/read state values. These are NOT the same encoding as the
+// genuine adaptor's swing/FIX write commands.
+enum class SWING {
+  OFF = 0x31,
+  VERTICAL = 0x41,
+  HORIZONTAL = 0x42,
+  BOTH = 0x43,
+
+  // Genuine RB-N106S-G P2 vertical FIX writes. The packed value can also be
+  // observed as louvre position state, so it remains useful in this enum.
   VERTICAL_FIX_POSITION_1 = 0x88,
   VERTICAL_FIX_POSITION_2 = 0x89,
   VERTICAL_FIX_POSITION_3 = 0x8A,
   VERTICAL_FIX_POSITION_4 = 0x8B,
   VERTICAL_FIX_POSITION_5 = 0x8C,
   VERTICAL_FIX_POSITION_6 = 0x8D,
-  HADA = 96
+  HADA = 0x60
 };
+
+// Genuine RB-N106S-G A3 commands captured on the tested P2 unit.
+// BOTH and OFF_TRANSITION both use 0x80 in captures; the resulting authoritative
+// IDU pushed state must therefore be used to distinguish the resulting state.
+static constexpr uint8_t A3_CMD_OFF_TRANSITION = 0x80;
+static constexpr uint8_t A3_CMD_BOTH_SWING = 0x80;
+static constexpr uint8_t A3_CMD_VERTICAL_SWING = 0xAE;
+static constexpr uint8_t A3_CMD_HORIZONTAL_SWING = 0xB6;
+
 enum class STATE { ON = 48, OFF = 49 };
 enum class PWR_LEVEL { PCT_50 = 50, PCT_75 = 75, PCT_100 = 100 };
 // Values documented by maxmacstn/ToshibaCarrierController.
@@ -108,7 +118,7 @@ enum class ToshibaCommandType : uint8_t {
 const MODE ClimateModeToInt(climate::ClimateMode mode);
 const climate::ClimateMode IntToClimateMode(MODE mode);
 
-const SWING ClimateSwingModeToInt(climate::ClimateSwingMode mode);
+const uint8_t ClimateSwingModeToCommand(climate::ClimateSwingMode mode);
 const climate::ClimateSwingMode IntToClimateSwingMode(SWING mode);
 
 const optional<FAN> ClimateFanModeToInt(climate::ClimateFanMode mode);
