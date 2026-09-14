@@ -53,6 +53,7 @@ class ToshibaValidatedPowerSelect;
 class ToshibaPureSwitch;
 class ToshibaDefrostButton;
 class ToshibaHorizontalAirDirectionSelect;
+class ToshibaVerticalAirDirectionSelect;
 
 class ToshibaClimateUart : public PollingComponent, public climate::Climate, public uart::UARTDevice {
  public:
@@ -115,8 +116,6 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void set_min_temp(uint8_t min_temp) { min_temp_ = min_temp; }
   void set_time_sync_interval(uint32_t interval) { time_sync_interval_ = interval; }
 
-  // Legacy divided controls retained for backwards compatibility. New P2
-  // configurations use the validated-control subclass below.
   void set_eco_switch(ToshibaSpecialModeSwitch *entity) { eco_switch_ = entity; }
   void set_hi_power_switch(ToshibaSpecialModeSwitch *entity) { hi_power_switch_ = entity; }
   void set_eight_degree_heat_switch(ToshibaSpecialModeSwitch *entity) { eight_degree_heat_switch_ = entity; }
@@ -235,7 +234,6 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void estimate_wattage_(uint32_t current_energy);
 
   friend class ToshibaPwrModeSelect;
-  friend class ToshibaVerticalAirDirectionSelect;
   friend class ToshibaSpecialModeSwitch;
   friend class ToshibaSpecialModeLevelSelect;
 };
@@ -276,16 +274,12 @@ class ToshibaDiagnosticMonitorUart : public ToshibaClimateUart {
   void log_timer_bank_snapshot_() const;
 };
 
-// Normal installations now use this subclass. It keeps the diagnostic transport
-// but adds the directly validated P2 fan/function rules and the observed A3/C7/CB
-// semantics without changing the legacy base behaviour for other families.
 class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
  public:
   void set_horizontal_air_direction_select(select::Select *sel) { horizontal_air_direction_select_ = sel; }
   void set_pure_switch(ToshibaPureSwitch *entity) { pure_switch_ = entity; }
   void set_defrost_active_sensor(binary_sensor::BinarySensor *sensor) { defrost_active_sensor_ = sensor; }
 
-  // These hide the legacy setters when codegen targets this subclass.
   void set_eco_switch(ToshibaValidatedFunctionSwitch *entity) { validated_eco_switch_ = entity; }
   void set_hi_power_switch(ToshibaValidatedFunctionSwitch *entity) { validated_hi_power_switch_ = entity; }
   void set_eight_degree_heat_switch(ToshibaValidatedFunctionSwitch *entity) { validated_eight_degree_heat_switch_ = entity; }
@@ -305,7 +299,9 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   void on_set_validated_power_level_(const std::string &value);
   void on_set_pure_(bool enabled);
   void on_press_defrost_(bool strong);
+  void on_set_vertical_fixed_position_(const std::string &value);
   void on_set_horizontal_air_direction_(const std::string &value);
+  void publish_packed_fix_state_(uint8_t raw);
   void publish_horizontal_air_direction_(uint8_t raw);
 
   select::Select *horizontal_air_direction_select_ = nullptr;
@@ -316,12 +312,20 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   ToshibaValidatedFunctionSwitch *validated_eight_degree_heat_switch_ = nullptr;
   ToshibaValidatedSilentSelect *validated_outdoor_silent_select_ = nullptr;
 
+  // Last packed A3 FIX fields. One axis is preserved when the other indexed
+  // position is changed. 1 is a conservative initial value matching the
+  // captured vertical sweep until a packed state is received from the IDU.
+  uint8_t fix_horizontal_index_{1};
+  uint8_t fix_vertical_index_{1};
+  bool have_packed_fix_state_{false};
+
   friend class ToshibaValidatedFunctionSwitch;
   friend class ToshibaValidatedSilentSelect;
   friend class ToshibaValidatedPowerSelect;
   friend class ToshibaPureSwitch;
   friend class ToshibaDefrostButton;
   friend class ToshibaHorizontalAirDirectionSelect;
+  friend class ToshibaVerticalAirDirectionSelect;
 };
 
 class ToshibaPwrModeSelect : public select::Select, public esphome::Parented<ToshibaClimateUart> {
@@ -329,7 +333,8 @@ class ToshibaPwrModeSelect : public select::Select, public esphome::Parented<Tos
   void control(const std::string &value) override;
 };
 
-class ToshibaVerticalAirDirectionSelect : public select::Select, public esphome::Parented<ToshibaClimateUart> {
+class ToshibaVerticalAirDirectionSelect : public select::Select,
+                                          public esphome::Parented<ToshibaValidatedControlUart> {
  protected:
   void control(const std::string &value) override;
 };
