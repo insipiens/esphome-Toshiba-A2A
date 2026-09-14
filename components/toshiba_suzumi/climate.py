@@ -39,7 +39,13 @@ CONF_REGISTER_90_RAW = "register_90_raw"
 CONF_REGISTER_94_RAW = "register_94_raw"
 CONF_REGISTER_C7_RAW = "register_c7_raw"
 CONF_IDU_MODEL = "idu_model"
+CONF_IDU_IDENTITY_1 = "idu_identity_1"
+CONF_IDU_IDENTITY_2 = "idu_identity_2"
+CONF_IDU_IDENTITY_3 = "idu_identity_3"
 CONF_ODU_MODEL = "odu_model"
+CONF_ODU_IDENTITY_1 = "odu_identity_1"
+CONF_ODU_IDENTITY_2 = "odu_identity_2"
+CONF_ODU_IDENTITY_3 = "odu_identity_3"
 CONF_PWR_SELECT = "power_select"
 CONF_VERTICAL_AIR_DIRECTION = "vertical_air_direction"
 CONF_HORIZONTAL_AIR_DIRECTION = "horizontal_air_direction"
@@ -108,7 +114,13 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
         cv.Optional(CONF_REGISTER_94_RAW): sensor.sensor_schema(accuracy_decimals=0, state_class=STATE_CLASS_MEASUREMENT),
         cv.Optional(CONF_REGISTER_C7_RAW): sensor.sensor_schema(accuracy_decimals=0, state_class=STATE_CLASS_MEASUREMENT),
         cv.Optional(CONF_IDU_MODEL): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_IDU_IDENTITY_1): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_IDU_IDENTITY_2): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_IDU_IDENTITY_3): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_ODU_MODEL): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_ODU_IDENTITY_1): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_ODU_IDENTITY_2): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_ODU_IDENTITY_3): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_PWR_SELECT): select.select_schema(ToshibaPwrModeSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaPwrModeSelect)}),
         cv.Optional(CONF_VERTICAL_AIR_DIRECTION): select.select_schema(ToshibaVerticalAirDirectionSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaVerticalAirDirectionSelect)}),
         cv.Optional(CONF_HORIZONTAL_AIR_DIRECTION): select.select_schema(ToshibaHorizontalAirDirectionSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaHorizontalAirDirectionSelect)}),
@@ -168,12 +180,20 @@ async def to_code(config):
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, setter)(sens))
 
-    if CONF_IDU_MODEL in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_IDU_MODEL])
-        cg.add(var.set_idu_model_sensor(sens))
-    if CONF_ODU_MODEL in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_ODU_MODEL])
-        cg.add(var.set_odu_model_sensor(sens))
+    text_sensor_setters = {
+        CONF_IDU_MODEL: "set_idu_model_sensor",
+        CONF_IDU_IDENTITY_1: "set_idu_identity_1_sensor",
+        CONF_IDU_IDENTITY_2: "set_idu_identity_2_sensor",
+        CONF_IDU_IDENTITY_3: "set_idu_identity_3_sensor",
+        CONF_ODU_MODEL: "set_odu_model_sensor",
+        CONF_ODU_IDENTITY_1: "set_odu_identity_1_sensor",
+        CONF_ODU_IDENTITY_2: "set_odu_identity_2_sensor",
+        CONF_ODU_IDENTITY_3: "set_odu_identity_3_sensor",
+    }
+    for key, setter in text_sensor_setters.items():
+        if key in config:
+            sens = await text_sensor.new_text_sensor(config[key])
+            cg.add(getattr(var, setter)(sens))
 
     if CONF_PWR_SELECT in config:
         sel = await select.new_select(config[CONF_PWR_SELECT], options=["50 %", "75 %", "100 %"])
