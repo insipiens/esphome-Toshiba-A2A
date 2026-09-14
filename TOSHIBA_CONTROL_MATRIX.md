@@ -153,7 +153,7 @@ Power Select       -> 0x87
 PURE               -> 0xC7
 Hi POWER / ECO /
 Silent / 8 °C etc. -> F7 selector, also mirrored in F8 +3
-Start Defrost      -> 0xCB write action
+Defrost actions    -> 0xCB commands/state
 ```
 
 Therefore the Home Assistant model must not expose `Function` as one synthetic selector.
@@ -215,26 +215,51 @@ In Dry and Fan, the app exposes only Power Select and PURE from this group, so t
 
 This interaction is represented in code as a small family+mode cancellation mask. PURE is intentionally excluded because it is independent in observed behaviour.
 
-## 7. Start Defrost
+## 7. Defrost control
 
-The Toshiba app exposes Start Defrost as a momentary Function action in Heat and Auto on the directly tested P2 unit.
+The directly tested P2 unit exposes normal Start Defrost in the Toshiba app and also has a distinct Strong Defrost operation. The two must not be conflated.
 
-Direct sniffer capture:
+Direct `0xCB` captures show a command/state pattern rather than one persistent scalar value.
 
-```text
-WiFi -> IDU   register CB, value 02
-IDU  -> WiFi  generic CB ACK
-```
-
-Working mapping:
+### Commands sent by the genuine adaptor
 
 ```text
-CB 02 = Start Defrost
+CB 00 = stop/cancel forced defrost
+CB 01 = request Strong Defrost
+CB 02 = request Normal Defrost
 ```
 
-This is an action/button, not a persistent switch state.
+A generic ACK means only that the request was received. In one normal-defrost test, `CB 02` was acknowledged twice but the IDU refused to enter defrost under the current conditions, so no active-state push followed.
 
-The `CD` and `CE` traffic seen immediately afterwards is ordinary energy-history polling and is unrelated to the defrost command.
+### IDU pushed state
+
+```text
+CB 10 = defrost inactive / stopped
+CB 11 = Strong Defrost active
+CB 12 = Normal Defrost active candidate — inferred from the pattern, not yet observed
+```
+
+Confirmed Strong Defrost start:
+
+```text
+WiFi -> IDU   CB 01
+IDU  -> WiFi  ACK
+IDU  -> WiFi  CB 11
+```
+
+Confirmed stop:
+
+```text
+WiFi -> IDU   CB 00
+IDU  -> WiFi  ACK
+IDU  -> WiFi  CB 10
+```
+
+A later `CB 03` was also observed during one Strong Defrost startup sequence. Its purpose remains unresolved and must not yet be assigned a meaning.
+
+Normal and Strong Defrost should therefore be treated as action/state semantics, not ordinary switches. A successful normal-defrost capture is still needed to confirm whether the expected active push is `CB 12`.
+
+The `CD` and `CE` traffic seen around defrost tests is ordinary energy-history polling and is unrelated to the defrost command/state path.
 
 ## 8. Replacing the old preset abstraction
 
@@ -256,6 +281,7 @@ The replacement logical entities remain divided controls, for example:
 | Power Select | select: 100% / 75% / 50% |
 | PURE | switch |
 | Start Defrost | button/action |
+| Strong Defrost | button/action with pushed active/inactive state |
 
 The protocol encoder can continue to use `0xF7` where appropriate, but the register is not the public logical-state model.
 
