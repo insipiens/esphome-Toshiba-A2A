@@ -3,9 +3,10 @@ ESPHome Toshiba A2A development
 
 Sep 14th 2026
 
-* replaced the inherited fixed-louvre A3 values with the genuine RB-N106S-G captures from the P2 unit: vertical ordered FIX sweep `88 89 8A 8B 8C 8D` and horizontal ordered FIX sweep `85 8D 95 9D A5 AD`; added decoding of the strongly supported packed horizontal/vertical position fields
+* decoded A3 FIX as one packed two-axis byte: bit 7 marks FIX, bits 5..3 carry the horizontal field and bits 2..0 carry the vertical field; changing one axis preserves the other in the same command byte
+* replaced the inherited fixed-louvre constants with the genuine RB-N106S-G captures from the P2 unit: vertical sweep `88 89 8A 8B 8C 8D` and horizontal sequence `85 8D 95 9D A5 AD`; these are combined H/V states rather than twelve unrelated constants
+* exposed five indexed FIX choices (`Position 1`..`Position 5`) for both vertical and horizontal entities, deliberately postponing physical direction labels until empirical testing; horizontal writes now preserve the last decoded vertical field in the packed A3 value
 * separated A3 write commands from ordinary pushed/read state: standard climate swing now sends the directly captured commands Vertical `AE`, Horizontal `B6`, Both `80`, and Off transition `80`, rather than incorrectly writing the `31/41/42/43` state values
-* exposed the six directly captured vertical FIX positions as a dedicated selector while keeping Off/Vertical/Horizontal/Both swing on the climate entity; horizontal FIX remains deliberately unexposed because Toshiba presents five UI positions but the capture contains six packed states, so their exact correspondence is still unresolved
 * added a validated P2 control layer for the normal ESPHome board: the climate entity remains the Fan/HVAC interface while Toshiba app `Function` controls are exposed as separate Power Select, ECO, Hi POWER, Silent Operation, PURE, 8 °C Heat and defrost entities rather than climate presets
 * enforced the directly observed P2 mode rules: Dry forces Auto fan; manual/Quiet fan requests are rejected in Dry; ECO/Hi POWER/Silent are limited to Auto/Cool/Heat; 8 °C Heat is limited to Heat; normal Start Defrost is limited to Auto/Heat
 * implemented F7 mutual-exclusion state handling for ECO/Hi POWER/Silent/8 °C while preserving independent Function controls on other registers; changing Power Select in Auto/Cool/Heat cancels ECO/Hi POWER/Silent but leaves PURE unchanged
@@ -37,7 +38,7 @@ Sep 13th 2026
 * retained a lightweight five-step manual-fan fallback for IDU firmware that does not expose usable live fan feedback
 * expanded the UART register map from tentative observations into an evidence-graded protocol reference, separating confirmed sniffer observations from draft/provisional interpretations
 * validated aggregate F8 control traffic and documented command/state behaviour observed through the Toshiba Wi-Fi adaptor
-* mapped horizontal louvre FIX positions from ordered app tests; observed values 0x85, 0x8D, 0x95, 0x9D, 0xA5 and 0xAD correspond to six ordered positions, with the third position being straight ahead; degree-like encoding remains an interpretation
+* captured the A3 horizontal test sequence `85 8D 95 9D A5 AD` while stepping the Toshiba UI's five horizontal FIX positions; later analysis showed these bytes contain both horizontal and vertical fields, so the six observed combined states must not be mistaken for six user-selectable horizontal positions
 * validated Hi Power switching through Wi-Fi sniffer traffic and retained feature-state semantics separately from the aggregate F8 command
 * validated ON-timer and OFF-timer command behaviour, including mirrored duration encoding; documented that the app exposes ON timer only while the unit is off and OFF timer only while the unit is on, while noting this restriction may be app-side logic
 * captured a complete ON-timer expiry sequence: the IDU unsolicited state push changes 0x90 to 0x42 at expiry and E4 subsequently shows fan activity; the wider logical-state interpretation remains explicitly DRAFT/provisional
