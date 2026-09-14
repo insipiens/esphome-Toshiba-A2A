@@ -34,7 +34,7 @@ The summary table is an index. Detailed sections below describe framing, payload
 | `0xDB` | Legacy yearly energy | declared | No current parser/use | **declared only** |
 | `0xDE` | Wireless/Wi-Fi LED | Write | `00` OFF, `05` ON | **confirmed** |
 | `0xDF` | Additional Wi-Fi-related control | Write | Existing component uses it alongside `DE` | **not independently validated** |
-| `0xE0` | Equipment/model information | pushed | IDU/ODU identity records in unsolicited class-`0x11` traffic | **confirmed** |
+| `0xE0` | Equipment/model information | pushed | Two 50-byte records: IDU then ODU; each contains model plus three fixed ASCII identity fields | **confirmed across B13J2, B10J2 and B10P2** |
 | `0xE4` | IDU engineering status | pushed/read | 8-byte record; `+2` is live IDU fan-speed feedback at approximately 10 rpm/count (RPM/10), distinct from the fan command enum | **confirmed field purpose and scale on tested units** |
 | `0xE5` | ODU/system engineering status | pushed/read | 8-byte engineering record; `+6` is current-like and tracks ODU electrical activity | **partially decoded** |
 | `0xEA` | Date/time sync | Write | Multi-byte time/date write; ACK pattern previously mapped | **established** |
@@ -714,7 +714,66 @@ The independent purpose of inherited `DF` remains unresolved.
 
 **Direction:** unsolicited class-`0x11` push.
 
-Carries IDU/ODU identity information in longer structured records. The adaptor acknowledges these pushes with class `0x91`.
+**Total frame length:** 114 bytes.
+
+The 100-byte payload is two consecutive 50-byte equipment records:
+
+```text
+byte 12       E0
+bytes 13..62  IDU record
+bytes 63..112 ODU record
+byte 113      checksum
+```
+
+Each 50-byte record has the same fixed-width ASCII layout:
+
+```text
++0..20   model field       21 bytes, NUL padded
++21..33  identity field 1  13 bytes, meaning unresolved
++34..42  identity field 2   9 bytes, meaning unresolved
++43..49  identity field 3   7 bytes, meaning unresolved
+```
+
+The exact semantics of the three identity fields are deliberately left unresolved. They are fixed equipment/platform identity values, not operating-state data. Blank or literal `NULL` fields must not overwrite a previously known value.
+
+Confirmed captures:
+
+```text
+RAS-B13J2FVG-E1
+62100295
+20855000
+012C3E
+RAS-5M34G3AVG-E1
+62100159
+22611900
+63E83E
+```
+
+```text
+NULL
+NULL
+20854600
+012C26
+RAS-5M34G3AVG-E1
+62100159
+22611900
+63E83E
+```
+
+```text
+RAS-B10P2KVSGB-E
+62300009
+24081500
+022020
+RAS-5M34G3AVG-E1
+62100159
+22611900
+63E83E
+```
+
+The identical four-field ODU record across all three captures, combined with the differing IDU-side fields, confirms the record boundary and field locality. The older B10J2 firmware can publish literal `NULL` for its first two IDU fields while still providing identity fields 2 and 3.
+
+`0xE0` is pushed asynchronously. Ordinary short active reads have timed out on tested J2 units, so implementations should not assume the record can be obtained by polling during initialisation. The Wi-Fi side acknowledges a received `E0` push with the standard class-`0x91` ACK.
 
 ## Register `0xE4` — IDU engineering status
 
