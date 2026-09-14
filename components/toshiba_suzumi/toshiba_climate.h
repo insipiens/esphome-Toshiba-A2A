@@ -234,6 +234,7 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void estimate_wattage_(uint32_t current_energy);
 
   friend class ToshibaPwrModeSelect;
+  friend class ToshibaVerticalAirDirectionSelect;
   friend class ToshibaSpecialModeSwitch;
   friend class ToshibaSpecialModeLevelSelect;
 };
@@ -299,7 +300,6 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   void on_set_validated_power_level_(const std::string &value);
   void on_set_pure_(bool enabled);
   void on_press_defrost_(bool strong);
-  void on_set_vertical_fixed_position_(const std::string &value);
   void on_set_horizontal_air_direction_(const std::string &value);
   void publish_packed_fix_state_(uint8_t raw);
   void publish_horizontal_air_direction_(uint8_t raw);
@@ -312,9 +312,6 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   ToshibaValidatedFunctionSwitch *validated_eight_degree_heat_switch_ = nullptr;
   ToshibaValidatedSilentSelect *validated_outdoor_silent_select_ = nullptr;
 
-  // Last packed A3 FIX fields. One axis is preserved when the other indexed
-  // position is changed. 1 is a conservative initial value matching the
-  // captured vertical sweep until a packed state is received from the IDU.
   uint8_t fix_horizontal_index_{1};
   uint8_t fix_vertical_index_{1};
   bool have_packed_fix_state_{false};
@@ -325,7 +322,6 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   friend class ToshibaPureSwitch;
   friend class ToshibaDefrostButton;
   friend class ToshibaHorizontalAirDirectionSelect;
-  friend class ToshibaVerticalAirDirectionSelect;
 };
 
 class ToshibaPwrModeSelect : public select::Select, public esphome::Parented<ToshibaClimateUart> {
@@ -333,8 +329,7 @@ class ToshibaPwrModeSelect : public select::Select, public esphome::Parented<Tos
   void control(const std::string &value) override;
 };
 
-class ToshibaVerticalAirDirectionSelect : public select::Select,
-                                          public esphome::Parented<ToshibaValidatedControlUart> {
+class ToshibaVerticalAirDirectionSelect : public select::Select, public esphome::Parented<ToshibaClimateUart> {
  protected:
   void control(const std::string &value) override;
 };
