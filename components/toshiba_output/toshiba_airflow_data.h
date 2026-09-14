@@ -13,18 +13,23 @@ namespace toshiba_output {
 // This table is deliberately exact-model based because air volume changes with
 // capacity even when the control functionality is identical within a family.
 //
-// fan_min/fan_max are the live Toshiba fan feedback values used by E4+2. On the
-// currently tested units they track approximately one tenth of the documented
-// fan rpm (for example 24 -> ~240 rpm and 60 -> ~600 rpm), but the field is kept
-// as a raw fan-speed quantity rather than labelled as literal rpm.
+// E4+2 is the live Toshiba IDU fan-speed feedback. Across the currently tested
+// units it represents approximately fan RPM / 10 (for example 24 -> ~240 rpm,
+// 60 -> ~600 rpm, and 103 -> ~1030 rpm). The higher values seen on the P2KVSGB
+// high-wall unit are genuine higher blower speeds caused by its different fan/
+// air-path geometry, not a different protocol scale.
+//
+// fan_min/fan_max therefore store the live E4+2 speed values used for the
+// model-specific airflow mapping. A zero value remains the stopped-fan state.
 //
 // Sources:
 //   J2FVG console: Toshiba Service Manual SVM-20012-1, indoor fan air-flow-rate
 //                  tables (cooling/heating).
 //   G3KVSG high wall: Toshiba Service Manual SVM-22104, indoor fan air-flow-rate
 //                     tables.
-//   P2KVSGB: provisional, based on observed fixed-speed feedback plus the B10 G3
-//            airflow envelope until an exact P2 service table is available.
+//   P2KVSGB: provisional airflow endpoints, based on observed fan-speed feedback
+//            plus the B10 G3 airflow envelope until an exact P2 service table is
+//            available. The E4+2 fan-speed interpretation itself is established.
 
 enum class AirflowMode : uint8_t { COOLING, HEATING };
 
@@ -59,8 +64,9 @@ static constexpr ToshibaAirflowRange TOSHIBA_AIRFLOW_RANGES[] = {
     AFR("RAS-B10G3KVSG-E", COOLING, 50.0f, 103.0f, 280, 720),
     AFR("RAS-B10G3KVSG-E", HEATING, 50.0f, 98.0f, 280, 660),
 
-    // P2KVSGB provisional range. The 55..103 feedback envelope is directly
-    // observed on the installed unit; airflow endpoints remain provisional.
+    // P2KVSGB provisional airflow range. The 55..103 E4+2 fan-speed envelope is
+    // directly observed on the installed unit (~550..1030 rpm); airflow
+    // endpoints remain provisional until exact P2 service data is available.
     AFR("RAS-B10P2KVSGB-E", COOLING, 55.0f, 103.0f, 312, 660),
     AFR("RAS-B10P2KVSGB-E", HEATING, 55.0f, 103.0f, 328, 660),
 };
