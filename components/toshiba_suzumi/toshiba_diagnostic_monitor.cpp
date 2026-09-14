@@ -28,7 +28,7 @@ static uint8_t next_focused_register(uint8_t reg) {
 void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentification &equipment) {
   // The protocol layer only accepts positive identity data from Toshiba.
   // Blank/NULL E0 fields are ignored so they cannot erase a previously known
-  // runtime model. Persistence across reboots belongs in the ESPHome YAML.
+  // runtime identity. Persistence across reboots belongs in the ESPHome YAML.
   if (equipment.idu_model_available && !equipment.idu_model.empty()) {
     if (this->idu_model_ != equipment.idu_model) {
       this->idu_model_ = equipment.idu_model;
@@ -42,6 +42,22 @@ void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentific
     ESP_LOGD(TAG, "E0 IDU model unavailable; retaining current runtime identity");
   }
 
+  if (!equipment.idu_identity_1.empty() && this->idu_identity_1_ != equipment.idu_identity_1) {
+    this->idu_identity_1_ = equipment.idu_identity_1;
+    ESP_LOGI(TAG, "E0 IDU identity 1: %s", this->idu_identity_1_.c_str());
+    if (this->idu_identity_1_sensor_ != nullptr) this->idu_identity_1_sensor_->publish_state(this->idu_identity_1_);
+  }
+  if (!equipment.idu_identity_2.empty() && this->idu_identity_2_ != equipment.idu_identity_2) {
+    this->idu_identity_2_ = equipment.idu_identity_2;
+    ESP_LOGI(TAG, "E0 IDU identity 2: %s", this->idu_identity_2_.c_str());
+    if (this->idu_identity_2_sensor_ != nullptr) this->idu_identity_2_sensor_->publish_state(this->idu_identity_2_);
+  }
+  if (!equipment.idu_identity_3.empty() && this->idu_identity_3_ != equipment.idu_identity_3) {
+    this->idu_identity_3_ = equipment.idu_identity_3;
+    ESP_LOGI(TAG, "E0 IDU identity 3: %s", this->idu_identity_3_.c_str());
+    if (this->idu_identity_3_sensor_ != nullptr) this->idu_identity_3_sensor_->publish_state(this->idu_identity_3_);
+  }
+
   if (equipment.odu_model_available && !equipment.odu_model.empty()) {
     if (this->odu_model_ != equipment.odu_model) {
       this->odu_model_ = equipment.odu_model;
@@ -50,6 +66,22 @@ void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentific
     }
   } else {
     ESP_LOGD(TAG, "E0 ODU model unavailable; retaining current runtime identity");
+  }
+
+  if (!equipment.odu_identity_1.empty() && this->odu_identity_1_ != equipment.odu_identity_1) {
+    this->odu_identity_1_ = equipment.odu_identity_1;
+    ESP_LOGI(TAG, "E0 ODU identity 1: %s", this->odu_identity_1_.c_str());
+    if (this->odu_identity_1_sensor_ != nullptr) this->odu_identity_1_sensor_->publish_state(this->odu_identity_1_);
+  }
+  if (!equipment.odu_identity_2.empty() && this->odu_identity_2_ != equipment.odu_identity_2) {
+    this->odu_identity_2_ = equipment.odu_identity_2;
+    ESP_LOGI(TAG, "E0 ODU identity 2: %s", this->odu_identity_2_.c_str());
+    if (this->odu_identity_2_sensor_ != nullptr) this->odu_identity_2_sensor_->publish_state(this->odu_identity_2_);
+  }
+  if (!equipment.odu_identity_3.empty() && this->odu_identity_3_ != equipment.odu_identity_3) {
+    this->odu_identity_3_ = equipment.odu_identity_3;
+    ESP_LOGI(TAG, "E0 ODU identity 3: %s", this->odu_identity_3_.c_str());
+    if (this->odu_identity_3_sensor_ != nullptr) this->odu_identity_3_sensor_->publish_state(this->odu_identity_3_);
   }
 }
 
