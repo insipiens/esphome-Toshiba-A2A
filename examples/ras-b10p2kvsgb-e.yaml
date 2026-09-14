@@ -5,11 +5,14 @@
 # the tested P2 high-wall unit as of 14 Sep 2026.
 #
 # Home Assistant model:
-#   - climate entity: HVAC mode, temperature, Fan Speed, swing
+#   - climate entity: HVAC mode, temperature, Fan Speed and standard swing
 #   - Function entities: Power Select, ECO, Hi POWER, Silent Operation, PURE,
 #     8 °C Heat and defrost actions
-#   - fixed vertical/horizontal louvre positions are separate selects because
-#     Home Assistant climate swing modes cannot represent Toshiba FIX positions
+#   - vertical FIX is a separate six-position select because Home Assistant's
+#     climate swing modes cannot represent Toshiba's fixed louvre positions
+#   - horizontal FIX is deliberately not exposed yet: six A3 states were
+#     captured while Toshiba presents five UI positions, so the exact mapping
+#     still needs one more controlled test
 #
 # P2 mode rules are enforced in the component. In particular Dry forces Auto
 # fan, and changing Power Select in Auto/Cool/Heat cancels ECO/Hi POWER/Silent
@@ -65,12 +68,17 @@ climate:
     idu_fan_speed:
       name: "IDU Fan Speed (RPM/10)"
 
-    # Louvre controls. Swing remains on the climate entity; these selectors also
-    # expose the six genuine Toshiba FIX positions captured through A3.
+    # Standard Off/Vertical/Horizontal/Both swing remains on the climate entity.
+    # This select is only the directly captured six-position vertical FIX sweep
+    # (A3 88..8D), avoiding two competing swing controls.
     vertical_air_direction:
-      name: "Vertical Air Direction"
+      name: "Vertical Fixed Position"
+
+    # Optional explicit horizontal swing control. Fixed horizontal positions are
+    # intentionally withheld until the five UI positions are tied unambiguously
+    # to the six captured packed A3 states.
     horizontal_air_direction:
-      name: "Horizontal Air Direction"
+      name: "Horizontal Swing"
 
     # Toshiba app Function group.
     power_select:
@@ -94,7 +102,7 @@ climate:
     strong_defrost:
       name: "Strong Defrost"
     defrost_active:
-      name: "Defrost Active"
+      name: "Confirmed Strong Defrost Active"
 
 # Optional sensible-output estimator. The P2 fan-speed envelope is directly
 # observed as E4+2 = 51..103 (~510..1030 rpm); the P2 airflow endpoints remain
