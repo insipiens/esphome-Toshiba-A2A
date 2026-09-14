@@ -10,43 +10,28 @@ namespace {
 
 ToshibaHvacMode climate_to_toshiba_mode(climate::ClimateMode mode) {
   switch (mode) {
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      return ToshibaHvacMode::AUTO;
-    case climate::CLIMATE_MODE_COOL:
-      return ToshibaHvacMode::COOL;
-    case climate::CLIMATE_MODE_HEAT:
-      return ToshibaHvacMode::HEAT;
-    case climate::CLIMATE_MODE_DRY:
-      return ToshibaHvacMode::DRY;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      return ToshibaHvacMode::FAN;
-    default:
-      return ToshibaHvacMode::UNKNOWN;
+    case climate::CLIMATE_MODE_HEAT_COOL: return ToshibaHvacMode::AUTO;
+    case climate::CLIMATE_MODE_COOL: return ToshibaHvacMode::COOL;
+    case climate::CLIMATE_MODE_HEAT: return ToshibaHvacMode::HEAT;
+    case climate::CLIMATE_MODE_DRY: return ToshibaHvacMode::DRY;
+    case climate::CLIMATE_MODE_FAN_ONLY: return ToshibaHvacMode::FAN;
+    default: return ToshibaHvacMode::UNKNOWN;
   }
 }
 
 ToshibaFeature feature_for_special_mode(SPECIAL_MODE mode) {
   switch (mode) {
-    case SPECIAL_MODE::ECO:
-      return FEATURE_ECO;
-    case SPECIAL_MODE::HI_POWER:
-      return FEATURE_HI_POWER;
+    case SPECIAL_MODE::ECO: return FEATURE_ECO;
+    case SPECIAL_MODE::HI_POWER: return FEATURE_HI_POWER;
     case SPECIAL_MODE::SILENT_1:
-    case SPECIAL_MODE::SILENT_2:
-      return FEATURE_OUTDOOR_SILENT;
-    case SPECIAL_MODE::EIGHT_DEG:
-      return FEATURE_EIGHT_DEG_HEAT;
-    case SPECIAL_MODE::SLEEP:
-      return FEATURE_SLEEP;
-    case SPECIAL_MODE::FLOOR:
-      return FEATURE_FLOOR;
-    case SPECIAL_MODE::COMFORT:
-      return FEATURE_COMFORT;
+    case SPECIAL_MODE::SILENT_2: return FEATURE_OUTDOOR_SILENT;
+    case SPECIAL_MODE::EIGHT_DEG: return FEATURE_EIGHT_DEG_HEAT;
+    case SPECIAL_MODE::SLEEP: return FEATURE_SLEEP;
+    case SPECIAL_MODE::FLOOR: return FEATURE_FLOOR;
+    case SPECIAL_MODE::COMFORT: return FEATURE_COMFORT;
     case SPECIAL_MODE::FIREPLACE_1:
-    case SPECIAL_MODE::FIREPLACE_2:
-      return FEATURE_FIREPLACE;
-    default:
-      return FEATURE_NONE;
+    case SPECIAL_MODE::FIREPLACE_2: return FEATURE_FIREPLACE;
+    default: return FEATURE_NONE;
   }
 }
 
@@ -62,12 +47,8 @@ bool extract_scalar(const std::vector<uint8_t> &raw, uint8_t reg, uint8_t &value
   return false;
 }
 
-optional<uint8_t> fixed_position_index(const std::string &value) {
-  for (uint8_t i = 0; i < 6; i++) {
-    const char *name = FixedPositionName(i);
-    if (name != nullptr && str_equals_case_insensitive(value, name)) return i;
-  }
-  return nullopt;
+SPECIAL_MODE current_special_mode(const optional<SPECIAL_MODE> &mode) {
+  return mode.has_value() ? mode.value() : SPECIAL_MODE::STANDARD;
 }
 
 }  // namespace
@@ -77,8 +58,6 @@ ToshibaHvacMode ToshibaValidatedControlUart::current_hvac_mode_() const {
 }
 
 bool ToshibaValidatedControlUart::validated_function_allowed_(ToshibaFeature feature, ToshibaHvacMode mode) const {
-  // The mode matrix is directly validated only on P2KVSG. Do not impose P2
-  // restrictions on families for which we do not yet have equivalent tests.
   if (this->idu_family_ != ToshibaIndoorUnitFamily::P2KVSG || mode == ToshibaHvacMode::UNKNOWN) return true;
   return validated_function_profile_for_mode(this->idu_family_, mode).has(feature);
 }
@@ -97,9 +76,8 @@ void ToshibaValidatedControlUart::clear_validated_f7_entities_() {
 }
 
 void ToshibaValidatedControlUart::publish_validated_f7_mode_(SPECIAL_MODE mode) {
-  // F7 itself is a selector. Its divided Home Assistant entities therefore
-  // remain mutually exclusive. Independent Function controls such as PURE and
-  // Power Select are deliberately not touched here.
+  // F7 is one Toshiba selector: its divided UI entities are mutually exclusive.
+  // PURE and Power Select use other registers and are intentionally untouched.
   this->clear_validated_f7_entities_();
   switch (mode) {
     case SPECIAL_MODE::ECO:
@@ -130,12 +108,12 @@ void ToshibaValidatedControlUart::on_set_validated_special_mode_(SPECIAL_MODE mo
   const ToshibaHvacMode hvac_mode = this->current_hvac_mode_();
   if (enabled && feature != FEATURE_NONE && !this->validated_function_allowed_(feature, hvac_mode)) {
     ESP_LOGW(TAG, "%s is not available in the current P2 HVAC mode", SpecialModeToPreset(mode));
-    this->publish_validated_f7_mode_(this->special_mode_.value_or(SPECIAL_MODE::STANDARD));
+    this->publish_validated_f7_mode_(current_special_mode(this->special_mode_));
     return;
   }
 
   if (!enabled && (!this->special_mode_.has_value() || this->special_mode_.value() != mode)) {
-    this->publish_validated_f7_mode_(this->special_mode_.value_or(SPECIAL_MODE::STANDARD));
+    this->publish_validated_f7_mode_(current_special_mode(this->special_mode_));
     return;
   }
 
@@ -148,11 +126,9 @@ void ToshibaValidatedControlUart::on_set_validated_special_mode_(SPECIAL_MODE mo
 
 void ToshibaValidatedControlUart::on_set_validated_silent_(const std::string &value) {
   SPECIAL_MODE requested = SPECIAL_MODE::STANDARD;
-  if (value == "Silent 1") {
-    requested = SPECIAL_MODE::SILENT_1;
-  } else if (value == "Silent 2") {
-    requested = SPECIAL_MODE::SILENT_2;
-  } else if (value != "Standard") {
+  if (value == "Silent 1") requested = SPECIAL_MODE::SILENT_1;
+  else if (value == "Silent 2") requested = SPECIAL_MODE::SILENT_2;
+  else if (value != "Standard") {
     ESP_LOGW(TAG, "Unknown Silent Operation option: %s", value.c_str());
     return;
   }
@@ -160,7 +136,7 @@ void ToshibaValidatedControlUart::on_set_validated_silent_(const std::string &va
   if (requested != SPECIAL_MODE::STANDARD &&
       !this->validated_function_allowed_(FEATURE_OUTDOOR_SILENT, this->current_hvac_mode_())) {
     ESP_LOGW(TAG, "Silent Operation is not available in the current P2 HVAC mode");
-    this->publish_validated_f7_mode_(this->special_mode_.value_or(SPECIAL_MODE::STANDARD));
+    this->publish_validated_f7_mode_(current_special_mode(this->special_mode_));
     return;
   }
 
@@ -176,9 +152,8 @@ void ToshibaValidatedControlUart::on_set_validated_power_level_(const std::strin
     return;
   }
 
-  // Direct P2 capture: changing Power Select in Auto/Cool/Heat cancels the
-  // F7 performance functions ECO, Hi POWER and Silent Operation. PURE is on
-  // C7 and remains independent.
+  // Direct P2 capture: changing Power Select in Auto/Cool/Heat cancels ECO,
+  // Hi POWER and Silent Operation. PURE remains independent on C7.
   if (this->special_mode_.has_value()) {
     const ToshibaFeature active_feature = feature_for_special_mode(this->special_mode_.value());
     const auto cancel = power_select_cancel_profile(this->idu_family_, this->current_hvac_mode_());
@@ -189,7 +164,6 @@ void ToshibaValidatedControlUart::on_set_validated_power_level_(const std::strin
     }
   }
 
-  ESP_LOGD(TAG, "Setting Power Select to %s", value.c_str());
   this->sendCmd(ToshibaCommandType::POWER_SEL, static_cast<uint8_t>(pwr_level.value()));
   if (this->pwr_select_ != nullptr) this->pwr_select_->publish_state(value);
 }
@@ -207,8 +181,6 @@ void ToshibaValidatedControlUart::on_set_pure_(bool enabled) {
 void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
   const ToshibaHvacMode mode = this->current_hvac_mode_();
   if (strong) {
-    // Strong Defrost has been directly captured in Heat. Do not generalise it
-    // to Auto until the same operation is observed there.
     if (this->idu_family_ == ToshibaIndoorUnitFamily::P2KVSG && mode != ToshibaHvacMode::HEAT) {
       ESP_LOGW(TAG, "Strong Defrost is only exposed in Heat on the validated P2 path");
       return;
@@ -225,32 +197,25 @@ void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
 }
 
 void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::string &value) {
+  // Only the horizontal swing command itself is exposed. The capture contains
+  // six packed horizontal FIX values but the Toshiba UI presents five positions;
+  // until the extra captured state is assigned, manufacturing a 1..5 mapping
+  // would be unjustified.
   uint8_t raw = 0;
-  if (str_equals_case_insensitive(value, "Off")) {
-    raw = static_cast<uint8_t>(SWING::OFF);
-  } else if (str_equals_case_insensitive(value, "Swing")) {
-    raw = static_cast<uint8_t>(SWING::HORIZONTAL);
-  } else {
-    auto index = fixed_position_index(value);
-    if (!index.has_value()) {
-      ESP_LOGW(TAG, "Unknown horizontal air direction: %s", value.c_str());
-      return;
-    }
-    // Genuine adaptor ordered horizontal FIX sweep:
-    // 85 8D 95 9D A5 AD (six positions, +8 per step).
-    raw = static_cast<uint8_t>(0x85 + (index.value() * 0x08));
+  if (str_equals_case_insensitive(value, "Off")) raw = A3_CMD_OFF_TRANSITION;
+  else if (str_equals_case_insensitive(value, "Swing")) raw = A3_CMD_HORIZONTAL_SWING;
+  else {
+    ESP_LOGW(TAG, "Horizontal FIX position mapping is not yet sufficiently resolved: %s", value.c_str());
+    return;
   }
 
-  ESP_LOGD(TAG, "Setting horizontal air direction to %s (A3=%02X)", value.c_str(), raw);
   this->sendCmd(ToshibaCommandType::SWING, raw);
   if (this->horizontal_air_direction_select_ != nullptr)
     this->horizontal_air_direction_select_->publish_state(value);
 
-  if (raw == static_cast<uint8_t>(SWING::HORIZONTAL)) {
-    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-  } else {
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
-  }
+  this->swing_mode = str_equals_case_insensitive(value, "Swing")
+                         ? climate::CLIMATE_SWING_HORIZONTAL
+                         : climate::CLIMATE_SWING_OFF;
   this->publish_state();
 }
 
@@ -263,14 +228,6 @@ void ToshibaValidatedControlUart::publish_horizontal_air_direction_(uint8_t raw)
   }
   if (raw == static_cast<uint8_t>(SWING::OFF) || raw == static_cast<uint8_t>(SWING::VERTICAL)) {
     this->horizontal_air_direction_select_->publish_state("Off");
-    return;
-  }
-
-  uint8_t horizontal_index = 0;
-  uint8_t vertical_index = 0;
-  if (DecodePackedFixPosition(raw, horizontal_index, vertical_index)) {
-    const char *name = FixedPositionName(horizontal_index);
-    if (name != nullptr) this->horizontal_air_direction_select_->publish_state(name);
   }
 }
 
@@ -299,9 +256,6 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
     return;
   }
 
-  // If a mode change makes the active F7 function invalid, cancel the F7
-  // selector before applying the new operating mode. Independent Function
-  // controls (PURE/Power Select) remain untouched.
   if (call.get_mode().has_value() && *call.get_mode() != climate::CLIMATE_MODE_OFF && this->special_mode_.has_value()) {
     const ToshibaFeature active_feature = feature_for_special_mode(this->special_mode_.value());
     if (active_feature != FEATURE_NONE && !this->validated_function_allowed_(active_feature, requested_mode)) {
@@ -311,9 +265,9 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
     }
   }
 
-  ToshibaDiagnosticMonitorUart::control(call);
+  ToshibaClimateUart::control(call);
 
-  // Toshiba app behaviour on the directly tested P2: Dry exposes Auto only.
+  // Direct P2 app behaviour: Dry exposes Auto fan only.
   if (call.get_mode().has_value() && *call.get_mode() == climate::CLIMATE_MODE_DRY &&
       this->idu_family_ == ToshibaIndoorUnitFamily::P2KVSG) {
     this->sendCmd(ToshibaCommandType::FAN, static_cast<uint8_t>(FAN::FAN_AUTO));
@@ -344,8 +298,6 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
     } else if (value == 0x11) {
       if (this->defrost_active_sensor_ != nullptr) this->defrost_active_sensor_->publish_state(true);
     } else if (value == 0x12) {
-      // 0x12 is still only the expected Normal Defrost active partner. Preserve
-      // it as an observation without promoting the inferred mapping to state.
       ESP_LOGI(TAG, "Observed CB 12; Normal Defrost active mapping still awaits explicit confirmation");
     }
     return;
