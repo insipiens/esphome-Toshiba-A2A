@@ -35,7 +35,7 @@ The summary table is an index. Detailed sections below describe framing, payload
 | `0xDE` | Wireless/Wi-Fi LED | Write | `00` OFF, `05` ON | **confirmed** |
 | `0xDF` | Additional Wi-Fi-related control | Write | Existing component uses it alongside `DE` | **not independently validated** |
 | `0xE0` | Equipment/model information | pushed | IDU/ODU identity records in unsolicited class-`0x11` traffic | **confirmed** |
-| `0xE4` | IDU engineering status | pushed/read | 8-byte record; `+2` is live fan/airflow feedback, not fan command and not literal RPM | **confirmed field purpose; scale unresolved** |
+| `0xE4` | IDU engineering status | pushed/read | 8-byte record; `+2` is live IDU fan-speed feedback at approximately 10 rpm/count (RPM/10), distinct from the fan command enum | **confirmed field purpose and scale on tested units** |
 | `0xE5` | ODU/system engineering status | pushed/read | 8-byte engineering record; `+6` is current-like and tracks ODU electrical activity | **partially decoded** |
 | `0xEA` | Date/time sync | Write | Multi-byte time/date write; ACK pattern previously mapped | **established** |
 | `0xF7` | Special-function selector | R/W | Standard `00`, Hi POWER `01`, Silent 1 `02`, ECO `03`, 8°C `04`, Sleep `05`, Floor `06`, Comfort `07`, Silent 2 `0A`, Fireplace 1 `20`, Fireplace 2 `30` | **enum established; authoritative readback still to test** |
@@ -310,7 +310,7 @@ Clearing the timer does not require zeroing `0x96`.
 41 = Auto
 ```
 
-These are command enums, not live fan speed. Live fan/airflow feedback is carried by `E4 +2`.
+These are command enums, not live fan speed. Live fan-speed feedback is carried independently by `E4 +2`.
 
 ## Register `0xA3` — Louvre / FIX / swing / H.DA
 
@@ -727,22 +727,35 @@ Current layout:
 ```text
 +0 = IDU coil/heat-exchanger-related temperature
 +1 = second IDU temperature / junction-related value; exact physical location unresolved
-+2 = live fan/airflow feedback quantity
++2 = live IDU fan-speed feedback, approximately RPM / 10 (about 10 rpm per count)
 +3..+7 = unresolved
 ```
 
-Representative `+2` values:
+`E4 +2` is the live physical fan-speed feedback, not the `0xA0`/`F8 +2` fan-command enum. Across the tested units, the common scale is approximately 10 rpm per register count. The differing numeric ranges between chassis families represent genuinely different blower speeds rather than a family-specific protocol scale.
+
+Examples of the established scale include:
+
+```text
+24  -> ~240 rpm
+60  -> ~600 rpm
+61  -> ~610 rpm
+103 -> ~1030 rpm
+```
+
+The lower-speed J2FVG console values and the substantially higher P2KVSGB high-wall values are physically consistent with their different blower and air-path geometry. The P2 high-wall fan runs faster; this is not evidence of an alternate E4 encoding.
+
+Representative P2KVSGB `+2` observations include:
 
 ```text
 00 = fan stopped / early heating startup / armed ON timer but not yet running
 43 = live fan feedback during Fan Only test
-55 = earlier/restricted Hi POWER heating phase
-61 = sustained full Hi POWER value after roughly 12-14 minutes
-33 = after target reduction / Hi POWER removal
-37 = first observed fan activity about five seconds after one ON-timer expiry
+55 = earlier/restricted Hi POWER heating phase (~550 rpm)
+61 = sustained full Hi POWER heating value after roughly 12-14 minutes (~610 rpm)
+33 = after target reduction / Hi POWER removal (~330 rpm)
+37 = first observed fan activity about five seconds after one ON-timer expiry (~370 rpm)
 ```
 
-`61` is the highest sustained raw value observed so far. It is not literal RPM.
+The installed `RAS-B10P2KVSGB-E` has also produced an observed fan-speed envelope extending to `103` (~1030 rpm) in other operating regimes. Airflow conversion remains model-specific because fan diameter, blower geometry and air path determine m³/h for a given RPM.
 
 ## Register `0xE5` — ODU/system engineering status
 
