@@ -58,7 +58,41 @@ static constexpr ToshibaFamilyCapabilityEntry TOSHIBA_FAMILY_CAPABILITIES[] = {
          FEATURE_HADA_CARE},
     {ToshibaIndoorUnitFamily::P2KVSG,
      COMMON_RESIDENTIAL_FEATURES |
-         FEATURE_HORIZONTAL_AIRFLOW},
+         FEATURE_HORIZONTAL_AIRFLOW |
+         FEATURE_PURE |
+         FEATURE_START_DEFROST},
+};
+
+struct ToshibaModeFunctionEntry {
+  ToshibaIndoorUnitFamily family;
+  ToshibaHvacMode mode;
+  uint32_t features;
+  uint8_t fan_options;
+};
+
+// Mode matrix below is intentionally evidence-limited. It records the Function
+// and Fan controls observed in the genuine Toshiba app on the directly tested
+// RAS-B10P2KVSGB-E. Do not copy these rules to another family until validated.
+static constexpr ToshibaModeFunctionEntry TOSHIBA_VALIDATED_MODE_FUNCTIONS[] = {
+    {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::AUTO,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_PURE | FEATURE_START_DEFROST,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::COOL,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_PURE,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::HEAT,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_PURE | FEATURE_EIGHT_DEG_HEAT |
+         FEATURE_START_DEFROST,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::DRY,
+     FEATURE_POWER_SELECT | FEATURE_PURE,
+     FAN_OPTION_AUTO},
+    {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::FAN,
+     FEATURE_POWER_SELECT | FEATURE_PURE,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
 };
 
 }  // namespace
@@ -91,6 +125,41 @@ ToshibaCapabilityProfile capability_profile_from_model(const std::string &model)
   }
 
   profile.features = FEATURE_COMMON_HVAC;
+  return profile;
+}
+
+ToshibaCapabilityProfile validated_function_profile_for_mode(ToshibaIndoorUnitFamily family,
+                                                              ToshibaHvacMode mode) {
+  ToshibaCapabilityProfile profile;
+  for (const auto &entry : TOSHIBA_VALIDATED_MODE_FUNCTIONS) {
+    if (entry.family == family && entry.mode == mode) {
+      profile.features = entry.features;
+      break;
+    }
+  }
+  return profile;
+}
+
+uint8_t validated_fan_options_for_mode(ToshibaIndoorUnitFamily family, ToshibaHvacMode mode) {
+  for (const auto &entry : TOSHIBA_VALIDATED_MODE_FUNCTIONS) {
+    if (entry.family == family && entry.mode == mode) return entry.fan_options;
+  }
+  return FAN_OPTION_NONE;
+}
+
+ToshibaCapabilityProfile power_select_cancel_profile(ToshibaIndoorUnitFamily family,
+                                                      ToshibaHvacMode mode) {
+  ToshibaCapabilityProfile profile;
+
+  // Directly observed in the P2 app: changing Power Select in Auto/Cool/Heat
+  // cancels ECO, Hi POWER and Silent Operation back to Standard. PURE remains
+  // independent and is deliberately not included in this mask.
+  if (family == ToshibaIndoorUnitFamily::P2KVSG &&
+      (mode == ToshibaHvacMode::AUTO || mode == ToshibaHvacMode::COOL ||
+       mode == ToshibaHvacMode::HEAT)) {
+    profile.features = FEATURE_ECO | FEATURE_HI_POWER | FEATURE_OUTDOOR_SILENT;
+  }
+
   return profile;
 }
 
