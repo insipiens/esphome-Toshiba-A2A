@@ -1,6 +1,19 @@
 ESPHome Toshiba A2A development
 ===============================
 
+Sep 14th 2026
+
+* mapped the Toshiba app's `Fan Speed` and `Function` groupings on the directly tested RAS-B10P2KVSGB-E instead of treating protocol registers as the UI model
+* confirmed fan commands remain the established A0/F8 fan enum: Quiet `31`, manual levels `32..36`, Auto `41`; F8 +2 mirrors the selected fan command rather than introducing a separate generic manual-mode value
+* recorded the P2 mode-dependent Function matrix: Power Select and PURE in Auto/Cool/Heat/Dry/Fan; ECO, Hi POWER and Silent Operation in Auto/Cool/Heat; 8 °C heat in Heat; Start Defrost in Heat and Auto
+* recorded P2 fan availability by mode: Dry exposes Auto only, while Auto/Cool/Heat/Fan expose manual fan levels, Auto and Quiet
+* confirmed Silent Operation states through genuine-adaptor F8 traffic: Standard `00`, Silent 1 `02`, Silent 2 `0A`; Hi POWER remains `01` and ECO `03`
+* confirmed Power Select compatibility behaviour on P2: changing 100/75/50% in Auto/Cool/Heat cancels ECO, Hi POWER and Silent Operation back to Standard, while PURE remains independent
+* confirmed PURE is a separate Function control and is available in all five HVAC modes tested on P2
+* directly captured Start Defrost as momentary command `CB 02`; CD/CE traffic following the action is ordinary energy-history polling and not part of the defrost command
+* added evidence-limited family+mode helpers for P2 Function availability, fan choices and Power Select cancellation rules; unvalidated families deliberately return no mode-rule result rather than inheriting P2 behaviour
+* added PURE and Start Defrost to the P2 family capability vocabulary without generalising those new findings to untested families
+
 Sep 13th 2026
 
 * split model handling into two lightweight runtime matrices: family-level control capabilities and exact-model airflow/performance ranges
