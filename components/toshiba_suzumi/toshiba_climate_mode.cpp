@@ -33,15 +33,25 @@ const climate::ClimateMode IntToClimateMode(MODE mode) {
 }
 
 const optional<FAN> StringToFanLevel(const char* mode) {
-  if (mode == CUSTOM_FAN_LEVEL_2) return FAN::FANMODE_2;
-  if (mode == CUSTOM_FAN_LEVEL_4) return FAN::FANMODE_4;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_AUTO)) return FAN::FAN_AUTO;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_QUIET)) return FAN::FAN_QUIET;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_LOW)) return FAN::FAN_LOW;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_LEVEL_2)) return FAN::FANMODE_2;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_MEDIUM)) return FAN::FAN_MEDIUM;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_LEVEL_4)) return FAN::FANMODE_4;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_HIGH)) return FAN::FAN_HIGH;
   return nullopt;
 }
 
 const char* IntToCustomFanMode(FAN mode) {
   switch (mode) {
+    case FAN::FAN_AUTO: return CUSTOM_FAN_AUTO;
+    case FAN::FAN_QUIET: return CUSTOM_FAN_QUIET;
+    case FAN::FAN_LOW: return CUSTOM_FAN_LOW;
     case FAN::FANMODE_2: return CUSTOM_FAN_LEVEL_2;
+    case FAN::FAN_MEDIUM: return CUSTOM_FAN_MEDIUM;
     case FAN::FANMODE_4: return CUSTOM_FAN_LEVEL_4;
+    case FAN::FAN_HIGH: return CUSTOM_FAN_HIGH;
     default: return "Unknown";
   }
 }
