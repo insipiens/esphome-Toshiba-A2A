@@ -3,6 +3,8 @@ ESPHome Toshiba A2A development
 
 Sep 15th 2026
 
+* changed the development monitor switch from active A-bank register polling to passive live UART capture: while enabled it logs every received Toshiba frame and decoded register payload without generating diagnostic read traffic or pausing normal climate communication; ordinary command TX remains visible through the existing ToshibaCommand debug logging
+* changed the validated J2/P2 fan UI to expose the complete Toshiba fan ladder as one ordered custom list — `Auto / Quiet / Low / Low-Medium / Medium / Medium-High / High` — so Home Assistant no longer groups its standard fan enums ahead of the two intermediate Toshiba speeds; updated fan parsing, mode validation and airflow fallback accordingly
 * extended the reusable package experiment to the Ballroom `RAS-B13J2FVG-E1`: added a J2 package that creates the J2 controls, upper-outlet vertical FIX selector, identity persistence, engineering sensors and output estimator without MQTT, plus a minimal `acballroom` consumer template
 * expanded the package-template CI job to compile both the Kitchen P2 and Ballroom B13J2 wrappers so the two tested families are validated against the same reusable-package structure
 * added `feature/package-template` as a reusable ESPHome package experiment: the Kitchen device can now be reduced to a small local wrapper containing substitutions and local Wi-Fi/API/OTA settings while the GitHub package creates the Toshiba climate entity, controls, identity persistence, engineering sensors, output estimator and diagnostic monitor
