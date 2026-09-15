@@ -10,12 +10,12 @@ The summary table is an index. Detailed sections below describe framing, payload
 | --- | --- | --- | --- | --- |
 | `0x80` | Logical/requested power state | R/W / pushed | `0x30` ON/armed, `0x31` OFF. `0x30` may be pushed while an ON timer is armed even though the unit is not yet physically running. | **confirmed value mapping; armed-state interpretation draft** |
 | `0x87` | Power Select | R/W | `0x32` 50%, `0x4B` 75%, `0x64` 100% | **confirmed** |
-| `0x90` | ON timer state/control | R/W / pushed | `0x41` active, `0x42` inactive/cancelled | **confirmed values; expiry interpretation draft** |
-| `0x92` | ON timer programmed delay | Write | `HH MM`; `01 00` = 1 h, `0C 00` = 12 h | **confirmed** |
-| `0x94` | OFF timer state/control | R/W | `0x41` active, `0x42` inactive/cancelled | **confirmed** |
-| `0x96` | OFF timer programmed delay | R/W | `HH MM`; `00 1E` = 30 min, `01 00` = 1 h | **confirmed** |
+| `0x90` | ON timer state/control | R/W / pushed | `0x41` armed/enabled; IDU pushes `0x42` at timer expiry | **confirmed on P2KVSG and J2FVG** |
+| `0x92` | ON timer programmed delay | Write | `HH MM`; `00 1E` = 30 min, `01 00` = 1 h, `0C 00` = 12 h | **confirmed on P2KVSG and J2FVG** |
+| `0x94` | OFF timer state/control | R/W | `0x41` active, `0x42` inactive/cancelled | **confirmed on P2KVSG and J2FVG** |
+| `0x96` | OFF timer programmed delay | R/W | `HH MM`; `00 1E` = 30 min, `01 00` = 1 h | **confirmed on P2KVSG and J2FVG** |
 | `0xA0` | Fan command | R/W | Quiet `31`; levels `32..36`; Auto `41` | **validated / established** |
-| `0xA3` | Swing / louvre / FIX / H.DA | R/W / pushed | Readback `31/41/42/43/60`; command encoding is family-specific: P2 uses packed H/V FIX values, while B13J2 uses vertical FIX `50..54`; IDU also pushes `80` | **confirmed register; family-specific FIX encoding confirmed on P2 and B13J2** |
+| `0xA3` | Swing / louvre / FIX / H.DA | R/W / pushed | Readback `31/41/42/43/60`; command encoding is family-specific: P2 uses packed H/V FIX values, while J2FVG uses vertical FIX `50..54`; IDU also pushes `80` | **confirmed register; family-specific FIX encoding confirmed on P2; J2FVG mapping directly verified on B13J2** |
 | `0xA4` | Structured louvre state | Read | 3-byte record; byte 0 tracks ordinary `A3` state; bytes 1-2 unresolved | **observed, partially decoded** |
 | `0xB0` | HVAC mode | R/W | Auto `41`, Cool `42`, Heat `43`, Dry `44`, Fan `45` | **validated / established** |
 | `0xB3` | Target temperature | R/W | Raw integer °C | **confirmed independently in `F8`** |
@@ -181,6 +181,7 @@ This availability rule is observed at the app/UI level. It has **not** yet been 
 Confirmed examples:
 
 ```text
+92 00 1E   = 30 minutes
 92 01 00   = 1 hour
 92 0C 00   = 12 hours
 ```
@@ -220,29 +221,15 @@ IDU -> WiFi   generic ACK
 
 The programmed value and enable state are separate registers.
 
-### DRAFT — observed ON-timer expiry sequence
+### ON-timer expiry
 
-One captured timer expiry produced the following sequence:
+At expiry the IDU autonomously pushes:
 
 ```text
-before expiry:
-90 = 41       ON timer active
-80 = 30       logical/armed ON candidate
-E4 +2 = 00    indoor fan stopped
-
-at expiry:
-IDU -> WiFi   90 42
-WiFi -> IDU   class-0x91 ACK
-
-~5 seconds later:
-E4 +2 = 37    indoor fan activity present
+90 42
 ```
 
-The `90 42` transition was emitted unsolicited by the IDU at the time the programmed ON timer expired. The adaptor acknowledged it with the normal class-`0x91` push ACK.
-
-Observed fact: the timer-state transition preceded the first observed non-zero `E4 +2` fan feedback by about five seconds in this capture.
-
-Draft inference: `0x90` appears to provide authoritative ON-timer active/inactive state, while actual operation is represented independently by engineering/runtime state such as `E4`. This is based on a single expiry capture and should remain provisional until reproduced.
+No F8/start command from the Wi-Fi adaptor precedes the transition. In the J2FVG 30-minute test, non-zero `E4 +2` fan feedback appeared about 10 seconds later, confirming timer expiry and physical blower startup are separate events.
 
 ## Registers `0x94` / `0x96` — OFF timer
 
@@ -342,9 +329,9 @@ ACK:
 02 00 03 90 00 00 08 01 30 01 00 00 00 01 A3 8F
 ```
 
-### B13J2FVG vertical FIX positions
+### J2FVG vertical FIX positions
 
-A controlled genuine-adaptor sweep on `RAS-B13J2FVG-E1`, selecting the five vertical FIX positions from top to bottom, produced:
+The J2FVG family uses the following vertical FIX command mapping, directly verified by a genuine-adaptor sweep on `RAS-B13J2FVG-E1`:
 
 ```text
 A3 50 = Position 1 / top
