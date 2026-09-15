@@ -25,11 +25,10 @@ namespace toshiba_output {
 // Sources:
 //   J2FVG console: Toshiba Service Manual SVM-20012-1, indoor fan air-flow-rate
 //                  tables (cooling/heating).
-//   G3KVSG high wall: Toshiba Service Manual SVM-22104, indoor fan air-flow-rate
-//                     tables.
 //   P2KVSGB: provisional airflow endpoints, based on observed fan-speed feedback
-//            plus the B10 G3 airflow envelope until an exact P2 service table is
-//            available. The E4+2 fan-speed interpretation itself is established.
+//            plus the B10 G3 service-manual airflow envelope until an exact P2
+//            service table is available. The E4+2 fan-speed interpretation
+//            itself is established.
 
 enum class AirflowMode : uint8_t { COOLING, HEATING };
 
@@ -59,10 +58,6 @@ static constexpr ToshibaAirflowRange TOSHIBA_AIRFLOW_RANGES[] = {
     AFR("RAS-B10J2FVG-E", HEATING, 24.0f, 56.0f, 198, 528),
     AFR("RAS-B13J2FVG-E", COOLING, 24.0f, 56.0f, 198, 528),
     AFR("RAS-B13J2FVG-E", HEATING, 24.0f, 60.0f, 198, 570),
-
-    // G3KVSG high-wall family.
-    AFR("RAS-B10G3KVSG-E", COOLING, 50.0f, 103.0f, 280, 720),
-    AFR("RAS-B10G3KVSG-E", HEATING, 50.0f, 98.0f, 280, 660),
 
     // P2KVSGB provisional airflow range. Direct telemetry on the installed
     // RAS-B10P2KVSGB-E establishes an observed live E4+2 envelope of 51..103
