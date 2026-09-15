@@ -205,13 +205,14 @@ async def to_code(config):
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_pwr_select(sel))
 
-    fixed_options = ["Position 1", "Position 2", "Position 3", "Position 4", "Position 5"]
+    vertical_fixed_options = ["Top", "Upper", "Centre", "Lower", "Bottom"]
+    horizontal_fixed_options = ["Left", "Left-Centre", "Centre", "Right-Centre", "Right"]
     if CONF_VERTICAL_AIR_DIRECTION in config:
-        sel = await select.new_select(config[CONF_VERTICAL_AIR_DIRECTION], options=fixed_options)
+        sel = await select.new_select(config[CONF_VERTICAL_AIR_DIRECTION], options=vertical_fixed_options)
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_vertical_air_direction_select(sel))
     if CONF_HORIZONTAL_AIR_DIRECTION in config:
-        sel = await select.new_select(config[CONF_HORIZONTAL_AIR_DIRECTION], options=fixed_options)
+        sel = await select.new_select(config[CONF_HORIZONTAL_AIR_DIRECTION], options=horizontal_fixed_options)
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_horizontal_air_direction_select(sel))
 
