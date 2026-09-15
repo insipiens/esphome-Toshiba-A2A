@@ -3,6 +3,8 @@ ESPHome Toshiba A2A development
 
 Sep 15th 2026
 
+* extended the reusable package experiment to the Ballroom `RAS-B13J2FVG-E1`: added a J2 package that creates the J2 controls, upper-outlet vertical FIX selector, identity persistence, engineering sensors and output estimator without MQTT, plus a minimal `acballroom` consumer template
+* expanded the package-template CI job to compile both the Kitchen P2 and Ballroom B13J2 wrappers so the two tested families are validated against the same reusable-package structure
 * added `feature/package-template` as a reusable ESPHome package experiment: the Kitchen device can now be reduced to a small local wrapper containing substitutions and local Wi-Fi/API/OTA settings while the GitHub package creates the Toshiba climate entity, controls, identity persistence, engineering sensors, output estimator and diagnostic monitor
 * deliberately excluded MQTT and the site-specific Shelly input-power/telemetry plumbing from the reusable package; added a GitHub Actions compile test for the minimal Kitchen P2 template so package changes are checked against ESPHome
 * changed validated Toshiba controls to prefer IDU-confirmed state: F7 functions, Power Select, PURE and A3 FIX now issue a register read after writes instead of permanently retaining the requested UI value as truth; packed A3 FIX state is published only from IDU readback, at which point climate swing is set to Off
