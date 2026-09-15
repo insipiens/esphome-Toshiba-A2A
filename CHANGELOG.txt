@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 15th 2026
 
+* removed the automatic 30-second `0x80..0xFF` register sweep from normal operation; register probing and verbose register payload logging now run only while the focused monitor is explicitly enabled
 * started the `feature/model-aware-interface` redesign branch using the deployed Office B10J2 configuration as the reference installation rather than a synthetic minimal example
 * added `model_override` as a static exact-model fallback for IDUs whose pushed E0 model field is blank/`NULL`; the effective model is used by family capability logic and `toshiba_output` airflow lookup while a genuine/restored Toshiba model remains the reported diagnostic value
 * added feature-scope metadata separating IDU-local air/room controls, IDU demand/performance controls with shared-system consequences, and controls that directly affect the shared outdoor system
