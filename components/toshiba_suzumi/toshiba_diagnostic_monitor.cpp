@@ -9,8 +9,6 @@ namespace esphome {
 namespace toshiba_suzumi {
 
 static constexpr size_t CHUNK = 24;
-static constexpr uint32_t REGISTER_SWEEP_INTERVAL_MS = 30000;
-static constexpr uint32_t REGISTER_SWEEP_GAP_MS = 120;
 static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x80;
 static constexpr uint8_t REGISTER_SWEEP_LAST = 0xFF;
 static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 250;
@@ -240,19 +238,18 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
     return;
   }
 
-  // Log every response in the complete known Toshiba register space. Payload
-  // bytes are preserved verbatim so multi-byte control/status structures are
-  // not lost during discovery.
-  if (!this->scan_active_ && response_register >= REGISTER_SWEEP_FIRST && response_register <= REGISTER_SWEEP_LAST) {
+  // Focused monitor only: preserve every response in the Toshiba register
+  // space without turning normal climate traffic into diagnostic log noise.
+  if (this->scan_active_ && response_register >= REGISTER_SWEEP_FIRST && response_register <= REGISTER_SWEEP_LAST) {
     std::vector<uint8_t> payload;
     if (this->extract_monitor_payload_(raw, response_register, payload)) {
-      ESP_LOGI(TAG, "REG SWEEP reg=0x%02X len=%u payload=[%s]",
+      ESP_LOGI(TAG, "FOCUSED PARSE reg=0x%02X len=%u payload=[%s]",
                static_cast<unsigned>(response_register), static_cast<unsigned>(payload.size()),
                format_hex_pretty(payload).c_str());
 
       // Retain the three temporary raw entities if an existing YAML still has
       // them configured. No additional Home Assistant entities are created by
-      // the sweep itself.
+      // the monitor itself.
       if (payload.size() == 1) {
         sensor::Sensor *diagnostic_sensor = nullptr;
         if (response_register == 0x90) diagnostic_sensor = this->register_90_raw_sensor_;
@@ -263,8 +260,8 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
     }
 
     // Pass all registers already understood by the base climate parser onwards.
-    // Unknown registers are consumed here so the discovery sweep does not add
-    // an extra warning for every successful response.
+    // Unknown registers are consumed here so focused discovery does not add an
+    // extra warning for every successful response.
     const bool base_handles_register =
         response_register == static_cast<uint8_t>(ToshibaCommandType::POWER_STATE) ||
         response_register == static_cast<uint8_t>(ToshibaCommandType::POWER_SEL) ||
@@ -321,7 +318,7 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
     this->monitor_payload_seen_.fill(false);
 
     ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A-BANK MONITOR STARTED ==========");
-    ESP_LOGI(TAG, "polling A1,A2,A5-AF: capture values, 750ms response window, 250ms inter-request gap; broad sweep paused");
+    ESP_LOGI(TAG, "polling A1,A2,A5-AF: capture values, 750ms response window, 250ms inter-request gap");
     return;
   }
 
@@ -329,63 +326,28 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
 }
 
 void ToshibaDiagnosticMonitorUart::process_scan_() {
+  if (!this->scan_active_) return;
+
   const uint32_t now = millis();
 
-  if (this->scan_active_) {
-    // One request at a time. A value/no-data reply completes the transaction;
-    // otherwise advance after a short bounded response window. Together with
-    // the 250ms inter-request gap this gives roughly one register per second.
-    if (this->scan_request_sent_) {
-      if (now - this->scan_register_started_ >= FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS) {
-        ESP_LOGI(TAG, "FOCUSED RX reg=0x%02X no-response after %ums",
-                 static_cast<unsigned>(this->scan_register_),
-                 static_cast<unsigned>(FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS));
-        this->monitor_timeouts_++;
-        this->scan_request_sent_ = false;
-        this->scan_matched_response_ = false;
-        this->monitor_register_index_ = next_focused_register(this->scan_register_);
-      }
-      return;
+  // One request at a time. A value/no-data reply completes the transaction;
+  // otherwise advance after a short bounded response window. Together with
+  // the 250ms inter-request gap this gives roughly one register per second.
+  if (this->scan_request_sent_) {
+    if (now - this->scan_register_started_ >= FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS) {
+      ESP_LOGI(TAG, "FOCUSED RX reg=0x%02X no-response after %ums",
+               static_cast<unsigned>(this->scan_register_),
+               static_cast<unsigned>(FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS));
+      this->monitor_timeouts_++;
+      this->scan_request_sent_ = false;
+      this->scan_matched_response_ = false;
+      this->monitor_register_index_ = next_focused_register(this->scan_register_);
     }
-
-    if (!this->rx_message_.empty()) return;
-    if (now - this->last_command_timestamp_ < FOCUSED_MONITOR_GAP_MS) return;
-
-    const uint8_t reg = this->monitor_register_index_;
-    std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 6, 1, 48, 1, 0, 1};
-    payload.push_back(reg);
-
-    uint8_t sum = 0;
-    for (size_t i = 1; i < payload.size(); i++) sum += payload[i];
-    payload.push_back(static_cast<uint8_t>(0 - sum));
-
-    this->scan_register_ = reg;
-    this->scan_register_started_ = now;
-    this->scan_request_sent_ = true;
-    this->scan_matched_response_ = false;
-    ESP_LOGI(TAG, "FOCUSED TX reg=0x%02X", static_cast<unsigned>(reg));
-    this->send_to_uart(ToshibaCommand{
-        .cmd = static_cast<ToshibaCommandType>(reg),
-        .payload = std::move(payload),
-    });
-    this->monitor_requests_++;
     return;
   }
 
-  if (!this->monitor_waiting_for_cycle_) {
-    if (now - this->monitor_cycle_started_ < REGISTER_SWEEP_INTERVAL_MS) return;
-
-    this->monitor_cycle_started_ = now;
-    this->monitor_register_index_ = REGISTER_SWEEP_FIRST;
-    this->monitor_waiting_for_cycle_ = true;
-    ESP_LOGI(TAG, "========== REG SWEEP 0x%02X-0x%02X ==========" ,
-             REGISTER_SWEEP_FIRST, REGISTER_SWEEP_LAST);
-  }
-
-  // Only queue one probe at a time. Normal climate/control traffic therefore
-  // gets priority between probes instead of sitting behind a 128-command batch.
-  if (!this->command_queue_.empty() || !this->rx_message_.empty()) return;
-  if (now - this->last_command_timestamp_ < REGISTER_SWEEP_GAP_MS) return;
+  if (!this->rx_message_.empty()) return;
+  if (now - this->last_command_timestamp_ < FOCUSED_MONITOR_GAP_MS) return;
 
   const uint8_t reg = this->monitor_register_index_;
   std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 6, 1, 48, 1, 0, 1};
@@ -395,16 +357,16 @@ void ToshibaDiagnosticMonitorUart::process_scan_() {
   for (size_t i = 1; i < payload.size(); i++) sum += payload[i];
   payload.push_back(static_cast<uint8_t>(0 - sum));
 
-  this->enqueue_command_(ToshibaCommand{
+  this->scan_register_ = reg;
+  this->scan_register_started_ = now;
+  this->scan_request_sent_ = true;
+  this->scan_matched_response_ = false;
+  ESP_LOGI(TAG, "FOCUSED TX reg=0x%02X", static_cast<unsigned>(reg));
+  this->send_to_uart(ToshibaCommand{
       .cmd = static_cast<ToshibaCommandType>(reg),
       .payload = std::move(payload),
   });
-
-  if (reg >= REGISTER_SWEEP_LAST) {
-    this->monitor_waiting_for_cycle_ = false;
-  } else {
-    this->monitor_register_index_++;
-  }
+  this->monitor_requests_++;
 }
 
 void ToshibaDiagnosticMonitorUart::send_monitor_request_() {}
