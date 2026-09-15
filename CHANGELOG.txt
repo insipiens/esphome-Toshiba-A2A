@@ -1,6 +1,15 @@
 ESPHome Toshiba A2A development
 ===============================
 
+Sep 15th 2026
+
+* started the `feature/model-aware-interface` redesign branch using the deployed Office B10J2 configuration as the reference installation rather than a synthetic minimal example
+* added `model_override` as a static exact-model fallback for IDUs whose pushed E0 model field is blank/`NULL`; the effective model is used by family capability logic and `toshiba_output` airflow lookup while a genuine/restored Toshiba model remains the reported diagnostic value
+* added feature-scope metadata separating IDU-local air/room controls, IDU demand/performance controls with shared-system consequences, and controls that directly affect the shared outdoor system
+* classified J2 Power Select and Outdoor Silent as shared-ODU controls; ECO/Hi POWER/Comfort Sleep/8 °C as IDU-demand strategies; and fan/airflow/Floor/Fireplace as local IDU behaviour
+* added `examples/ras-b10j2fvg-model-override.yaml`, based on the deployed Office configuration, with controls arranged conceptually as Air/Room, Performance and System and engineering/identity entities marked diagnostic to keep the normal Home Assistant interface concise
+* deliberately omitted legacy F7 Sleep/Comfort from the J2 reference example; genuine J2 Comfort Sleep remains pending clean separation from the inherited `0x94` OFF-timer interpretation before being exposed in the redesigned interface
+
 Sep 14th 2026
 
 * added a J2FVG family-specific capability profile based on the Toshiba J2 service/operation documentation and direct J2 observations, instead of inheriting the broader residential feature set; J2 no longer advertises the unproven F7 Sleep/Comfort features
