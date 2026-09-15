@@ -57,6 +57,30 @@ bool has_validated_mode_profile(ToshibaIndoorUnitFamily family) {
 
 }  // namespace
 
+void ToshibaValidatedControlUart::setup() {
+  ToshibaDiagnosticMonitorUart::setup();
+  // Home Assistant preserves the order of custom fan modes. Keep every Toshiba
+  // fan setting in one list so the two intermediate levels are not appended
+  // after ESPHome's standard enum values.
+  this->set_supported_custom_fan_modes({
+      CUSTOM_FAN_AUTO,
+      CUSTOM_FAN_QUIET,
+      CUSTOM_FAN_LOW,
+      CUSTOM_FAN_LEVEL_2,
+      CUSTOM_FAN_MEDIUM,
+      CUSTOM_FAN_LEVEL_4,
+      CUSTOM_FAN_HIGH,
+  });
+}
+
+climate::ClimateTraits ToshibaValidatedControlUart::traits() {
+  auto traits = ToshibaDiagnosticMonitorUart::traits();
+  // The validated J2/P2 path exposes the complete Toshiba ladder as custom fan
+  // modes. Suppress standard fan enums because HA orders them separately.
+  traits.set_supported_fan_modes({});
+  return traits;
+}
+
 ToshibaHvacMode ToshibaValidatedControlUart::current_hvac_mode_() const {
   return climate_to_toshiba_mode(this->mode);
 }
@@ -271,9 +295,20 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
       return;
     }
   }
-  if (call.has_custom_fan_mode() && !this->validated_fan_allowed_(FAN_OPTION_MANUAL, requested_mode)) {
-    ESP_LOGW(TAG, "Requested manual fan level is not available in the current HVAC mode");
-    return;
+
+  if (call.has_custom_fan_mode()) {
+    const auto requested_fan = StringToFanLevel(call.get_custom_fan_mode().c_str());
+    if (!requested_fan.has_value()) {
+      ESP_LOGW(TAG, "Unknown Toshiba fan mode: %s", call.get_custom_fan_mode().c_str());
+      return;
+    }
+    uint8_t option = FAN_OPTION_MANUAL;
+    if (requested_fan.value() == FAN::FAN_AUTO) option = FAN_OPTION_AUTO;
+    else if (requested_fan.value() == FAN::FAN_QUIET) option = FAN_OPTION_QUIET;
+    if (!this->validated_fan_allowed_(option, requested_mode)) {
+      ESP_LOGW(TAG, "Requested fan mode is not available in the current HVAC mode");
+      return;
+    }
   }
 
   if (call.get_target_temperature().has_value() && has_validated_mode_profile(this->idu_family_) &&
@@ -302,6 +337,17 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
 void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
   const int16_t response_register = this->extract_response_register_(raw);
   uint8_t value = 0;
+
+  if (response_register == static_cast<uint8_t>(ToshibaCommandType::FAN) &&
+      extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::FAN), value)) {
+    const char *fan_mode = IntToCustomFanMode(static_cast<FAN>(value));
+    if (std::strcmp(fan_mode, "Unknown") != 0) {
+      ESP_LOGI(TAG, "Received Toshiba fan mode: %s", fan_mode);
+      this->set_custom_fan_mode_(fan_mode);
+      this->publish_state();
+      return;
+    }
+  }
 
   if (response_register == static_cast<uint8_t>(ToshibaCommandType::PURE) &&
       extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::PURE), value)) {
