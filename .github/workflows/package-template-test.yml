@@ -23,7 +23,7 @@ jobs:
 
       - name: Create dummy compile-time secrets
         run: |
-          cat > secrets.yaml <<'EOF'
+          cat > examples/secrets.yaml <<'EOF'
           wifi_ssid: test-wifi
           wifi_password: test-password
           iot_wifi_ssid: test-iot
