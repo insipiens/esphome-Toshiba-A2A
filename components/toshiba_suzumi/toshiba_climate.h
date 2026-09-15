@@ -336,6 +336,7 @@ class ToshibaDiagnosticMonitorUart : public ToshibaClimateUart {
 
 class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
  public:
+  void setup() override;
   void set_horizontal_air_direction_select(select::Select *sel) { horizontal_air_direction_select_ = sel; }
   void set_pure_switch(ToshibaPureSwitch *entity) { pure_switch_ = entity; }
   void set_defrost_active_sensor(binary_sensor::BinarySensor *sensor) { defrost_active_sensor_ = sensor; }
@@ -345,6 +346,7 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   void set_outdoor_silent_select(ToshibaValidatedSilentSelect *entity) { validated_outdoor_silent_select_ = entity; }
 
  protected:
+  climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
   void parseResponse(std::vector<uint8_t> raw_data) override;
   ToshibaHvacMode current_hvac_mode_() const;
