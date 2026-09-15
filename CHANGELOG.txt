@@ -1,6 +1,11 @@
 ESPHome Toshiba A2A development
 ===============================
 
+Sep 15th 2026
+
+* directly mapped B13J2FVG vertical A3 FIX commands from a genuine-adaptor top-to-bottom sweep: `50`, `51`, `52`, `53`, `54` for the five physical positions; documented this as a J2 family-specific encoding distinct from the P2 packed two-axis FIX scheme
+* independently reproduced the complete F8 fan-command enum on B13J2FVG in Fan mode: Quiet `31`, levels 1-5 `32..36`, Auto `41`; promoted the four-byte F8 `[mode][target][fan][function]` structure to confirmed across genuine-adaptor P2KVSG and J2FVG captures
+
 Sep 14th 2026
 
 * added a J2FVG family-specific capability profile based on the Toshiba J2 service/operation documentation and direct J2 observations, instead of inheriting the broader residential feature set; J2 no longer advertises the unproven F7 Sleep/Comfort features
