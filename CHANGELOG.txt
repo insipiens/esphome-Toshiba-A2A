@@ -3,6 +3,8 @@ ESPHome Toshiba A2A development
 
 Sep 15th 2026
 
+* extended the B13J2 vertical FIX result to the tested J2FVG family mapping (`A3 50..54`, top to bottom), with B13J2 retained as the directly verified model
+* confirmed J2FVG ON/OFF timer duration and enable registers (`92/90`, `96/94`), including `00 1E` = 30 minutes; captured autonomous ON-timer expiry as IDU push `90 42`, followed about 10 seconds later by non-zero E4 fan feedback
 * directly mapped B13J2FVG vertical A3 FIX commands from a genuine-adaptor top-to-bottom sweep: `50`, `51`, `52`, `53`, `54` for the five physical positions; documented this as a J2 family-specific encoding distinct from the P2 packed two-axis FIX scheme
 * independently reproduced the complete F8 fan-command enum on B13J2FVG in Fan mode: Quiet `31`, levels 1-5 `32..36`, Auto `41`; promoted the four-byte F8 `[mode][target][fan][function]` structure to confirmed across genuine-adaptor P2KVSG and J2FVG captures
 
