@@ -1,0 +1,45 @@
+# Minimal device YAML for the installed Kitchen RAS-B10P2KVSGB-E.
+# The GitHub package creates the Toshiba climate entity, controls, sensors,
+# identity persistence and output estimator. MQTT is intentionally omitted.
+
+substitutions:
+  device_name: "toshiba-a2a-02"
+  friendly_name: "toshiba-A2A-Ki"
+  room_name: "Kitchen"
+
+packages:
+  toshiba_a2a:
+    url: https://github.com/insipiens/esphome-Toshiba-A2A
+    ref: feature/package-template
+    files:
+      - packages/toshiba-a2a-p2.yaml
+    refresh: 0s
+
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+    - ssid: !secret iot_wifi_ssid
+      password: !secret iot_wifi_password
+    - ssid: !secret iot2_wifi_ssid
+      password: !secret iot2_wifi_password
+
+  ap:
+    ssid: kitchen Hotspot
+    password: !secret fallback_password
+
+captive_portal:
+
+logger:
+  level: debug
+
+api:
+  encryption:
+    key: !secret key
+
+ota:
+  platform: esphome
+  password: !secret ota_password
+
+web_server:
+  port: 80
