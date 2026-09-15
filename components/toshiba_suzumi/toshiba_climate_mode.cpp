@@ -33,15 +33,25 @@ const climate::ClimateMode IntToClimateMode(MODE mode) {
 }
 
 const optional<FAN> StringToFanLevel(const char* mode) {
-  if (mode == CUSTOM_FAN_LEVEL_2) return FAN::FANMODE_2;
-  if (mode == CUSTOM_FAN_LEVEL_4) return FAN::FANMODE_4;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_AUTO)) return FAN::FAN_AUTO;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_QUIET)) return FAN::FAN_QUIET;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_LOW)) return FAN::FAN_LOW;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_LEVEL_2)) return FAN::FANMODE_2;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_MEDIUM)) return FAN::FAN_MEDIUM;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_LEVEL_4)) return FAN::FANMODE_4;
+  if (str_equals_case_insensitive(mode, CUSTOM_FAN_HIGH)) return FAN::FAN_HIGH;
   return nullopt;
 }
 
 const char* IntToCustomFanMode(FAN mode) {
   switch (mode) {
+    case FAN::FAN_AUTO: return CUSTOM_FAN_AUTO;
+    case FAN::FAN_QUIET: return CUSTOM_FAN_QUIET;
+    case FAN::FAN_LOW: return CUSTOM_FAN_LOW;
     case FAN::FANMODE_2: return CUSTOM_FAN_LEVEL_2;
+    case FAN::FAN_MEDIUM: return CUSTOM_FAN_MEDIUM;
     case FAN::FANMODE_4: return CUSTOM_FAN_LEVEL_4;
+    case FAN::FAN_HIGH: return CUSTOM_FAN_HIGH;
     default: return "Unknown";
   }
 }
@@ -67,28 +77,48 @@ struct VerticalAirDirection {
   const char *name;
 };
 
-static const char *const FIXED_POSITION_NAMES[] = {
+static const char *const LEGACY_FIXED_POSITION_NAMES[] = {
     "Position 1", "Position 2", "Position 3", "Position 4", "Position 5"};
+static const char *const VERTICAL_FIXED_POSITION_NAMES[] = {
+    "Top", "Upper", "Centre", "Lower", "Bottom"};
+static const char *const HORIZONTAL_FIXED_POSITION_NAMES[] = {
+    "Left", "Left-Centre", "Centre", "Right-Centre", "Right"};
 
 static const VerticalAirDirection VERTICAL_AIR_DIRECTIONS[] = {
     {SWING::OFF, "Off"},
     {SWING::VERTICAL, "Swing"},
-    {SWING::VERTICAL_FIX_POSITION_1, "Position 1"},
-    {SWING::VERTICAL_FIX_POSITION_2, "Position 2"},
-    {SWING::VERTICAL_FIX_POSITION_3, "Position 3"},
-    {SWING::VERTICAL_FIX_POSITION_4, "Position 4"},
-    {SWING::VERTICAL_FIX_POSITION_5, "Position 5"},
+    {SWING::VERTICAL_FIX_POSITION_1, "Top"},
+    {SWING::VERTICAL_FIX_POSITION_2, "Upper"},
+    {SWING::VERTICAL_FIX_POSITION_3, "Centre"},
+    {SWING::VERTICAL_FIX_POSITION_4, "Lower"},
+    {SWING::VERTICAL_FIX_POSITION_5, "Bottom"},
 };
 
 const char *FixedPositionName(uint8_t position_index) {
   if (position_index < 1 || position_index > 5) return nullptr;
-  return FIXED_POSITION_NAMES[position_index - 1];
+  return LEGACY_FIXED_POSITION_NAMES[position_index - 1];
+}
+
+const char *VerticalFixedPositionName(uint8_t position_index) {
+  if (position_index < 1 || position_index > 5) return nullptr;
+  return VERTICAL_FIXED_POSITION_NAMES[position_index - 1];
+}
+
+const char *HorizontalFixedPositionName(uint8_t position_index) {
+  if (position_index < 1 || position_index > 5) return nullptr;
+  return HORIZONTAL_FIXED_POSITION_NAMES[position_index - 1];
 }
 
 const optional<uint8_t> FixedPositionIndexFromName(const std::string &value) {
   for (uint8_t index = 1; index <= 5; index++) {
-    const char *name = FixedPositionName(index);
-    if (name != nullptr && str_equals_case_insensitive(value, name)) return index;
+    const char *legacy = FixedPositionName(index);
+    const char *vertical = VerticalFixedPositionName(index);
+    const char *horizontal = HorizontalFixedPositionName(index);
+    if ((legacy != nullptr && str_equals_case_insensitive(value, legacy)) ||
+        (vertical != nullptr && str_equals_case_insensitive(value, vertical)) ||
+        (horizontal != nullptr && str_equals_case_insensitive(value, horizontal))) {
+      return index;
+    }
   }
   return nullopt;
 }
@@ -100,7 +130,7 @@ bool DecodePackedFixPosition(uint8_t raw, uint8_t &horizontal_index, uint8_t &ve
   //   bits 2..0 = vertical field
   // Controlled captures exercise field values 0..5. The HA controls expose
   // five indexed user positions (1..5); raw field 0 remains observable but is
-  // not assigned a physical label until empirical translation is completed.
+  // not assigned a physical label.
   if ((raw & 0xC0) != 0x80) return false;
   horizontal_index = (raw >> 3) & 0x07;
   vertical_index = raw & 0x07;
@@ -118,11 +148,13 @@ const optional<SWING> StringToVerticalAirDirection(const std::string &position) 
     if (str_equals_case_insensitive(position, direction.name)) return direction.swing;
   }
 
-  if (str_equals_case_insensitive(position, "Top")) return SWING::VERTICAL_FIX_POSITION_1;
-  if (str_equals_case_insensitive(position, "Middle Top")) return SWING::VERTICAL_FIX_POSITION_2;
-  if (str_equals_case_insensitive(position, "Middle")) return SWING::VERTICAL_FIX_POSITION_3;
-  if (str_equals_case_insensitive(position, "Middle Bottom")) return SWING::VERTICAL_FIX_POSITION_4;
-  if (str_equals_case_insensitive(position, "Bottom")) return SWING::VERTICAL_FIX_POSITION_5;
+  // Preserve compatibility with configurations/entities created while the
+  // positions were exposed as generic numeric labels.
+  if (str_equals_case_insensitive(position, "Position 1")) return SWING::VERTICAL_FIX_POSITION_1;
+  if (str_equals_case_insensitive(position, "Position 2")) return SWING::VERTICAL_FIX_POSITION_2;
+  if (str_equals_case_insensitive(position, "Position 3")) return SWING::VERTICAL_FIX_POSITION_3;
+  if (str_equals_case_insensitive(position, "Position 4")) return SWING::VERTICAL_FIX_POSITION_4;
+  if (str_equals_case_insensitive(position, "Position 5")) return SWING::VERTICAL_FIX_POSITION_5;
   return nullopt;
 }
 
@@ -133,7 +165,7 @@ const char* SwingToVerticalAirDirection(SWING mode) {
   uint8_t horizontal_index = 0;
   uint8_t vertical_index = 0;
   if (DecodePackedFixPosition(static_cast<uint8_t>(mode), horizontal_index, vertical_index)) {
-    return FixedPositionName(vertical_index);
+    return VerticalFixedPositionName(vertical_index);
   }
 
   for (auto const &direction : VERTICAL_AIR_DIRECTIONS) {

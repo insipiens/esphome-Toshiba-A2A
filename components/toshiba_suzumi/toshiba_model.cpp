@@ -142,6 +142,45 @@ const char *indoor_unit_family_to_string(ToshibaIndoorUnitFamily family) {
   }
 }
 
+ToshibaFeatureScope feature_scope(ToshibaFeature feature) {
+  switch (feature) {
+    case FEATURE_VERTICAL_AIRFLOW:
+    case FEATURE_HORIZONTAL_AIRFLOW:
+    case FEATURE_FLOOR:
+    case FEATURE_AIR_OUTLET_SELECT:
+    case FEATURE_FIREPLACE:
+    case FEATURE_HADA_CARE:
+    case FEATURE_PURE:
+      return ToshibaFeatureScope::IDU_LOCAL;
+
+    case FEATURE_COMMON_HVAC:
+    case FEATURE_ECO:
+    case FEATURE_HI_POWER:
+    case FEATURE_COMFORT_SLEEP:
+    case FEATURE_EIGHT_DEG_HEAT:
+    case FEATURE_SLEEP:
+    case FEATURE_COMFORT:
+      return ToshibaFeatureScope::IDU_DEMAND;
+
+    case FEATURE_POWER_SELECT:
+    case FEATURE_OUTDOOR_SILENT:
+    case FEATURE_START_DEFROST:
+      return ToshibaFeatureScope::SHARED_ODU;
+
+    default:
+      return ToshibaFeatureScope::UNKNOWN;
+  }
+}
+
+const char *feature_scope_to_string(ToshibaFeatureScope scope) {
+  switch (scope) {
+    case ToshibaFeatureScope::IDU_LOCAL: return "IDU local";
+    case ToshibaFeatureScope::IDU_DEMAND: return "IDU demand / shared consequence";
+    case ToshibaFeatureScope::SHARED_ODU: return "Shared ODU";
+    default: return "Unknown";
+  }
+}
+
 ToshibaCapabilityProfile capability_profile_from_model(const std::string &model) {
   ToshibaCapabilityProfile profile;
   const auto family = indoor_unit_family_from_model(model);

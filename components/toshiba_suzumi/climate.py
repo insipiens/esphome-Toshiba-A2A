@@ -39,6 +39,7 @@ CONF_REGISTER_90_RAW = "register_90_raw"
 CONF_REGISTER_94_RAW = "register_94_raw"
 CONF_REGISTER_C7_RAW = "register_c7_raw"
 CONF_IDU_MODEL = "idu_model"
+CONF_MODEL_OVERRIDE = "model_override"
 CONF_IDU_IDENTITY_1 = "idu_identity_1"
 CONF_IDU_IDENTITY_2 = "idu_identity_2"
 CONF_IDU_IDENTITY_3 = "idu_identity_3"
@@ -100,6 +101,7 @@ SPECIAL_MODE_VALUES = {
 CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
     {
         cv.GenerateID(): cv.declare_id(ToshibaClimateUart),
+        cv.Optional(CONF_MODEL_OVERRIDE): cv.string_strict,
         cv.Optional(CONF_INDOOR_TEMP): sensor.sensor_schema(unit_of_measurement=UNIT_CELSIUS, accuracy_decimals=0, device_class=DEVICE_CLASS_TEMPERATURE, state_class=STATE_CLASS_MEASUREMENT),
         cv.Optional(CONF_OUTDOOR_TEMP): sensor.sensor_schema(unit_of_measurement=UNIT_CELSIUS, accuracy_decimals=0, device_class=DEVICE_CLASS_TEMPERATURE, state_class=STATE_CLASS_MEASUREMENT),
         cv.Optional(CONF_ODU_DISCHARGE_TEMP): sensor.sensor_schema(unit_of_measurement=UNIT_CELSIUS, accuracy_decimals=0, device_class=DEVICE_CLASS_TEMPERATURE, state_class=STATE_CLASS_MEASUREMENT),
@@ -166,6 +168,9 @@ async def to_code(config):
     await climate.register_climate(var, config)
     await uart.register_uart_device(var, config)
 
+    if CONF_MODEL_OVERRIDE in config:
+        cg.add(var.set_model_override(config[CONF_MODEL_OVERRIDE]))
+
     sensor_setters = {
         CONF_INDOOR_TEMP: "set_indoor_temp_sensor", CONF_OUTDOOR_TEMP: "set_outdoor_temp_sensor",
         CONF_ODU_DISCHARGE_TEMP: "set_odu_discharge_temp_sensor", CONF_ODU_SUCTION_TEMP: "set_odu_suction_temp_sensor",
@@ -200,13 +205,14 @@ async def to_code(config):
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_pwr_select(sel))
 
-    fixed_options = ["Position 1", "Position 2", "Position 3", "Position 4", "Position 5"]
+    vertical_fixed_options = ["Top", "Upper", "Centre", "Lower", "Bottom"]
+    horizontal_fixed_options = ["Left", "Left-Centre", "Centre", "Right-Centre", "Right"]
     if CONF_VERTICAL_AIR_DIRECTION in config:
-        sel = await select.new_select(config[CONF_VERTICAL_AIR_DIRECTION], options=fixed_options)
+        sel = await select.new_select(config[CONF_VERTICAL_AIR_DIRECTION], options=vertical_fixed_options)
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_vertical_air_direction_select(sel))
     if CONF_HORIZONTAL_AIR_DIRECTION in config:
-        sel = await select.new_select(config[CONF_HORIZONTAL_AIR_DIRECTION], options=fixed_options)
+        sel = await select.new_select(config[CONF_HORIZONTAL_AIR_DIRECTION], options=horizontal_fixed_options)
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_horizontal_air_direction_select(sel))
 

@@ -43,6 +43,18 @@ enum ToshibaFeature : uint32_t {
   FEATURE_START_DEFROST = 1UL << 16, // momentary Function action; observed as CB 02 on P2KVSG
 };
 
+// User-facing scope classification. This is deliberately about control effect,
+// not UART register locality:
+//   IDU_LOCAL  - acts on local fan/airflow/air-treatment hardware.
+//   IDU_DEMAND - changes this room's demand strategy; shared ODU may respond.
+//   SHARED_ODU - directly constrains/commands the shared outdoor system.
+enum class ToshibaFeatureScope : uint8_t {
+  UNKNOWN = 0,
+  IDU_LOCAL,
+  IDU_DEMAND,
+  SHARED_ODU,
+};
+
 enum ToshibaFanOption : uint8_t {
   FAN_OPTION_NONE = 0,
   FAN_OPTION_MANUAL = 1U << 0,
@@ -97,6 +109,8 @@ ToshibaEquipmentIdentification decode_equipment_identification(const std::vector
 ToshibaIndoorUnitFamily indoor_unit_family_from_model(const std::string &model);
 const char *indoor_unit_family_to_string(ToshibaIndoorUnitFamily family);
 ToshibaCapabilityProfile capability_profile_from_model(const std::string &model);
+ToshibaFeatureScope feature_scope(ToshibaFeature feature);
+const char *feature_scope_to_string(ToshibaFeatureScope scope);
 
 // These helpers deliberately contain only mode rules supported by Toshiba
 // documentation and/or direct observation on the installed reference families.

@@ -1,0 +1,42 @@
+name: Package template compile test
+
+on:
+  push:
+    branches:
+      - feature/package-template
+  workflow_dispatch:
+
+jobs:
+  compile-package-templates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ESPHome
+        run: python -m pip install --upgrade esphome
+
+      - name: Create dummy compile-time secrets
+        run: |
+          cat > examples/secrets.yaml <<'EOF'
+          wifi_ssid: test-wifi
+          wifi_password: test-password
+          iot_wifi_ssid: test-iot
+          iot_wifi_password: test-password
+          iot2_wifi_ssid: test-iot2
+          iot2_wifi_password: test-password
+          fallback_password: test-fallback
+          key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          ota_password: test-ota
+          EOF
+
+      - name: Compile Kitchen P2 package template
+        run: esphome compile examples/kitchen-package-template.yaml
+
+      - name: Compile Ballroom B13J2 package template
+        run: esphome compile examples/ballroom-b13j2-package-template.yaml

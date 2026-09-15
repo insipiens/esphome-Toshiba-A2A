@@ -90,7 +90,23 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void set_odu_identity_1_sensor(text_sensor::TextSensor *sensor) { odu_identity_1_sensor_ = sensor; }
   void set_odu_identity_2_sensor(text_sensor::TextSensor *sensor) { odu_identity_2_sensor_ = sensor; }
   void set_odu_identity_3_sensor(text_sensor::TextSensor *sensor) { odu_identity_3_sensor_ = sensor; }
-  const std::string &get_idu_model() const { return idu_model_; }
+
+  // model_override is a static fallback for units whose E0 IDU model field is
+  // blank/NULL. A valid Toshiba-reported model remains the diagnostic truth.
+  void set_model_override(const std::string &model) {
+    if (model.empty()) return;
+    this->model_override_ = model;
+    if (this->idu_model_.empty()) {
+      this->idu_family_ = indoor_unit_family_from_model(model);
+      this->capabilities_ = capability_profile_from_model(model);
+    }
+  }
+  const std::string &get_idu_model() const {
+    return this->idu_model_.empty() ? this->model_override_ : this->idu_model_;
+  }
+  const std::string &get_reported_idu_model() const { return this->idu_model_; }
+  const std::string &get_model_override() const { return this->model_override_; }
+
   void restore_idu_model(const std::string &model) {
     if (model.empty()) return;
     this->idu_model_ = model;
@@ -198,6 +214,7 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
 
   ToshibaIndoorUnitFamily idu_family_{ToshibaIndoorUnitFamily::UNKNOWN};
   ToshibaCapabilityProfile capabilities_{};
+  std::string model_override_;
   std::string idu_model_;
   std::string idu_identity_1_;
   std::string idu_identity_2_;
@@ -319,6 +336,7 @@ class ToshibaDiagnosticMonitorUart : public ToshibaClimateUart {
 
 class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
  public:
+  void setup() override;
   void set_horizontal_air_direction_select(select::Select *sel) { horizontal_air_direction_select_ = sel; }
   void set_pure_switch(ToshibaPureSwitch *entity) { pure_switch_ = entity; }
   void set_defrost_active_sensor(binary_sensor::BinarySensor *sensor) { defrost_active_sensor_ = sensor; }
@@ -328,6 +346,7 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   void set_outdoor_silent_select(ToshibaValidatedSilentSelect *entity) { validated_outdoor_silent_select_ = entity; }
 
  protected:
+  climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
   void parseResponse(std::vector<uint8_t> raw_data) override;
   ToshibaHvacMode current_hvac_mode_() const;

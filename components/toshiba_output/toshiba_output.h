@@ -129,12 +129,24 @@ class ToshibaOutputEstimator : public PollingComponent {
   bool resolve_manual_fan_(ManualFanLevel &level) const {
     if (climate_->has_custom_fan_mode()) {
       const auto custom = climate_->get_custom_fan_mode();
+      if (std::strcmp(custom.c_str(), toshiba_suzumi::CUSTOM_FAN_LOW) == 0) {
+        level = ManualFanLevel::LOW;
+        return true;
+      }
       if (std::strcmp(custom.c_str(), toshiba_suzumi::CUSTOM_FAN_LEVEL_2) == 0) {
         level = ManualFanLevel::LOW_MEDIUM;
         return true;
       }
+      if (std::strcmp(custom.c_str(), toshiba_suzumi::CUSTOM_FAN_MEDIUM) == 0) {
+        level = ManualFanLevel::MEDIUM;
+        return true;
+      }
       if (std::strcmp(custom.c_str(), toshiba_suzumi::CUSTOM_FAN_LEVEL_4) == 0) {
         level = ManualFanLevel::MEDIUM_HIGH;
+        return true;
+      }
+      if (std::strcmp(custom.c_str(), toshiba_suzumi::CUSTOM_FAN_HIGH) == 0) {
+        level = ManualFanLevel::HIGH;
         return true;
       }
       return false;
