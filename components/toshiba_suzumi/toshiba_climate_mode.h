@@ -65,6 +65,18 @@ static constexpr uint8_t A3_CMD_HORIZONTAL_SWING = 0xB6;
 
 enum class STATE { ON = 48, OFF = 49 };
 enum class PWR_LEVEL { PCT_50 = 50, PCT_75 = 75, PCT_100 = 100 };
+
+// Register 0xCB is a shared maintenance-cycle state/control register. Defrost
+// and indoor self-clean are different operations encoded in the same register.
+enum class MAINTENANCE_STATE : uint8_t {
+  IDLE = 0x10,
+  STRONG_DEFROST = 0x11,
+  NORMAL_DEFROST = 0x12,
+  SELF_CLEAN = 0x18,
+};
+
+// Retained for the legacy base parser; the validated path uses
+// MAINTENANCE_STATE so self-clean and defrost remain distinct logical states.
 enum class SELF_CLEAN_STATE : uint8_t { RUNNING = 0x18, OFF = 0x10 };
 
 enum SPECIAL_MODE {
@@ -95,6 +107,7 @@ enum class ToshibaCommandType : uint8_t {
   ROOM_TEMP = 187,
   OUTDOOR_TEMP = 190,
   PURE = 0xC7,
+  MAINTENANCE = 0xCB,
   DEFROST = 0xCB,
   SELF_CLEAN = 0xCB,
   ENERGY_DAILY = 0xD8,
