@@ -43,6 +43,19 @@ constexpr uint32_t COMMON_RESIDENTIAL_FEATURES =
     FEATURE_SLEEP |
     FEATURE_COMFORT;
 
+constexpr uint32_t J2FVG_FEATURES =
+    FEATURE_COMMON_HVAC |
+    FEATURE_ECO |
+    FEATURE_HI_POWER |
+    FEATURE_COMFORT_SLEEP |
+    FEATURE_POWER_SELECT |
+    FEATURE_OUTDOOR_SILENT |
+    FEATURE_FIREPLACE |
+    FEATURE_EIGHT_DEG_HEAT |
+    FEATURE_VERTICAL_AIRFLOW |
+    FEATURE_FLOOR |
+    FEATURE_AIR_OUTLET_SELECT;
+
 struct ToshibaFamilyCapabilityEntry {
   ToshibaIndoorUnitFamily family;
   uint32_t features;
@@ -52,14 +65,7 @@ struct ToshibaFamilyCapabilityEntry {
 // not to the capacity variant. Exact-model quantitative data such as airflow is
 // kept separately in the output component.
 static constexpr ToshibaFamilyCapabilityEntry TOSHIBA_FAMILY_CAPABILITIES[] = {
-    {ToshibaIndoorUnitFamily::J2FVG,
-     COMMON_RESIDENTIAL_FEATURES |
-         FEATURE_FLOOR |
-         FEATURE_AIR_OUTLET_SELECT},
-    {ToshibaIndoorUnitFamily::G3KVSG,
-     COMMON_RESIDENTIAL_FEATURES |
-         FEATURE_HORIZONTAL_AIRFLOW |
-         FEATURE_HADA_CARE},
+    {ToshibaIndoorUnitFamily::J2FVG, J2FVG_FEATURES},
     {ToshibaIndoorUnitFamily::P2KVSG,
      COMMON_RESIDENTIAL_FEATURES |
          FEATURE_HORIZONTAL_AIRFLOW |
@@ -74,10 +80,31 @@ struct ToshibaModeFunctionEntry {
   uint8_t fan_options;
 };
 
-// Mode matrix below is intentionally evidence-limited. It records the Function
-// and Fan controls observed in the genuine Toshiba app on the directly tested
-// RAS-B10P2KVSGB-E. Do not copy these rules to another family until validated.
+// Mode matrix is intentionally evidence-limited. J2 entries come from the
+// Toshiba RAS-B10/B13/B18J2FVG-E operation/service documentation plus direct
+// observation of the installed J2 remote/app behaviour. P2 entries come from
+// the genuine Toshiba app on the directly tested RAS-B10P2KVSGB-E.
 static constexpr ToshibaModeFunctionEntry TOSHIBA_VALIDATED_MODE_FUNCTIONS[] = {
+    {ToshibaIndoorUnitFamily::J2FVG, ToshibaHvacMode::AUTO,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_COMFORT_SLEEP,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::J2FVG, ToshibaHvacMode::COOL,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_COMFORT_SLEEP,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::J2FVG, ToshibaHvacMode::HEAT,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_COMFORT_SLEEP |
+         FEATURE_FIREPLACE | FEATURE_EIGHT_DEG_HEAT | FEATURE_FLOOR,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::J2FVG, ToshibaHvacMode::DRY,
+     FEATURE_POWER_SELECT,
+     FAN_OPTION_AUTO},
+    {ToshibaIndoorUnitFamily::J2FVG, ToshibaHvacMode::FAN,
+     FEATURE_POWER_SELECT,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+
     {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::AUTO,
      FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
          FEATURE_OUTDOOR_SILENT | FEATURE_PURE | FEATURE_START_DEFROST,
@@ -103,7 +130,6 @@ static constexpr ToshibaModeFunctionEntry TOSHIBA_VALIDATED_MODE_FUNCTIONS[] = {
 
 ToshibaIndoorUnitFamily indoor_unit_family_from_model(const std::string &model) {
   if (model.find("J2FVG") != std::string::npos) return ToshibaIndoorUnitFamily::J2FVG;
-  if (model.find("G3KVSG") != std::string::npos) return ToshibaIndoorUnitFamily::G3KVSG;
   if (model.find("P2KVSG") != std::string::npos) return ToshibaIndoorUnitFamily::P2KVSG;
   return ToshibaIndoorUnitFamily::UNKNOWN;
 }
@@ -111,7 +137,6 @@ ToshibaIndoorUnitFamily indoor_unit_family_from_model(const std::string &model) 
 const char *indoor_unit_family_to_string(ToshibaIndoorUnitFamily family) {
   switch (family) {
     case ToshibaIndoorUnitFamily::J2FVG: return "J2FVG";
-    case ToshibaIndoorUnitFamily::G3KVSG: return "G3KVSG";
     case ToshibaIndoorUnitFamily::P2KVSG: return "P2KVSG";
     default: return "UNKNOWN";
   }
