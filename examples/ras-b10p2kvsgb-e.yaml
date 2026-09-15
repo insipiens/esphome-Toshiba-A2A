@@ -2,12 +2,14 @@
 #
 # GPIO assignments are examples only. Use the pins wired on your own ESP32-C3
 # adapter. This example reflects the directly captured Toshiba app behaviour on
-# the tested P2 high-wall unit as of 14 Sep 2026.
+# the tested P2 high-wall unit as of 15 Sep 2026.
 #
 # Home Assistant model:
 #   - climate entity: HVAC mode, temperature, Fan Speed and standard swing
 #   - Function entities: Power Select, ECO, Hi POWER, Silent Operation, PURE,
 #     8 °C Heat and defrost actions
+#   - CB maintenance state is split into separate logical status entities:
+#     Defrost Active and IDU Self Clean Active
 #   - vertical and horizontal FIX are separate five-position indexed selects;
 #     physical direction labels will be assigned after empirical testing
 #
@@ -27,7 +29,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/insipiens/esphome-Toshiba-A2A
-      ref: main
+      ref: feature/model-aware-interface
     components: [toshiba_suzumi, toshiba_output]
     refresh: 1min
 
@@ -91,8 +93,13 @@ climate:
 
     strong_defrost:
       name: "Strong Defrost"
+
+    # 0xCB is a shared maintenance register. Keep the two physical processes
+    # separate in Home Assistant even though they share the transport register.
     defrost_active:
-      name: "Confirmed Strong Defrost Active"
+      name: "Defrost Active"
+    self_clean:
+      name: "IDU Self Clean Active"
 
 # Optional sensible-output estimator. The P2 fan-speed envelope is directly
 # observed as E4+2 = 51..103 (~510..1030 rpm); the P2 airflow endpoints remain
