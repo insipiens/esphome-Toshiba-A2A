@@ -15,7 +15,7 @@ The summary table is an index. Detailed sections below describe framing, payload
 | `0x94` | OFF timer state/control | R/W | `0x41` active, `0x42` inactive/cancelled | **confirmed** |
 | `0x96` | OFF timer programmed delay | R/W | `HH MM`; `00 1E` = 30 min, `01 00` = 1 h | **confirmed** |
 | `0xA0` | Fan command | R/W | Quiet `31`; levels `32..36`; Auto `41` | **validated / established** |
-| `0xA3` | Swing / louvre / FIX / H.DA | R/W / pushed | Readback `31/41/42/43/60`; genuine adaptor uses packed FIX/swing write values; IDU also pushes `80` | **confirmed register; some sub-encoding unresolved** |
+| `0xA3` | Swing / louvre / FIX / H.DA | R/W / pushed | Readback `31/41/42/43/60`; command encoding is family-specific: P2 uses packed H/V FIX values, while B13J2 uses vertical FIX `50..54`; IDU also pushes `80` | **confirmed register; family-specific FIX encoding confirmed on P2 and B13J2** |
 | `0xA4` | Structured louvre state | Read | 3-byte record; byte 0 tracks ordinary `A3` state; bytes 1-2 unresolved | **observed, partially decoded** |
 | `0xB0` | HVAC mode | R/W | Auto `41`, Cool `42`, Heat `43`, Dry `44`, Fan `45` | **validated / established** |
 | `0xB3` | Target temperature | R/W | Raw integer °C | **confirmed independently in `F8`** |
@@ -39,7 +39,7 @@ The summary table is an index. Detailed sections below describe framing, payload
 | `0xE5` | ODU/system engineering status | pushed/read | 8-byte engineering record; `+6` is current-like and tracks ODU electrical activity | **partially decoded** |
 | `0xEA` | Date/time sync | Write | Multi-byte time/date write; ACK pattern previously mapped | **established** |
 | `0xF7` | Special-function selector | R/W | Standard `00`, Hi POWER `01`, Silent 1 `02`, ECO `03`, 8°C `04`, Sleep `05`, Floor `06`, Comfort `07`, Silent 2 `0A`, Fireplace 1 `20`, Fireplace 2 `30` | **enum established; authoritative readback still to test** |
-| `0xF8` | Aggregate operating configuration | Write / observed | Four bytes: `[mode][target °C][fan][special-function]` | **strongly confirmed command format** |
+| `0xF8` | Aggregate operating configuration | Write / observed | Four bytes: `[mode][target °C][fan][special-function]` | **confirmed across P2KVSG and J2FVG genuine-adaptor captures** |
 
 ## Protocol framing and message classes
 
@@ -342,7 +342,23 @@ ACK:
 02 00 03 90 00 00 08 01 30 01 00 00 00 01 A3 8F
 ```
 
-### FIX position captures
+### B13J2FVG vertical FIX positions
+
+A controlled genuine-adaptor sweep on `RAS-B13J2FVG-E1`, selecting the five vertical FIX positions from top to bottom, produced:
+
+```text
+A3 50 = Position 1 / top
+A3 51 = Position 2
+A3 52 = Position 3 / centre
+A3 53 = Position 4
+A3 54 = Position 5 / bottom
+```
+
+Each command received the normal `A3` ACK. These values are command encodings; the ACK does not echo the selected position as authoritative state/readback.
+
+This is a family-specific difference from the P2 packed two-axis FIX encoding below. Implementations must therefore select the A3 FIX encoder from the identified IDU family rather than applying the P2 packed encoding to J2FVG consoles.
+
+### P2 FIX position captures
 
 A prescribed vertical sweep produced:
 
@@ -889,6 +905,8 @@ F8 43 18 41 00   Heat, 24°C, Auto, Standard
 F8 43 16 41 01   Heat, 22°C, Auto, Hi POWER
 F8 43 13 41 03   Heat, 19°C, Auto, ECO
 ```
+
+A controlled `RAS-B13J2FVG-E1` Fan-mode sweep independently reproduced the complete fan-command sequence in `F8 +2`: Quiet `31`, levels 1-5 `32..36`, and Auto `41`. This matches the P2KVSG mapping and confirms the four-byte F8 command structure across both directly tested families.
 
 Every observed write receives the generic ACK ending `F8 3A`. The ACK does not echo resulting state.
 
