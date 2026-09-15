@@ -10,7 +10,7 @@ substitutions:
 packages:
   toshiba_a2a:
     url: https://github.com/insipiens/esphome-Toshiba-A2A
-    ref: feature/package-template
+    ref: main
     files:
       - packages/toshiba-a2a-p2.yaml
     refresh: 0s
