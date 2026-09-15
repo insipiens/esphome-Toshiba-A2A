@@ -95,7 +95,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/insipiens/esphome-Toshiba-A2A
-      ref: feature/package-template
+      ref: main
     components:
       - toshiba_suzumi
       - toshiba_output
@@ -121,9 +121,6 @@ climate:
     time_id: hass_time
     time_sync_interval: 24h
 
-    # Current model-aware branch still requires this compile-time hint for P2.
-    # It will be removed once horizontal swing traits are derived from the IDU
-    # capability profile at runtime.
     horizontal_swing: true
 
     power_select:
