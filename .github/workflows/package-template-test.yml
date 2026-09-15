@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  compile-kitchen-template:
+  compile-package-templates:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -35,5 +35,8 @@ jobs:
           ota_password: test-ota
           EOF
 
-      - name: Compile Kitchen package template
+      - name: Compile Kitchen P2 package template
         run: esphome compile examples/kitchen-package-template.yaml
+
+      - name: Compile Ballroom B13J2 package template
+        run: esphome compile examples/ballroom-b13j2-package-template.yaml
