@@ -238,8 +238,14 @@ climate:
       entity_category: diagnostic
 
     self_clean:
-      name: "Self Clean"
+      name: "IDU Self Clean Active"
       id: self_clean_state
+      state_topic: null
+      entity_category: diagnostic
+
+    defrost_active:
+      name: "Defrost Active"
+      id: defrost_active_state
       state_topic: null
       entity_category: diagnostic
 
@@ -438,6 +444,7 @@ interval:
             root["odu_identity_2"] = id(odu_identity_2).state;
             root["odu_identity_3"] = id(odu_identity_3).state;
             root["self_clean"] = id(self_clean_state).state;
+            root["defrost_active"] = id(defrost_active_state).state;
 
 switch:
   - platform: template
