@@ -3,6 +3,8 @@ ESPHome Toshiba A2A development
 
 Sep 14th 2026
 
+* added a J2FVG family-specific capability profile based on the Toshiba J2 service/operation documentation and direct J2 observations, instead of inheriting the broader residential feature set; J2 no longer advertises the unproven F7 Sleep/Comfort features
+* added a J2FVG mode profile: Auto/Cool expose Power Select, ECO, Hi POWER, Silent and Comfort Sleep; Heat adds Fireplace, 8 °C heat and Floor; Dry exposes Power Select with Auto fan only; Fan exposes Power Select with manual/Auto/Quiet fan choices; removed the unused G3KVSG family mapping from the control-profile mapper
 * documented J2 manual semantics for Power Select, Silent Operation, Hi POWER, Fireplace and 8 °C heating, with explicit separation between Toshiba-documented behaviour, direct remote observations and still-unproven multi-head/UART interactions
 * recorded that Power Select limits maximum current and that Silent Operation explicitly constrains outdoor-unit operation/capacity; on a shared multi-split these are treated as outdoor-unit-affecting controls, without claiming that their logical state is necessarily broadcast or globally stored across all IDUs
 * recorded that the J2 remote cycles Power Select and Silent choices through one user interface but that this alone does not prove internal mutual exclusion; added a concrete `0x87` versus F7/F8 coexistence/cancellation test plan
