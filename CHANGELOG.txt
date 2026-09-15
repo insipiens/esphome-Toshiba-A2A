@@ -3,6 +3,8 @@ ESPHome Toshiba A2A development
 
 Sep 15th 2026
 
+* reclassified `0xCB` as a shared maintenance-cycle register rather than a defrost-only or self-clean-only register: canonical states are `10` idle, `11` Strong Defrost active, `12` Normal Defrost active and `18` IDU Self Clean active; the validated parser now drives separate `defrost_active` and `self_clean` binary sensors from the same transport state
+* updated the P2 reference UI so defrost actions remain controls while `Defrost Active` and `IDU Self Clean Active` are separate status entities, avoiding conflation of outdoor-coil defrost with post-cooling indoor-coil drying
 * removed the automatic 30-second `0x80..0xFF` register sweep from normal operation; register probing and verbose register payload logging now run only while the focused monitor is explicitly enabled
 * started the `feature/model-aware-interface` redesign branch using the deployed Office B10J2 configuration as the reference installation rather than a synthetic minimal example
 * added `model_override` as a static exact-model fallback for IDUs whose pushed E0 model field is blank/`NULL`; the effective model is used by family capability logic and `toshiba_output` airflow lookup while a genuine/restored Toshiba model remains the reported diagnostic value
