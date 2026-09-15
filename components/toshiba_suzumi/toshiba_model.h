@@ -10,7 +10,6 @@ namespace toshiba_suzumi {
 enum class ToshibaIndoorUnitFamily : uint8_t {
   UNKNOWN = 0,
   J2FVG,
-  G3KVSG,
   P2KVSG,
 };
 
@@ -99,7 +98,8 @@ ToshibaIndoorUnitFamily indoor_unit_family_from_model(const std::string &model);
 const char *indoor_unit_family_to_string(ToshibaIndoorUnitFamily family);
 ToshibaCapabilityProfile capability_profile_from_model(const std::string &model);
 
-// These helpers deliberately contain only mode rules validated on real hardware.
+// These helpers deliberately contain only mode rules supported by Toshiba
+// documentation and/or direct observation on the installed reference families.
 // An empty result means "not validated for this family/mode", not "unsupported".
 ToshibaCapabilityProfile validated_function_profile_for_mode(ToshibaIndoorUnitFamily family,
                                                               ToshibaHvacMode mode);
