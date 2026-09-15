@@ -51,6 +51,10 @@ SPECIAL_MODE current_special_mode(const optional<SPECIAL_MODE> &mode) {
   return mode.has_value() ? mode.value() : SPECIAL_MODE::STANDARD;
 }
 
+bool has_validated_mode_profile(ToshibaIndoorUnitFamily family) {
+  return family == ToshibaIndoorUnitFamily::J2FVG || family == ToshibaIndoorUnitFamily::P2KVSG;
+}
+
 }  // namespace
 
 ToshibaHvacMode ToshibaValidatedControlUart::current_hvac_mode_() const {
@@ -58,12 +62,12 @@ ToshibaHvacMode ToshibaValidatedControlUart::current_hvac_mode_() const {
 }
 
 bool ToshibaValidatedControlUart::validated_function_allowed_(ToshibaFeature feature, ToshibaHvacMode mode) const {
-  if (this->idu_family_ != ToshibaIndoorUnitFamily::P2KVSG || mode == ToshibaHvacMode::UNKNOWN) return true;
+  if (!has_validated_mode_profile(this->idu_family_) || mode == ToshibaHvacMode::UNKNOWN) return true;
   return validated_function_profile_for_mode(this->idu_family_, mode).has(feature);
 }
 
 bool ToshibaValidatedControlUart::validated_fan_allowed_(uint8_t fan_option, ToshibaHvacMode mode) const {
-  if (this->idu_family_ != ToshibaIndoorUnitFamily::P2KVSG || mode == ToshibaHvacMode::UNKNOWN) return true;
+  if (!has_validated_mode_profile(this->idu_family_) || mode == ToshibaHvacMode::UNKNOWN) return true;
   const uint8_t options = validated_fan_options_for_mode(this->idu_family_, mode);
   return (options & fan_option) != 0;
 }
@@ -105,7 +109,7 @@ void ToshibaValidatedControlUart::on_set_validated_special_mode_(SPECIAL_MODE mo
   const ToshibaFeature feature = feature_for_special_mode(mode);
   const ToshibaHvacMode hvac_mode = this->current_hvac_mode_();
   if (enabled && feature != FEATURE_NONE && !this->validated_function_allowed_(feature, hvac_mode)) {
-    ESP_LOGW(TAG, "%s is not available in the current P2 HVAC mode", SpecialModeToPreset(mode));
+    ESP_LOGW(TAG, "%s is not available in the current HVAC mode", SpecialModeToPreset(mode));
     this->publish_validated_f7_mode_(current_special_mode(this->special_mode_));
     return;
   }
@@ -132,7 +136,7 @@ void ToshibaValidatedControlUart::on_set_validated_silent_(const std::string &va
 
   if (requested != SPECIAL_MODE::STANDARD &&
       !this->validated_function_allowed_(FEATURE_OUTDOOR_SILENT, this->current_hvac_mode_())) {
-    ESP_LOGW(TAG, "Silent Operation is not available in the current P2 HVAC mode");
+    ESP_LOGW(TAG, "Silent Operation is not available in the current HVAC mode");
     this->publish_validated_f7_mode_(current_special_mode(this->special_mode_));
     return;
   }
@@ -165,7 +169,7 @@ void ToshibaValidatedControlUart::on_set_validated_power_level_(const std::strin
 
 void ToshibaValidatedControlUart::on_set_pure_(bool enabled) {
   if (!this->validated_function_allowed_(FEATURE_PURE, this->current_hvac_mode_())) {
-    ESP_LOGW(TAG, "PURE is not available in the current P2 HVAC mode");
+    ESP_LOGW(TAG, "PURE is not available in the current HVAC mode");
     if (this->pure_switch_ != nullptr) this->pure_switch_->publish_state(!enabled);
     return;
   }
@@ -185,7 +189,7 @@ void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
   }
 
   if (!this->validated_function_allowed_(FEATURE_START_DEFROST, mode)) {
-    ESP_LOGW(TAG, "Start Defrost is not available in the current P2 HVAC mode");
+    ESP_LOGW(TAG, "Start Defrost is not available in the current HVAC mode");
     return;
   }
   this->sendCmd(ToshibaCommandType::DEFROST, 0x02);
@@ -263,18 +267,18 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
     if (*call.get_fan_mode() == climate::CLIMATE_FAN_AUTO) option = FAN_OPTION_AUTO;
     if (*call.get_fan_mode() == climate::CLIMATE_FAN_QUIET) option = FAN_OPTION_QUIET;
     if (!this->validated_fan_allowed_(option, requested_mode)) {
-      ESP_LOGW(TAG, "Requested fan mode is not available in the current P2 HVAC mode");
+      ESP_LOGW(TAG, "Requested fan mode is not available in the current HVAC mode");
       return;
     }
   }
   if (call.has_custom_fan_mode() && !this->validated_fan_allowed_(FAN_OPTION_MANUAL, requested_mode)) {
-    ESP_LOGW(TAG, "Requested manual fan level is not available in the current P2 HVAC mode");
+    ESP_LOGW(TAG, "Requested manual fan level is not available in the current HVAC mode");
     return;
   }
 
-  if (call.get_target_temperature().has_value() && this->idu_family_ == ToshibaIndoorUnitFamily::P2KVSG &&
+  if (call.get_target_temperature().has_value() && has_validated_mode_profile(this->idu_family_) &&
       *call.get_target_temperature() < MIN_TEMP_STANDARD && requested_mode != ToshibaHvacMode::HEAT) {
-    ESP_LOGW(TAG, "8 °C heat setpoints are only valid in Heat on the P2 unit");
+    ESP_LOGW(TAG, "8 °C heat setpoints are only valid in Heat on the validated J2/P2 path");
     return;
   }
 
@@ -290,7 +294,7 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
   ToshibaClimateUart::control(call);
 
   if (call.get_mode().has_value() && *call.get_mode() == climate::CLIMATE_MODE_DRY &&
-      this->idu_family_ == ToshibaIndoorUnitFamily::P2KVSG) {
+      has_validated_mode_profile(this->idu_family_)) {
     this->sendCmd(ToshibaCommandType::FAN, static_cast<uint8_t>(FAN::FAN_AUTO));
     this->set_fan_mode_(climate::CLIMATE_FAN_AUTO);
     this->publish_state();
