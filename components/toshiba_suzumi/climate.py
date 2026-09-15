@@ -39,6 +39,7 @@ CONF_REGISTER_90_RAW = "register_90_raw"
 CONF_REGISTER_94_RAW = "register_94_raw"
 CONF_REGISTER_C7_RAW = "register_c7_raw"
 CONF_IDU_MODEL = "idu_model"
+CONF_MODEL_OVERRIDE = "model_override"
 CONF_IDU_IDENTITY_1 = "idu_identity_1"
 CONF_IDU_IDENTITY_2 = "idu_identity_2"
 CONF_IDU_IDENTITY_3 = "idu_identity_3"
@@ -100,6 +101,7 @@ SPECIAL_MODE_VALUES = {
 CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
     {
         cv.GenerateID(): cv.declare_id(ToshibaClimateUart),
+        cv.Optional(CONF_MODEL_OVERRIDE): cv.string_strict,
         cv.Optional(CONF_INDOOR_TEMP): sensor.sensor_schema(unit_of_measurement=UNIT_CELSIUS, accuracy_decimals=0, device_class=DEVICE_CLASS_TEMPERATURE, state_class=STATE_CLASS_MEASUREMENT),
         cv.Optional(CONF_OUTDOOR_TEMP): sensor.sensor_schema(unit_of_measurement=UNIT_CELSIUS, accuracy_decimals=0, device_class=DEVICE_CLASS_TEMPERATURE, state_class=STATE_CLASS_MEASUREMENT),
         cv.Optional(CONF_ODU_DISCHARGE_TEMP): sensor.sensor_schema(unit_of_measurement=UNIT_CELSIUS, accuracy_decimals=0, device_class=DEVICE_CLASS_TEMPERATURE, state_class=STATE_CLASS_MEASUREMENT),
@@ -165,6 +167,9 @@ async def to_code(config):
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
     await uart.register_uart_device(var, config)
+
+    if CONF_MODEL_OVERRIDE in config:
+        cg.add(var.set_model_override(config[CONF_MODEL_OVERRIDE]))
 
     sensor_setters = {
         CONF_INDOOR_TEMP: "set_indoor_temp_sensor", CONF_OUTDOOR_TEMP: "set_outdoor_temp_sensor",
