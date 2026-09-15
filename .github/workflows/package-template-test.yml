@@ -3,7 +3,7 @@ name: Package template compile test
 on:
   push:
     branches:
-      - feature/package-template
+      - main
   workflow_dispatch:
 
 jobs:
