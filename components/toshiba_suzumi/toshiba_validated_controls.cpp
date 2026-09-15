@@ -121,8 +121,7 @@ void ToshibaValidatedControlUart::on_set_validated_special_mode_(SPECIAL_MODE mo
 
   const SPECIAL_MODE requested = enabled ? mode : SPECIAL_MODE::STANDARD;
   this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(requested));
-  this->special_mode_ = requested;
-  this->publish_validated_f7_mode_(requested);
+  this->requestData(ToshibaCommandType::SPECIAL_MODE);
 }
 
 void ToshibaValidatedControlUart::on_set_validated_silent_(const std::string &value) {
@@ -142,8 +141,7 @@ void ToshibaValidatedControlUart::on_set_validated_silent_(const std::string &va
   }
 
   this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(requested));
-  this->special_mode_ = requested;
-  this->publish_validated_f7_mode_(requested);
+  this->requestData(ToshibaCommandType::SPECIAL_MODE);
 }
 
 void ToshibaValidatedControlUart::on_set_validated_power_level_(const std::string &value) {
@@ -158,13 +156,12 @@ void ToshibaValidatedControlUart::on_set_validated_power_level_(const std::strin
     const auto cancel = power_select_cancel_profile(this->idu_family_, this->current_hvac_mode_());
     if (active_feature != FEATURE_NONE && cancel.has(active_feature)) {
       this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(SPECIAL_MODE::STANDARD));
-      this->special_mode_ = SPECIAL_MODE::STANDARD;
-      this->publish_validated_f7_mode_(SPECIAL_MODE::STANDARD);
+      this->requestData(ToshibaCommandType::SPECIAL_MODE);
     }
   }
 
   this->sendCmd(ToshibaCommandType::POWER_SEL, static_cast<uint8_t>(pwr_level.value()));
-  if (this->pwr_select_ != nullptr) this->pwr_select_->publish_state(value);
+  this->requestData(ToshibaCommandType::POWER_SEL);
 }
 
 void ToshibaValidatedControlUart::on_set_pure_(bool enabled) {
@@ -174,7 +171,7 @@ void ToshibaValidatedControlUart::on_set_pure_(bool enabled) {
     return;
   }
   this->sendCmd(ToshibaCommandType::PURE, enabled ? 0x18 : 0x10);
-  if (this->pure_switch_ != nullptr) this->pure_switch_->publish_state(enabled);
+  this->requestData(ToshibaCommandType::PURE);
 }
 
 void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
@@ -202,16 +199,15 @@ void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::str
     return;
   }
 
-  this->fix_vertical_index_ = index.value();
-  const uint8_t raw = EncodePackedFixPosition(this->fix_horizontal_index_, this->fix_vertical_index_);
-  ESP_LOGD(TAG, "Setting vertical FIX %s -> A3=%02X (H=%u V=%u)%s", value.c_str(), raw,
-           this->fix_horizontal_index_, this->fix_vertical_index_,
+  const uint8_t requested_vertical = index.value();
+  const uint8_t raw = EncodePackedFixPosition(this->fix_horizontal_index_, requested_vertical);
+  ESP_LOGD(TAG, "Requesting vertical FIX %s -> A3=%02X (retained H=%u, requested V=%u)%s", value.c_str(), raw,
+           this->fix_horizontal_index_, requested_vertical,
            this->have_packed_fix_state_ ? "" : " using provisional retained H");
   this->sendCmd(ToshibaCommandType::SWING, raw);
-  if (this->vertical_air_direction_select_ != nullptr)
-    this->vertical_air_direction_select_->publish_state(value);
-  this->swing_mode = climate::CLIMATE_SWING_OFF;
-  this->publish_state();
+  // A3 readback is authoritative. Do not alter the HA select or climate swing
+  // state until the IDU reports the packed H/V state.
+  this->requestData(ToshibaCommandType::SWING);
 }
 
 void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::string &value) {
@@ -221,16 +217,15 @@ void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::st
     return;
   }
 
-  this->fix_horizontal_index_ = index.value();
-  const uint8_t raw = EncodePackedFixPosition(this->fix_horizontal_index_, this->fix_vertical_index_);
-  ESP_LOGD(TAG, "Setting horizontal FIX %s -> A3=%02X (H=%u V=%u)%s", value.c_str(), raw,
-           this->fix_horizontal_index_, this->fix_vertical_index_,
+  const uint8_t requested_horizontal = index.value();
+  const uint8_t raw = EncodePackedFixPosition(requested_horizontal, this->fix_vertical_index_);
+  ESP_LOGD(TAG, "Requesting horizontal FIX %s -> A3=%02X (requested H=%u, retained V=%u)%s", value.c_str(), raw,
+           requested_horizontal, this->fix_vertical_index_,
            this->have_packed_fix_state_ ? "" : " using provisional retained V");
   this->sendCmd(ToshibaCommandType::SWING, raw);
-  if (this->horizontal_air_direction_select_ != nullptr)
-    this->horizontal_air_direction_select_->publish_state(value);
-  this->swing_mode = climate::CLIMATE_SWING_OFF;
-  this->publish_state();
+  // A3 readback is authoritative. Do not alter the HA select or climate swing
+  // state until the IDU reports the packed H/V state.
+  this->requestData(ToshibaCommandType::SWING);
 }
 
 void ToshibaValidatedControlUart::publish_packed_fix_state_(uint8_t raw) {
@@ -242,13 +237,18 @@ void ToshibaValidatedControlUart::publish_packed_fix_state_(uint8_t raw) {
   this->fix_vertical_index_ = vertical;
   this->have_packed_fix_state_ = true;
 
-  const char *horizontal_name = FixedPositionName(horizontal);
+  const char *horizontal_name = HorizontalFixedPositionName(horizontal);
   if (horizontal_name != nullptr && this->horizontal_air_direction_select_ != nullptr)
     this->horizontal_air_direction_select_->publish_state(horizontal_name);
 
-  const char *vertical_name = FixedPositionName(vertical);
+  const char *vertical_name = VerticalFixedPositionName(vertical);
   if (vertical_name != nullptr && this->vertical_air_direction_select_ != nullptr)
     this->vertical_air_direction_select_->publish_state(vertical_name);
+
+  // FIX is mutually exclusive with swing. Only publish Off after the IDU has
+  // confirmed a packed FIX state, not when the command is merely requested.
+  this->swing_mode = climate::CLIMATE_SWING_OFF;
+  this->publish_state();
 
   ESP_LOGD(TAG, "A3 packed FIX state %02X -> H=%u V=%u", raw, horizontal, vertical);
 }
@@ -286,8 +286,7 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
     const ToshibaFeature active_feature = feature_for_special_mode(this->special_mode_.value());
     if (active_feature != FEATURE_NONE && !this->validated_function_allowed_(active_feature, requested_mode)) {
       this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(SPECIAL_MODE::STANDARD));
-      this->special_mode_ = SPECIAL_MODE::STANDARD;
-      this->publish_validated_f7_mode_(SPECIAL_MODE::STANDARD);
+      this->requestData(ToshibaCommandType::SPECIAL_MODE);
     }
   }
 
@@ -296,8 +295,7 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value() && *call.get_mode() == climate::CLIMATE_MODE_DRY &&
       has_validated_mode_profile(this->idu_family_)) {
     this->sendCmd(ToshibaCommandType::FAN, static_cast<uint8_t>(FAN::FAN_AUTO));
-    this->set_fan_mode_(climate::CLIMATE_FAN_AUTO);
-    this->publish_state();
+    this->requestData(ToshibaCommandType::FAN);
   }
 }
 
