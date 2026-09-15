@@ -3,6 +3,8 @@ ESPHome Toshiba A2A development
 
 Sep 15th 2026
 
+* added `feature/package-template` as a reusable ESPHome package experiment: the Kitchen device can now be reduced to a small local wrapper containing substitutions and local Wi-Fi/API/OTA settings while the GitHub package creates the Toshiba climate entity, controls, identity persistence, engineering sensors, output estimator and diagnostic monitor
+* deliberately excluded MQTT and the site-specific Shelly input-power/telemetry plumbing from the reusable package; added a GitHub Actions compile test for the minimal Kitchen P2 template so package changes are checked against ESPHome
 * changed validated Toshiba controls to prefer IDU-confirmed state: F7 functions, Power Select, PURE and A3 FIX now issue a register read after writes instead of permanently retaining the requested UI value as truth; packed A3 FIX state is published only from IDU readback, at which point climate swing is set to Off
 * replaced generic fixed-louvre labels with physical direction names: vertical `Top / Upper / Centre / Lower / Bottom` and horizontal `Left / Left-Centre / Centre / Right-Centre / Right`; legacy `Position 1..5` inputs remain accepted for compatibility
 * recognised J2FVG vertical FIX as the upper-outlet louvre control; J2 remains vertical-only while P2 retains vertical and horizontal FIX controls
