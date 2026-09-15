@@ -315,15 +315,33 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
     return;
   }
 
-  if (response_register == static_cast<uint8_t>(ToshibaCommandType::DEFROST) &&
-      this->idu_family_ == ToshibaIndoorUnitFamily::P2KVSG &&
-      extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::DEFROST), value)) {
-    if (value == 0x10) {
-      if (this->defrost_active_sensor_ != nullptr) this->defrost_active_sensor_->publish_state(false);
-    } else if (value == 0x11) {
-      if (this->defrost_active_sensor_ != nullptr) this->defrost_active_sensor_->publish_state(true);
-    } else if (value == 0x12) {
-      ESP_LOGI(TAG, "Observed CB 12; Normal Defrost active mapping still awaits explicit confirmation");
+  if (response_register == static_cast<uint8_t>(ToshibaCommandType::MAINTENANCE) &&
+      extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::MAINTENANCE), value)) {
+    const auto state = static_cast<MAINTENANCE_STATE>(value);
+    switch (state) {
+      case MAINTENANCE_STATE::IDLE:
+        this->set_self_clean_running_(false);
+        if (this->defrost_active_sensor_ != nullptr) this->defrost_active_sensor_->publish_state(false);
+        ESP_LOGI(TAG, "CB maintenance state: idle");
+        break;
+      case MAINTENANCE_STATE::STRONG_DEFROST:
+        this->set_self_clean_running_(false);
+        if (this->defrost_active_sensor_ != nullptr) this->defrost_active_sensor_->publish_state(true);
+        ESP_LOGI(TAG, "CB maintenance state: Strong Defrost active");
+        break;
+      case MAINTENANCE_STATE::NORMAL_DEFROST:
+        this->set_self_clean_running_(false);
+        if (this->defrost_active_sensor_ != nullptr) this->defrost_active_sensor_->publish_state(true);
+        ESP_LOGI(TAG, "CB maintenance state: Normal Defrost active");
+        break;
+      case MAINTENANCE_STATE::SELF_CLEAN:
+        if (this->defrost_active_sensor_ != nullptr) this->defrost_active_sensor_->publish_state(false);
+        this->set_self_clean_running_(true);
+        ESP_LOGI(TAG, "CB maintenance state: IDU Self Clean active");
+        break;
+      default:
+        ESP_LOGW(TAG, "Unknown CB maintenance state: 0x%02X", value);
+        break;
     }
     return;
   }
