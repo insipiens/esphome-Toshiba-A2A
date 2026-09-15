@@ -144,7 +144,9 @@ const char* SwingToVerticalAirDirection(SWING mode);
 bool IsFixedVerticalAirDirection(SWING mode);
 bool DecodePackedFixPosition(uint8_t raw, uint8_t &horizontal_index, uint8_t &vertical_index);
 uint8_t EncodePackedFixPosition(uint8_t horizontal_index, uint8_t vertical_index);
-const char *FixedPositionName(uint8_t position_index);
+const char *FixedPositionName(uint8_t position_index);  // legacy numeric label
+const char *VerticalFixedPositionName(uint8_t position_index);
+const char *HorizontalFixedPositionName(uint8_t position_index);
 const optional<uint8_t> FixedPositionIndexFromName(const std::string &value);
 
 const optional<SPECIAL_MODE> PresetToSpecialMode(const char* preset);
