@@ -1,6 +1,11 @@
 ESPHome Toshiba A2A development
 ===============================
 
+Sep 16th 2026
+
+* integrated the reusable J2/P2 package implementation into `main`, including the model-aware control/runtime changes required by the package templates
+* added `packages/toshiba-a2a-p2.yaml` plus Ballroom J2 and Kitchen P2 minimal consumer examples, all pinned to canonical `main`; package compile CI now runs on `main`
+
 Sep 15th 2026
 
 * extended the B13J2 vertical FIX result to the tested J2FVG family mapping (`A3 50..54`, top to bottom), with B13J2 retained as the directly verified model
