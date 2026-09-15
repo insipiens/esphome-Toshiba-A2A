@@ -9,19 +9,6 @@ namespace esphome {
 namespace toshiba_suzumi {
 
 static constexpr size_t CHUNK = 24;
-static constexpr uint8_t REGISTER_SWEEP_FIRST = 0x80;
-static constexpr uint8_t REGISTER_SWEEP_LAST = 0xFF;
-static constexpr uint32_t FOCUSED_MONITOR_GAP_MS = 250;
-static constexpr uint32_t FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS = 750;
-static constexpr uint8_t FOCUSED_MONITOR_FIRST = 0xA1;
-static constexpr uint8_t FOCUSED_MONITOR_LAST = 0xAF;
-
-static uint8_t next_focused_register(uint8_t reg) {
-  uint8_t next = static_cast<uint8_t>(reg + 1);
-  if (next == 0xA3) next = 0xA5;
-  if (next > FOCUSED_MONITOR_LAST) next = FOCUSED_MONITOR_FIRST;
-  return next;
-}
 
 void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentification &equipment) {
   // The protocol layer only accepts positive identity data from Toshiba.
@@ -84,11 +71,6 @@ void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentific
 }
 
 void ToshibaClimateUart::publish_special_mode_entities_(SPECIAL_MODE mode) {
-  // A received F7 value is positive evidence for that function. It is not, by
-  // itself, evidence that every other Toshiba function has been cancelled.
-  // Therefore only STANDARD clears the complete divided state; a non-standard
-  // value updates the entity that it directly identifies and leaves unrelated
-  // entities untouched until Toshiba gives us evidence about their interaction.
   if (mode == SPECIAL_MODE::STANDARD) {
     if (this->eco_switch_ != nullptr) this->eco_switch_->publish_state(false);
     if (this->hi_power_switch_ != nullptr) this->hi_power_switch_->publish_state(false);
@@ -162,9 +144,6 @@ void ToshibaClimateUart::on_set_special_mode_level(SPECIAL_MODE level_one, SPECI
 
 void ToshibaSpecialModeSwitch::write_state(bool state) {
   this->parent_->on_set_special_mode_switch(this->mode_, state);
-  // Publish the requested state immediately so the ESPHome/Home Assistant
-  // switch behaves as a normal toggle. A subsequent Toshiba F7 publication
-  // can still confirm or correct this optimistic state.
   this->publish_state(state);
 }
 
@@ -174,11 +153,27 @@ void ToshibaSpecialModeLevelSelect::control(const std::string &value) {
 }
 
 void ToshibaDiagnosticMonitorUart::update() {
-  if (this->scan_active_) return;
+  // The development monitor is passive. Normal polling must continue while the
+  // switch is enabled, so temporarily hide the monitor flag from the base
+  // update() guard.
+  const bool monitoring = this->scan_active_;
+  if (monitoring) this->scan_active_ = false;
   ToshibaClimateUart::update();
+  if (monitoring) this->scan_active_ = true;
 }
 
 void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
+  const int16_t response_register = this->extract_response_register_(raw);
+
+  if (this->scan_active_) {
+    ESP_LOGI(TAG, "UART MONITOR RX class=0x%02X reg=%s length=%u checksum=OK",
+             raw.size() > 3 ? static_cast<unsigned>(raw[3]) : 0U,
+             response_register >= 0 ? str_sprintf("0x%02X", static_cast<unsigned>(response_register)).c_str() : "unknown",
+             static_cast<unsigned>(raw.size()));
+    this->log_monitor_bytes_(raw, response_register);
+    this->log_monitor_decoded_(raw, response_register);
+  }
+
   if (raw.size() > 12 && raw[3] == 0x11 &&
       raw[12] == static_cast<uint8_t>(ToshibaCommandType::EQUIPMENT_INFO)) {
     const auto equipment = decode_equipment_identification(raw);
@@ -190,11 +185,7 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
     return;
   }
 
-  const int16_t response_register = this->extract_response_register_(raw);
-
-  // During the current protocol investigation, suppress the temporary verbose
-  // E4/E5 raw dumps from the base parser while retaining the actual sensors.
-  // Explicit focused capture still records the complete frames when requested.
+  // Suppress the temporary verbose E4/E5 base dumps while retaining sensors.
   if (response_register == static_cast<uint8_t>(ToshibaCommandType::ODU_STATUS) &&
       (raw.size() == 22 || raw.size() == 24)) {
     const uint8_t offset = (raw.size() == 22) ? 13 : 15;
@@ -238,51 +229,6 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
     return;
   }
 
-  // Focused monitor only: preserve every response in the Toshiba register
-  // space without turning normal climate traffic into diagnostic log noise.
-  if (this->scan_active_ && response_register >= REGISTER_SWEEP_FIRST && response_register <= REGISTER_SWEEP_LAST) {
-    std::vector<uint8_t> payload;
-    if (this->extract_monitor_payload_(raw, response_register, payload)) {
-      ESP_LOGI(TAG, "FOCUSED PARSE reg=0x%02X len=%u payload=[%s]",
-               static_cast<unsigned>(response_register), static_cast<unsigned>(payload.size()),
-               format_hex_pretty(payload).c_str());
-
-      // Retain the three temporary raw entities if an existing YAML still has
-      // them configured. No additional Home Assistant entities are created by
-      // the monitor itself.
-      if (payload.size() == 1) {
-        sensor::Sensor *diagnostic_sensor = nullptr;
-        if (response_register == 0x90) diagnostic_sensor = this->register_90_raw_sensor_;
-        if (response_register == 0x94) diagnostic_sensor = this->register_94_raw_sensor_;
-        if (response_register == 0xC7) diagnostic_sensor = this->register_c7_raw_sensor_;
-        if (diagnostic_sensor != nullptr) diagnostic_sensor->publish_state(payload[0]);
-      }
-    }
-
-    // Pass all registers already understood by the base climate parser onwards.
-    // Unknown registers are consumed here so focused discovery does not add an
-    // extra warning for every successful response.
-    const bool base_handles_register =
-        response_register == static_cast<uint8_t>(ToshibaCommandType::POWER_STATE) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::POWER_SEL) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::FAN) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::SWING) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::MODE) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::TARGET_TEMP) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::ROOM_TEMP) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::OUTDOOR_TEMP) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::PURE) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::SELF_CLEAN) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::ENERGY_DAILY) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::ENERGY_WEEKLY) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::ENERGY_MONTHLY) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::ENERGY_YEARLY) ||
-        response_register == static_cast<uint8_t>(ToshibaCommandType::SPECIAL_MODE);
-    if (!base_handles_register) return;
-  }
-
-  // Feed all forms of F7 response/publication into the divided entity layer
-  // before retaining the legacy climate-preset parser for compatibility.
   SPECIAL_MODE received_mode;
   bool have_special_mode = false;
   if (raw.size() == 15 && raw[12] == static_cast<uint8_t>(ToshibaCommandType::SPECIAL_MODE)) {
@@ -298,98 +244,36 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
 }
 
 void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
+  if (enabled == this->scan_active_) return;
+
+  this->scan_active_ = enabled;
+  this->scan_started_ = false;
+  this->scan_request_sent_ = false;
+  this->scan_matched_response_ = false;
+  this->monitor_stop_requested_ = false;
+
   if (enabled) {
-    if (this->scan_active_) return;
-
-    this->scan_active_ = true;
-    this->scan_started_ = true;
-    this->scan_request_sent_ = false;
-    this->scan_matched_response_ = false;
-    this->scan_register_started_ = 0;
-    this->monitor_stop_requested_ = false;
-    this->monitor_waiting_for_cycle_ = false;
     this->monitor_cycle_started_ = millis();
-    this->monitor_register_index_ = FOCUSED_MONITOR_FIRST;
-    this->monitor_requests_ = 0;
-    this->monitor_matched_ = 0;
-    this->monitor_timeouts_ = 0;
-    this->monitor_unrelated_ = 0;
-    this->monitor_cycles_completed_ = 0;
+    this->monitor_last_payload_.fill({});
     this->monitor_payload_seen_.fill(false);
-
-    ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A-BANK MONITOR STARTED ==========");
-    ESP_LOGI(TAG, "polling A1,A2,A5-AF: capture values, 750ms response window, 250ms inter-request gap");
-    return;
+    ESP_LOGI(TAG, "========== TOSHIBA PASSIVE UART MONITOR STARTED ==========");
+    ESP_LOGI(TAG, "capturing every received Toshiba frame; no diagnostic register polling is generated");
+    ESP_LOGI(TAG, "normal command TX remains visible through the existing ToshibaCommand debug log");
+  } else {
+    ESP_LOGI(TAG, "========== TOSHIBA PASSIVE UART MONITOR STOPPED ==========");
   }
-
-  if (this->scan_active_) this->finish_monitor_();
 }
 
 void ToshibaDiagnosticMonitorUart::process_scan_() {
-  if (!this->scan_active_) return;
-
-  const uint32_t now = millis();
-
-  // One request at a time. A value/no-data reply completes the transaction;
-  // otherwise advance after a short bounded response window. Together with
-  // the 250ms inter-request gap this gives roughly one register per second.
-  if (this->scan_request_sent_) {
-    if (now - this->scan_register_started_ >= FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS) {
-      ESP_LOGI(TAG, "FOCUSED RX reg=0x%02X no-response after %ums",
-               static_cast<unsigned>(this->scan_register_),
-               static_cast<unsigned>(FOCUSED_MONITOR_RESPONSE_TIMEOUT_MS));
-      this->monitor_timeouts_++;
-      this->scan_request_sent_ = false;
-      this->scan_matched_response_ = false;
-      this->monitor_register_index_ = next_focused_register(this->scan_register_);
-    }
-    return;
-  }
-
-  if (!this->rx_message_.empty()) return;
-  if (now - this->last_command_timestamp_ < FOCUSED_MONITOR_GAP_MS) return;
-
-  const uint8_t reg = this->monitor_register_index_;
-  std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 6, 1, 48, 1, 0, 1};
-  payload.push_back(reg);
-
-  uint8_t sum = 0;
-  for (size_t i = 1; i < payload.size(); i++) sum += payload[i];
-  payload.push_back(static_cast<uint8_t>(0 - sum));
-
-  this->scan_register_ = reg;
-  this->scan_register_started_ = now;
-  this->scan_request_sent_ = true;
-  this->scan_matched_response_ = false;
-  ESP_LOGI(TAG, "FOCUSED TX reg=0x%02X", static_cast<unsigned>(reg));
-  this->send_to_uart(ToshibaCommand{
-      .cmd = static_cast<ToshibaCommandType>(reg),
-      .payload = std::move(payload),
-  });
-  this->monitor_requests_++;
+  // Intentionally empty: the development monitor is passive and must not alter
+  // bus traffic or pause ordinary climate communication.
 }
 
 void ToshibaDiagnosticMonitorUart::send_monitor_request_() {}
 void ToshibaDiagnosticMonitorUart::complete_monitor_request_() {}
 
 void ToshibaDiagnosticMonitorUart::finish_monitor_() {
-  if (!this->scan_active_) return;
-
-  const uint32_t elapsed = millis() - this->monitor_cycle_started_;
-  this->log_timer_bank_snapshot_();
-  this->scan_active_ = false;
-  this->scan_started_ = false;
-  this->scan_request_sent_ = false;
-  this->scan_matched_response_ = false;
-  this->monitor_stop_requested_ = false;
-  this->monitor_waiting_for_cycle_ = false;
-  this->monitor_cycle_started_ = millis();
-
-  ESP_LOGI(TAG, "========== TOSHIBA FOCUSED A-BANK MONITOR STOPPED ==========");
-  ESP_LOGI(TAG, "elapsed=%ums requests=%u matched=%u no_response=%u unrelated=%u",
-           static_cast<unsigned>(elapsed), static_cast<unsigned>(this->monitor_requests_),
-           static_cast<unsigned>(this->monitor_matched_), static_cast<unsigned>(this->monitor_timeouts_),
-           static_cast<unsigned>(this->monitor_unrelated_));
+  this->set_scan_enabled(false);
 }
 
 bool ToshibaDiagnosticMonitorUart::extract_monitor_payload_(const std::vector<uint8_t> &raw,
@@ -424,62 +308,14 @@ void ToshibaDiagnosticMonitorUart::remember_monitor_payload_(uint8_t reg,
 }
 
 void ToshibaDiagnosticMonitorUart::log_timer_bank_snapshot_() const {
-  ESP_LOGI(TAG, "========== TOSHIBA FOCUSED MONITOR SUMMARY ==========");
-  for (uint16_t reg = 0x80; reg <= 0xFF; reg++) {
-    const size_t index = reg - 0x80;
-    if (!this->monitor_payload_seen_[index]) continue;
-    const auto &payload = this->monitor_last_payload_[index];
-    if (payload.empty()) {
-      ESP_LOGI(TAG, "UART SUMMARY reg=0x%02X no-data", static_cast<unsigned>(reg));
-    } else {
-      ESP_LOGI(TAG, "UART SUMMARY reg=0x%02X value=[%s] len=%u",
-               static_cast<unsigned>(reg), format_hex_pretty(payload).c_str(),
-               static_cast<unsigned>(payload.size()));
-    }
-  }
+  // Retained for compatibility with older development builds. Passive monitor
+  // mode no longer generates a synthetic register-bank snapshot.
 }
 
 void ToshibaDiagnosticMonitorUart::log_scan_packet_(const std::vector<uint8_t> &raw) {
-  const uint32_t elapsed = millis() - this->monitor_cycle_started_;
-
-  // Toshiba's generic unsupported/no-data reply is 13 bytes long and carries
-  // no echoed register: its final byte is the checksum. Attribute that reply to
-  // the single outstanding focused request.
-  if (raw.size() == 13 && this->scan_request_sent_) {
-    this->monitor_matched_++;
-    this->remember_monitor_payload_(this->scan_register_, {});
-    ESP_LOGI(TAG, "FOCUSED RX seq=%u t=%ums reg=0x%02X no-data",
-             static_cast<unsigned>(this->monitor_matched_), static_cast<unsigned>(elapsed),
-             static_cast<unsigned>(this->scan_register_));
-    this->scan_request_sent_ = false;
-    this->scan_matched_response_ = true;
-    this->monitor_register_index_ = next_focused_register(this->scan_register_);
-    return;
-  }
-
-  const int16_t reg = this->extract_response_register_(raw);
-  if (!this->scan_request_sent_ || reg != this->scan_register_) {
-    this->monitor_unrelated_++;
-    ESP_LOGD(TAG, "FOCUSED unrelated RX while waiting for 0x%02X: reg=%s",
-             static_cast<unsigned>(this->scan_register_),
-             reg >= 0 ? str_sprintf("0x%02X", static_cast<unsigned>(reg)).c_str() : "unknown");
-    this->parseResponse(raw);
-    return;
-  }
-
-  this->monitor_matched_++;
-  ESP_LOGI(TAG, "UART FOCUSED RX seq=%u t=%ums class=0x%02X reg=0x%02X length=%u checksum=OK",
-           static_cast<unsigned>(this->monitor_matched_), static_cast<unsigned>(elapsed),
-           raw.size() > 3 ? static_cast<unsigned>(raw[3]) : 0U,
-           static_cast<unsigned>(reg), static_cast<unsigned>(raw.size()));
-
-  this->log_monitor_bytes_(raw, reg);
-  this->log_monitor_decoded_(raw, reg);
+  // No active scan requests are issued in passive-monitor mode, but if an older
+  // call path reaches here, treat the packet exactly like ordinary live traffic.
   this->parseResponse(raw);
-
-  this->scan_request_sent_ = false;
-  this->scan_matched_response_ = true;
-  this->monitor_register_index_ = next_focused_register(this->scan_register_);
 }
 
 void ToshibaDiagnosticMonitorUart::log_monitor_bytes_(const std::vector<uint8_t> &raw, int16_t reg) const {
@@ -505,7 +341,7 @@ void ToshibaDiagnosticMonitorUart::log_monitor_decoded_(const std::vector<uint8_
   std::vector<uint8_t> payload;
   if (this->extract_monitor_payload_(raw, reg, payload)) {
     this->remember_monitor_payload_(static_cast<uint8_t>(reg), payload);
-    ESP_LOGI(TAG, "FOCUSED VALUE reg=0x%02X value=[%s] len=%u",
+    ESP_LOGI(TAG, "UART MONITOR VALUE reg=0x%02X value=[%s] len=%u",
              static_cast<unsigned>(reg), format_hex_pretty(payload).c_str(),
              static_cast<unsigned>(payload.size()));
   }
