@@ -7,8 +7,17 @@
 namespace esphome {
 namespace toshiba_suzumi {
 
+// Expose the complete Toshiba fan ladder as one ordered custom list so Home
+// Assistant does not place ESPHome standard fan modes ahead of the intermediate
+// Toshiba levels. Physical order is Auto, Quiet, Low, Low-Medium, Medium,
+// Medium-High, High.
+constexpr const char* CUSTOM_FAN_AUTO = "Auto";
+constexpr const char* CUSTOM_FAN_QUIET = "Quiet";
+constexpr const char* CUSTOM_FAN_LOW = "Low";
 constexpr const char* CUSTOM_FAN_LEVEL_2 = "Low-Medium";
+constexpr const char* CUSTOM_FAN_MEDIUM = "Medium";
 constexpr const char* CUSTOM_FAN_LEVEL_4 = "Medium-High";
+constexpr const char* CUSTOM_FAN_HIGH = "High";
 
 constexpr const char* CUSTOM_PWR_LEVEL_50 = "50 %";
 constexpr const char* CUSTOM_PWR_LEVEL_75 = "75 %";
