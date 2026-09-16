@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 16th 2026
 
+* fixed ESPHome fan-mode exposure/readback so Auto / Quiet / Low / Medium / High use native climate fan modes while only Toshiba's intermediate levels 2 and 4 use custom fan modes; this restores working Quiet control (`A0/F8 = 31`) and keeps readback consistent with Home Assistant traits
 * changed J2 FIX to passive state handling: the Home Assistant selector now contains only Top / Upper / Centre / Lower / Bottom, has no 1-second template polling, and updates only when the IDU reports A3 50..54
 * separated ordinary J2 A3 swing readback from FIX readback so Off/Vertical states no longer get published into the fixed-position selector; FIX writes are rejected until a usable Toshiba-reported E0 IDU model is known
 * directly verified the full B13J2 FIX sequence while running: A3 50 Top, 51 Upper, 52 Centre, 53 Lower, 54 Bottom; a FIX write while the unit was off was ACKed but ordinary A3 Off remained the reported state until operation resumed
