@@ -1,5 +1,6 @@
 #include "toshiba_climate.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -74,6 +75,24 @@ void ToshibaValidatedControlUart::setup() {
       CUSTOM_FAN_LEVEL_4,
       CUSTOM_FAN_HIGH,
   });
+}
+
+void ToshibaValidatedControlUart::on_reported_idu_model_available_() {
+  if (!this->vertical_air_direction_registered_ && this->deferred_vertical_air_direction_select_ != nullptr &&
+      this->capabilities_.has(FEATURE_VERTICAL_AIRFLOW)) {
+    App.register_select(this->deferred_vertical_air_direction_select_);
+    this->vertical_air_direction_select_ = this->deferred_vertical_air_direction_select_;
+    this->vertical_air_direction_registered_ = true;
+    ESP_LOGI(TAG, "E0 model confirmed; registered vertical FIX entity");
+  }
+
+  if (!this->horizontal_air_direction_registered_ && this->deferred_horizontal_air_direction_select_ != nullptr &&
+      this->capabilities_.has(FEATURE_HORIZONTAL_AIRFLOW)) {
+    App.register_select(this->deferred_horizontal_air_direction_select_);
+    this->horizontal_air_direction_select_ = this->deferred_horizontal_air_direction_select_;
+    this->horizontal_air_direction_registered_ = true;
+    ESP_LOGI(TAG, "E0 model confirmed; registered horizontal FIX entity");
+  }
 }
 
 climate::ClimateTraits ToshibaValidatedControlUart::traits() {
