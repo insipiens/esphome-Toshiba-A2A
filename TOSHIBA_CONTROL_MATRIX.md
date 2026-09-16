@@ -105,10 +105,19 @@ This matrix is directly observed on the genuine Toshiba app connected to `RAS-B1
 
 The UART register is transport, not the public UI model. Family capability, HVAC-mode availability and compatibility rules determine which entities/actions are valid.
 
-## Family identification
+## Family identification and capability profile
 
 The exact IDU model is mandatory in the consuming YAML and is the configuration authority for family selection. The runtime maps that model to `J2FVG`, `P2KVSG`, or a conservative unknown profile before control commands are issued.
 
 `0xE0` remains the Toshiba-reported identity source when available. A declared model therefore continues to select the correct family protocol even on older firmware whose `0xE0` IDU-model field is blank/`NULL`.
 
-For J2, the Home Assistant FIX control is a stable five-position selector containing only `Top / Upper / Centre / Lower / Bottom`. Its displayed state is updated passively only from received `A3 50..54` FIX state. Ordinary `A3` swing states are handled by the climate entity and do not update the FIX selector. A usable Toshiba-reported E0 IDU model is required before FIX writes are accepted; if E0 does not provide a model, the selector remains present but has no confirmed FIX state and its commands are rejected. The declared YAML model still provides family/protocol routing and does not substitute for this E0 confidence gate.
+The reusable J2 and P2 packages also accept an optional `capability_profile` substitution. It defaults to `full`, so existing consumers need no extra line. `full` exposes the fixed-position controls expected for the declared family: vertical FIX on J2 and vertical plus horizontal FIX on P2. `limited` hides these firmware-variable FIX controls while leaving the normal climate, fan and other family controls available. Use `limited` when the physical unit or firmware does not implement the expected FIX behaviour.
+
+For example:
+
+```yaml
+substitutions:
+  capability_profile: "limited"
+```
+
+The profile is an installation-time capability mask, not a different protocol implementation. J2 FIX state remains driven only by received `A3 50..54`; ordinary J2 swing states remain separate. P2 fixed-position state continues to use the packed horizontal/vertical `A3` representation. E0 identity remains diagnostic evidence and no longer determines whether the package exposes the public FIX controls.
