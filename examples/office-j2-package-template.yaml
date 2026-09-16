@@ -1,12 +1,15 @@
 # Minimal consuming YAML for the installed Office RAS-B10J2FVG-E.
 # The exact IDU model is mandatory; the package derives the family profile,
 # capabilities and family-specific command encoding from it.
+# This known older unit uses the limited capability profile because vertical
+# FIX commands are ACKed but do not produce physical FIX movement/readback.
 
 substitutions:
   device_name: "toshiba-a2a-03"
   friendly_name: "toshiba-A2A-OF"
   room_name: "Office"
   idu_model: "RAS-B10J2FVG-E"
+  capability_profile: "limited"
 
 packages:
   toshiba_a2a:
