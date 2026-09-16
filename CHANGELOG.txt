@@ -5,6 +5,9 @@ Sep 16th 2026
 
 * integrated the reusable J2/P2 package implementation into `main`, including the model-aware control/runtime changes required by the package templates
 * added `packages/toshiba-a2a-p2.yaml` plus Ballroom J2 and Kitchen P2 minimal consumer examples, all pinned to canonical `main`; package compile CI now runs on `main`
+* rewrote `TOSHIBA_CONTROL_MATRIX.md` as a concise family/mode/control matrix for the actually tested J2FVG and P2KVSG units, with separate fan and compatibility/dependency tables; removed obsolete quoted high-wall family references
+* corrected repository documentation so the installed high-wall unit is consistently identified as P2KVSG; retained the real `RAS-5M34G3AVG-E1` outdoor-unit model because that is the installed ODU, not the superseded quoted IDU family
+* removed the obsolete quoted-model provenance from the provisional P2 airflow comments; P2 fan-speed feedback remains directly observed while its airflow endpoints remain explicitly provisional
 
 Sep 15th 2026
 
@@ -16,7 +19,7 @@ Sep 15th 2026
 Sep 14th 2026
 
 * added a J2FVG family-specific capability profile based on the Toshiba J2 service/operation documentation and direct J2 observations, instead of inheriting the broader residential feature set; J2 no longer advertises the unproven F7 Sleep/Comfort features
-* added a J2FVG mode profile: Auto/Cool expose Power Select, ECO, Hi POWER, Silent and Comfort Sleep; Heat adds Fireplace, 8 °C heat and Floor; Dry exposes Power Select with Auto fan only; Fan exposes Power Select with manual/Auto/Quiet fan choices; removed the unused G3KVSG family mapping from the control-profile mapper
+* added a J2FVG mode profile: Auto/Cool expose Power Select, ECO, Hi POWER, Silent and Comfort Sleep; Heat adds Fireplace, 8 °C heat and Floor; Dry exposes Power Select with Auto fan only; Fan exposes Power Select with manual/Auto/Quiet fan choices; removed the unused quoted-model family mapping from the control-profile mapper
 * documented J2 manual semantics for Power Select, Silent Operation, Hi POWER, Fireplace and 8 °C heating, with explicit separation between Toshiba-documented behaviour, direct remote observations and still-unproven multi-head/UART interactions
 * recorded that Power Select limits maximum current and that Silent Operation explicitly constrains outdoor-unit operation/capacity; on a shared multi-split these are treated as outdoor-unit-affecting controls, without claiming that their logical state is necessarily broadcast or globally stored across all IDUs
 * recorded that the J2 remote cycles Power Select and Silent choices through one user interface but that this alone does not prove internal mutual exclusion; added a concrete `0x87` versus F7/F8 coexistence/cancellation test plan
