@@ -95,7 +95,9 @@ climate:
     floor:
       name: "Floor"
     vertical_air_direction:
-      name: "Upper Outlet Fixed Position"
+      id: raw_upper_outlet_fixed_position
+      name: "Upper Outlet Fixed Position Raw"
+      internal: true
 
     defrost_active:
       name: "Defrost Active"
@@ -232,6 +234,45 @@ toshiba_output:
     id: cooling_output
     entity_category: diagnostic
   heat_exchanger_factor: 1.0
+
+select:
+  - platform: template
+    name: "Upper Outlet Fixed Position"
+    id: upper_outlet_fixed_position
+    options:
+      - "Not available"
+      - "Position unknown"
+      - "Top"
+      - "Upper"
+      - "Centre"
+      - "Lower"
+      - "Bottom"
+    update_interval: 1s
+    lambda: |-
+      const auto &model = id(idu_model).state;
+      const bool model_available =
+          !model.empty() && model != "NULL" && model != "Unknown" && model != "Unavailable";
+      if (!model_available) {
+        return std::string("Not available");
+      }
+
+      const auto current = id(raw_upper_outlet_fixed_position).current_option();
+      if (current.size() > 0) {
+        return std::string(current.begin(), current.end());
+      }
+      return std::string("Position unknown");
+    set_action:
+      - lambda: |-
+          const auto &model = id(idu_model).state;
+          const bool model_available =
+              !model.empty() && model != "NULL" && model != "Unknown" && model != "Unavailable";
+          if (!model_available || x == "Not available" || x == "Position unknown") {
+            return;
+          }
+
+          auto call = id(raw_upper_outlet_fixed_position).make_call();
+          call.set_option(std::string(x.begin(), x.end()));
+          call.perform();
 
 switch:
   - platform: template
