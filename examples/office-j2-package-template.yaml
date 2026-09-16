@@ -1,11 +1,12 @@
-# Minimal consuming YAML for the Office RAS-B10J2FVG-family unit.
-# The older Office firmware does not publish a usable IDU model through E0;
-# selecting the J2 package provides the J2 control/entity set explicitly.
+# Minimal consuming YAML for the installed Office RAS-B10J2FVG-E.
+# The exact IDU model is mandatory; the package derives the family profile,
+# capabilities and family-specific command encoding from it.
 
 substitutions:
   device_name: "toshiba-a2a-03"
   friendly_name: "toshiba-A2A-OF"
   room_name: "Office"
+  idu_model: "RAS-B10J2FVG-E"
 
 packages:
   toshiba_a2a:
