@@ -1,0 +1,781 @@
+name: One-shot Toshiba A2A refactor
+
+on:
+  push:
+    branches:
+      - refactor/toshiba-protocol-model-separation
+    paths:
+      - .github/workflows/refactor-toshiba-a2a.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: ${{ !contains(github.event.head_commit.message, '[refactor-generated]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/toshiba-protocol-model-separation
+
+      - name: Reorganise Toshiba component
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import shutil
+
+          root = Path('.')
+          old = root / 'components' / 'toshiba_suzumi'
+          new = root / 'components' / 'toshiba_a2a'
+          if new.exists():
+              shutil.rmtree(new)
+          shutil.move(str(old), str(new))
+
+          # Mechanical namespace/component rename inside the component itself.
+          for path in new.rglob('*'):
+              if path.is_file() and path.suffix in {'.h', '.cpp', '.py'}:
+                  text = path.read_text()
+                  text = text.replace('toshiba_suzumi', 'toshiba_a2a')
+                  path.write_text(text)
+
+          # Update consumer-facing platform names and C++ references, but retain
+          # provenance references to the upstream project name.
+          for rel in [
+              'packages/toshiba-a2a-j2.yaml',
+              'packages/toshiba-a2a-p2.yaml',
+              'examples/output_estimation.yaml',
+              'examples/diagnostic_capture.yaml',
+              'examples/engineering_telemetry.yaml',
+              'components/toshiba_output/__init__.py',
+              'components/toshiba_output/toshiba_output.h',
+          ]:
+              path = root / rel
+              text = path.read_text().replace('toshiba_suzumi', 'toshiba_a2a')
+              path.write_text(text)
+
+          # Split model/capability data from E0 identity parsing.
+          model_h = new / 'toshiba_model.h'
+          model_cpp = new / 'toshiba_model.cpp'
+          model_h.unlink()
+          model_cpp.unlink()
+
+          (new / 'toshiba_model_data.h').write_text(r'''#pragma once
+
+#include <cstdint>
+#include <string>
+
+namespace esphome {
+namespace toshiba_a2a {
+
+enum class ToshibaIndoorUnitFamily : uint8_t {
+  UNKNOWN = 0,
+  J2FVG,
+  P2KVSG,
+};
+
+enum class ToshibaHvacMode : uint8_t {
+  UNKNOWN = 0,
+  AUTO,
+  COOL,
+  HEAT,
+  DRY,
+  FAN,
+};
+
+enum ToshibaFeature : uint32_t {
+  FEATURE_NONE = 0,
+  FEATURE_COMMON_HVAC = 1UL << 0,
+  FEATURE_ECO = 1UL << 1,
+  FEATURE_HI_POWER = 1UL << 2,
+  FEATURE_COMFORT_SLEEP = 1UL << 3,
+  FEATURE_POWER_SELECT = 1UL << 4,
+  FEATURE_OUTDOOR_SILENT = 1UL << 5,
+  FEATURE_FIREPLACE = 1UL << 6,
+  FEATURE_EIGHT_DEG_HEAT = 1UL << 7,
+  FEATURE_VERTICAL_AIRFLOW = 1UL << 8,
+  FEATURE_HORIZONTAL_AIRFLOW = 1UL << 9,
+  FEATURE_FLOOR = 1UL << 10,
+  FEATURE_AIR_OUTLET_SELECT = 1UL << 11,
+  FEATURE_HADA_CARE = 1UL << 12,
+  FEATURE_SLEEP = 1UL << 13,
+  FEATURE_COMFORT = 1UL << 14,
+  FEATURE_PURE = 1UL << 15,
+  FEATURE_START_DEFROST = 1UL << 16,
+};
+
+enum class ToshibaFeatureScope : uint8_t {
+  UNKNOWN = 0,
+  IDU_LOCAL,
+  IDU_DEMAND,
+  SHARED_ODU,
+};
+
+enum ToshibaFanOption : uint8_t {
+  FAN_OPTION_NONE = 0,
+  FAN_OPTION_MANUAL = 1U << 0,
+  FAN_OPTION_AUTO = 1U << 1,
+  FAN_OPTION_QUIET = 1U << 2,
+};
+
+enum class ToshibaLouvreEncoding : uint8_t {
+  UNKNOWN = 0,
+  J2_VERTICAL,
+  P2_PACKED,
+};
+
+struct ToshibaCapabilityProfile {
+  uint32_t features{FEATURE_NONE};
+
+  bool has(ToshibaFeature feature) const {
+    return (features & static_cast<uint32_t>(feature)) != 0;
+  }
+};
+
+struct ToshibaModelProfile {
+  ToshibaIndoorUnitFamily family{ToshibaIndoorUnitFamily::UNKNOWN};
+  const char *family_name{"UNKNOWN"};
+  ToshibaLouvreEncoding louvre_encoding{ToshibaLouvreEncoding::UNKNOWN};
+  ToshibaCapabilityProfile capabilities{};
+};
+
+const ToshibaModelProfile &model_profile_from_model(const std::string &model);
+const ToshibaModelProfile &model_profile_from_family(ToshibaIndoorUnitFamily family);
+ToshibaIndoorUnitFamily indoor_unit_family_from_model(const std::string &model);
+const char *indoor_unit_family_to_string(ToshibaIndoorUnitFamily family);
+ToshibaCapabilityProfile capability_profile_from_model(const std::string &model);
+ToshibaLouvreEncoding louvre_encoding_for_family(ToshibaIndoorUnitFamily family);
+ToshibaFeatureScope feature_scope(ToshibaFeature feature);
+const char *feature_scope_to_string(ToshibaFeatureScope scope);
+
+bool has_validated_mode_profile(ToshibaIndoorUnitFamily family);
+ToshibaCapabilityProfile validated_function_profile_for_mode(ToshibaIndoorUnitFamily family,
+                                                              ToshibaHvacMode mode);
+uint8_t validated_fan_options_for_mode(ToshibaIndoorUnitFamily family, ToshibaHvacMode mode);
+ToshibaCapabilityProfile power_select_cancel_profile(ToshibaIndoorUnitFamily family,
+                                                      ToshibaHvacMode mode);
+bool validated_strong_defrost_allowed(ToshibaIndoorUnitFamily family, ToshibaHvacMode mode);
+
+}  // namespace toshiba_a2a
+}  // namespace esphome
+''')
+
+          (new / 'toshiba_model_data.cpp').write_text(r'''#include "toshiba_model_data.h"
+
+namespace esphome {
+namespace toshiba_a2a {
+
+namespace {
+
+constexpr uint32_t COMMON_RESIDENTIAL_FEATURES =
+    FEATURE_COMMON_HVAC |
+    FEATURE_ECO |
+    FEATURE_HI_POWER |
+    FEATURE_COMFORT_SLEEP |
+    FEATURE_POWER_SELECT |
+    FEATURE_OUTDOOR_SILENT |
+    FEATURE_FIREPLACE |
+    FEATURE_EIGHT_DEG_HEAT |
+    FEATURE_VERTICAL_AIRFLOW |
+    FEATURE_SLEEP |
+    FEATURE_COMFORT;
+
+constexpr uint32_t J2FVG_FEATURES =
+    FEATURE_COMMON_HVAC |
+    FEATURE_ECO |
+    FEATURE_HI_POWER |
+    FEATURE_COMFORT_SLEEP |
+    FEATURE_POWER_SELECT |
+    FEATURE_OUTDOOR_SILENT |
+    FEATURE_FIREPLACE |
+    FEATURE_EIGHT_DEG_HEAT |
+    FEATURE_VERTICAL_AIRFLOW |
+    FEATURE_FLOOR |
+    FEATURE_AIR_OUTLET_SELECT;
+
+static constexpr ToshibaModelProfile UNKNOWN_PROFILE = {
+    ToshibaIndoorUnitFamily::UNKNOWN,
+    "UNKNOWN",
+    ToshibaLouvreEncoding::UNKNOWN,
+    {FEATURE_COMMON_HVAC},
+};
+
+static constexpr ToshibaModelProfile J2_PROFILE = {
+    ToshibaIndoorUnitFamily::J2FVG,
+    "J2FVG",
+    ToshibaLouvreEncoding::J2_VERTICAL,
+    {J2FVG_FEATURES},
+};
+
+static constexpr ToshibaModelProfile P2_PROFILE = {
+    ToshibaIndoorUnitFamily::P2KVSG,
+    "P2KVSG",
+    ToshibaLouvreEncoding::P2_PACKED,
+    {COMMON_RESIDENTIAL_FEATURES |
+     FEATURE_HORIZONTAL_AIRFLOW |
+     FEATURE_PURE |
+     FEATURE_START_DEFROST},
+};
+
+struct ToshibaModeFunctionEntry {
+  ToshibaIndoorUnitFamily family;
+  ToshibaHvacMode mode;
+  uint32_t features;
+  uint8_t fan_options;
+};
+
+static constexpr ToshibaModeFunctionEntry TOSHIBA_VALIDATED_MODE_FUNCTIONS[] = {
+    {ToshibaIndoorUnitFamily::J2FVG, ToshibaHvacMode::AUTO,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_COMFORT_SLEEP,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::J2FVG, ToshibaHvacMode::COOL,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_COMFORT_SLEEP,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::J2FVG, ToshibaHvacMode::HEAT,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_COMFORT_SLEEP |
+         FEATURE_FIREPLACE | FEATURE_EIGHT_DEG_HEAT | FEATURE_FLOOR,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::J2FVG, ToshibaHvacMode::DRY,
+     FEATURE_POWER_SELECT,
+     FAN_OPTION_AUTO},
+    {ToshibaIndoorUnitFamily::J2FVG, ToshibaHvacMode::FAN,
+     FEATURE_POWER_SELECT,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+
+    {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::AUTO,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_PURE | FEATURE_START_DEFROST,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::COOL,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_PURE,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::HEAT,
+     FEATURE_POWER_SELECT | FEATURE_ECO | FEATURE_HI_POWER |
+         FEATURE_OUTDOOR_SILENT | FEATURE_PURE | FEATURE_EIGHT_DEG_HEAT |
+         FEATURE_START_DEFROST,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+    {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::DRY,
+     FEATURE_POWER_SELECT | FEATURE_PURE,
+     FAN_OPTION_AUTO},
+    {ToshibaIndoorUnitFamily::P2KVSG, ToshibaHvacMode::FAN,
+     FEATURE_POWER_SELECT | FEATURE_PURE,
+     FAN_OPTION_MANUAL | FAN_OPTION_AUTO | FAN_OPTION_QUIET},
+};
+
+}  // namespace
+
+const ToshibaModelProfile &model_profile_from_model(const std::string &model) {
+  if (model.find("J2FVG") != std::string::npos) return J2_PROFILE;
+  if (model.find("P2KVSG") != std::string::npos) return P2_PROFILE;
+  return UNKNOWN_PROFILE;
+}
+
+const ToshibaModelProfile &model_profile_from_family(ToshibaIndoorUnitFamily family) {
+  switch (family) {
+    case ToshibaIndoorUnitFamily::J2FVG: return J2_PROFILE;
+    case ToshibaIndoorUnitFamily::P2KVSG: return P2_PROFILE;
+    default: return UNKNOWN_PROFILE;
+  }
+}
+
+ToshibaIndoorUnitFamily indoor_unit_family_from_model(const std::string &model) {
+  return model_profile_from_model(model).family;
+}
+
+const char *indoor_unit_family_to_string(ToshibaIndoorUnitFamily family) {
+  return model_profile_from_family(family).family_name;
+}
+
+ToshibaCapabilityProfile capability_profile_from_model(const std::string &model) {
+  return model_profile_from_model(model).capabilities;
+}
+
+ToshibaLouvreEncoding louvre_encoding_for_family(ToshibaIndoorUnitFamily family) {
+  return model_profile_from_family(family).louvre_encoding;
+}
+
+ToshibaFeatureScope feature_scope(ToshibaFeature feature) {
+  switch (feature) {
+    case FEATURE_VERTICAL_AIRFLOW:
+    case FEATURE_HORIZONTAL_AIRFLOW:
+    case FEATURE_FLOOR:
+    case FEATURE_AIR_OUTLET_SELECT:
+    case FEATURE_FIREPLACE:
+    case FEATURE_HADA_CARE:
+    case FEATURE_PURE:
+      return ToshibaFeatureScope::IDU_LOCAL;
+    case FEATURE_COMMON_HVAC:
+    case FEATURE_ECO:
+    case FEATURE_HI_POWER:
+    case FEATURE_COMFORT_SLEEP:
+    case FEATURE_EIGHT_DEG_HEAT:
+    case FEATURE_SLEEP:
+    case FEATURE_COMFORT:
+      return ToshibaFeatureScope::IDU_DEMAND;
+    case FEATURE_POWER_SELECT:
+    case FEATURE_OUTDOOR_SILENT:
+    case FEATURE_START_DEFROST:
+      return ToshibaFeatureScope::SHARED_ODU;
+    default:
+      return ToshibaFeatureScope::UNKNOWN;
+  }
+}
+
+const char *feature_scope_to_string(ToshibaFeatureScope scope) {
+  switch (scope) {
+    case ToshibaFeatureScope::IDU_LOCAL: return "IDU local";
+    case ToshibaFeatureScope::IDU_DEMAND: return "IDU demand / shared consequence";
+    case ToshibaFeatureScope::SHARED_ODU: return "Shared ODU";
+    default: return "Unknown";
+  }
+}
+
+bool has_validated_mode_profile(ToshibaIndoorUnitFamily family) {
+  return family == ToshibaIndoorUnitFamily::J2FVG || family == ToshibaIndoorUnitFamily::P2KVSG;
+}
+
+ToshibaCapabilityProfile validated_function_profile_for_mode(ToshibaIndoorUnitFamily family,
+                                                              ToshibaHvacMode mode) {
+  ToshibaCapabilityProfile profile;
+  for (const auto &entry : TOSHIBA_VALIDATED_MODE_FUNCTIONS) {
+    if (entry.family == family && entry.mode == mode) {
+      profile.features = entry.features;
+      break;
+    }
+  }
+  return profile;
+}
+
+uint8_t validated_fan_options_for_mode(ToshibaIndoorUnitFamily family, ToshibaHvacMode mode) {
+  for (const auto &entry : TOSHIBA_VALIDATED_MODE_FUNCTIONS) {
+    if (entry.family == family && entry.mode == mode) return entry.fan_options;
+  }
+  return FAN_OPTION_NONE;
+}
+
+ToshibaCapabilityProfile power_select_cancel_profile(ToshibaIndoorUnitFamily family,
+                                                      ToshibaHvacMode mode) {
+  ToshibaCapabilityProfile profile;
+  if (family == ToshibaIndoorUnitFamily::P2KVSG &&
+      (mode == ToshibaHvacMode::AUTO || mode == ToshibaHvacMode::COOL ||
+       mode == ToshibaHvacMode::HEAT)) {
+    profile.features = FEATURE_ECO | FEATURE_HI_POWER | FEATURE_OUTDOOR_SILENT;
+  }
+  return profile;
+}
+
+bool validated_strong_defrost_allowed(ToshibaIndoorUnitFamily family, ToshibaHvacMode mode) {
+  return family == ToshibaIndoorUnitFamily::P2KVSG && mode == ToshibaHvacMode::HEAT;
+}
+
+}  // namespace toshiba_a2a
+}  // namespace esphome
+''')
+
+          (new / 'toshiba_identity.h').write_text(r'''#pragma once
+
+#include <string>
+#include <vector>
+
+namespace esphome {
+namespace toshiba_a2a {
+
+struct ToshibaEquipmentIdentification {
+  bool valid{false};
+  bool idu_model_available{false};
+  bool odu_model_available{false};
+  std::string idu_model;
+  std::string idu_identity_1;
+  std::string idu_identity_2;
+  std::string idu_identity_3;
+  std::string odu_model;
+  std::string odu_identity_1;
+  std::string odu_identity_2;
+  std::string odu_identity_3;
+};
+
+ToshibaEquipmentIdentification decode_equipment_identification(const std::vector<uint8_t> &raw_data);
+
+}  // namespace toshiba_a2a
+}  // namespace esphome
+''')
+
+          (new / 'toshiba_identity.cpp').write_text(r'''#include "toshiba_identity.h"
+
+#include <cctype>
+
+namespace esphome {
+namespace toshiba_a2a {
+
+namespace {
+
+std::string decode_ascii_field(const std::vector<uint8_t> &raw_data, size_t offset, size_t width) {
+  if (offset + width > raw_data.size()) return {};
+  std::string value;
+  value.reserve(width);
+  for (size_t i = 0; i < width; i++) {
+    const uint8_t byte = raw_data[offset + i];
+    if (byte == 0x00 || byte == 0xFF) break;
+    if (byte < 0x20 || byte > 0x7E) break;
+    value.push_back(static_cast<char>(byte));
+  }
+  while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) value.pop_back();
+  return value;
+}
+
+bool is_model_field_available(const std::string &value) {
+  return !value.empty() && value != "NULL" && value.rfind("RAS-", 0) == 0;
+}
+
+bool is_identity_field_available(const std::string &value) {
+  return !value.empty() && value != "NULL";
+}
+
+}  // namespace
+
+ToshibaEquipmentIdentification decode_equipment_identification(const std::vector<uint8_t> &raw_data) {
+  ToshibaEquipmentIdentification result;
+  if (raw_data.size() < 114 || raw_data[0] != 0x02 || raw_data[2] != 0x03 || raw_data[3] != 0x11 ||
+      raw_data[12] != 0xE0) {
+    return result;
+  }
+
+  constexpr size_t IDU_RECORD_OFFSET = 13;
+  constexpr size_t ODU_RECORD_OFFSET = IDU_RECORD_OFFSET + 50;
+  constexpr size_t MODEL_FIELD_WIDTH = 21;
+  constexpr size_t IDENTITY_1_OFFSET = 21;
+  constexpr size_t IDENTITY_1_WIDTH = 13;
+  constexpr size_t IDENTITY_2_OFFSET = 34;
+  constexpr size_t IDENTITY_2_WIDTH = 9;
+  constexpr size_t IDENTITY_3_OFFSET = 43;
+  constexpr size_t IDENTITY_3_WIDTH = 7;
+
+  result.valid = true;
+  result.idu_model = decode_ascii_field(raw_data, IDU_RECORD_OFFSET, MODEL_FIELD_WIDTH);
+  result.idu_identity_1 = decode_ascii_field(raw_data, IDU_RECORD_OFFSET + IDENTITY_1_OFFSET, IDENTITY_1_WIDTH);
+  result.idu_identity_2 = decode_ascii_field(raw_data, IDU_RECORD_OFFSET + IDENTITY_2_OFFSET, IDENTITY_2_WIDTH);
+  result.idu_identity_3 = decode_ascii_field(raw_data, IDU_RECORD_OFFSET + IDENTITY_3_OFFSET, IDENTITY_3_WIDTH);
+  result.odu_model = decode_ascii_field(raw_data, ODU_RECORD_OFFSET, MODEL_FIELD_WIDTH);
+  result.odu_identity_1 = decode_ascii_field(raw_data, ODU_RECORD_OFFSET + IDENTITY_1_OFFSET, IDENTITY_1_WIDTH);
+  result.odu_identity_2 = decode_ascii_field(raw_data, ODU_RECORD_OFFSET + IDENTITY_2_OFFSET, IDENTITY_2_WIDTH);
+  result.odu_identity_3 = decode_ascii_field(raw_data, ODU_RECORD_OFFSET + IDENTITY_3_OFFSET, IDENTITY_3_WIDTH);
+
+  result.idu_model_available = is_model_field_available(result.idu_model);
+  result.odu_model_available = is_model_field_available(result.odu_model);
+
+  if (!is_identity_field_available(result.idu_identity_1)) result.idu_identity_1.clear();
+  if (!is_identity_field_available(result.idu_identity_2)) result.idu_identity_2.clear();
+  if (!is_identity_field_available(result.idu_identity_3)) result.idu_identity_3.clear();
+  if (!is_identity_field_available(result.odu_identity_1)) result.odu_identity_1.clear();
+  if (!is_identity_field_available(result.odu_identity_2)) result.odu_identity_2.clear();
+  if (!is_identity_field_available(result.odu_identity_3)) result.odu_identity_3.clear();
+  if (!result.idu_model_available) result.idu_model.clear();
+  if (!result.odu_model_available) result.odu_model.clear();
+  return result;
+}
+
+}  // namespace toshiba_a2a
+}  // namespace esphome
+''')
+
+          (new / 'toshiba_louvre.h').write_text(r'''#pragma once
+
+#include <cstdint>
+
+#include "toshiba_climate_mode.h"
+#include "toshiba_model_data.h"
+
+namespace esphome {
+namespace toshiba_a2a {
+
+struct ToshibaFixPosition {
+  bool valid{false};
+  uint8_t horizontal{0};
+  uint8_t vertical{0};
+};
+
+bool encode_vertical_fix_command(ToshibaLouvreEncoding encoding, uint8_t requested_vertical,
+                                 uint8_t retained_horizontal, uint8_t &raw);
+bool encode_horizontal_fix_command(ToshibaLouvreEncoding encoding, uint8_t requested_horizontal,
+                                   uint8_t retained_vertical, uint8_t &raw);
+bool encode_swing_command(ToshibaLouvreEncoding encoding, climate::ClimateSwingMode mode, uint8_t &raw);
+ToshibaFixPosition decode_fix_state(ToshibaLouvreEncoding encoding, uint8_t raw);
+bool decode_ordinary_swing_state(ToshibaLouvreEncoding encoding, uint8_t raw,
+                                 climate::ClimateSwingMode &mode);
+
+}  // namespace toshiba_a2a
+}  // namespace esphome
+''')
+
+          (new / 'toshiba_louvre.cpp').write_text(r'''#include "toshiba_louvre.h"
+
+namespace esphome {
+namespace toshiba_a2a {
+
+bool encode_vertical_fix_command(ToshibaLouvreEncoding encoding, uint8_t requested_vertical,
+                                 uint8_t retained_horizontal, uint8_t &raw) {
+  if (requested_vertical < 1 || requested_vertical > 5) return false;
+  switch (encoding) {
+    case ToshibaLouvreEncoding::J2_VERTICAL:
+      raw = static_cast<uint8_t>(0x4F + requested_vertical);
+      return true;
+    case ToshibaLouvreEncoding::P2_PACKED:
+      raw = EncodePackedFixPosition(retained_horizontal, requested_vertical);
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool encode_horizontal_fix_command(ToshibaLouvreEncoding encoding, uint8_t requested_horizontal,
+                                   uint8_t retained_vertical, uint8_t &raw) {
+  if (encoding != ToshibaLouvreEncoding::P2_PACKED || requested_horizontal < 1 || requested_horizontal > 5)
+    return false;
+  raw = EncodePackedFixPosition(requested_horizontal, retained_vertical);
+  return true;
+}
+
+bool encode_swing_command(ToshibaLouvreEncoding encoding, climate::ClimateSwingMode mode, uint8_t &raw) {
+  if (encoding == ToshibaLouvreEncoding::J2_VERTICAL) {
+    if (mode == climate::CLIMATE_SWING_OFF) {
+      raw = 0x31;
+      return true;
+    }
+    if (mode == climate::CLIMATE_SWING_VERTICAL) {
+      raw = 0x41;
+      return true;
+    }
+    return false;
+  }
+  if (encoding == ToshibaLouvreEncoding::P2_PACKED) {
+    raw = ClimateSwingModeToCommand(mode);
+    return true;
+  }
+  return false;
+}
+
+ToshibaFixPosition decode_fix_state(ToshibaLouvreEncoding encoding, uint8_t raw) {
+  ToshibaFixPosition result;
+  if (encoding == ToshibaLouvreEncoding::J2_VERTICAL) {
+    if (raw >= 0x50 && raw <= 0x54) {
+      result.valid = true;
+      result.vertical = static_cast<uint8_t>(raw - 0x4F);
+    }
+    return result;
+  }
+  if (encoding == ToshibaLouvreEncoding::P2_PACKED) {
+    uint8_t horizontal = 0;
+    uint8_t vertical = 0;
+    if (DecodePackedFixPosition(raw, horizontal, vertical)) {
+      result.valid = true;
+      result.horizontal = horizontal;
+      result.vertical = vertical;
+    }
+  }
+  return result;
+}
+
+bool decode_ordinary_swing_state(ToshibaLouvreEncoding encoding, uint8_t raw,
+                                 climate::ClimateSwingMode &mode) {
+  if (encoding == ToshibaLouvreEncoding::J2_VERTICAL) {
+    if (raw == 0x31) {
+      mode = climate::CLIMATE_SWING_OFF;
+      return true;
+    }
+    if (raw == 0x41) {
+      mode = climate::CLIMATE_SWING_VERTICAL;
+      return true;
+    }
+    return false;
+  }
+  if (encoding == ToshibaLouvreEncoding::P2_PACKED) {
+    switch (raw) {
+      case 0x31: mode = climate::CLIMATE_SWING_OFF; return true;
+      case 0x41: mode = climate::CLIMATE_SWING_VERTICAL; return true;
+      case 0x42: mode = climate::CLIMATE_SWING_HORIZONTAL; return true;
+      case 0x43: mode = climate::CLIMATE_SWING_BOTH; return true;
+      default: return false;
+    }
+  }
+  return false;
+}
+
+}  // namespace toshiba_a2a
+}  // namespace esphome
+''')
+
+          # Header now consumes identity and model data independently.
+          h = new / 'toshiba_climate.h'
+          text = h.read_text()
+          text = text.replace('#include "toshiba_model.h"', '#include "toshiba_identity.h"\n#include "toshiba_model_data.h"')
+          h.write_text(text)
+
+          # E0 parsing returns identity only. Model interpretation is performed by
+          # the model-data layer at the point where an IDU model becomes known.
+          d = new / 'toshiba_diagnostic_monitor.cpp'
+          text = d.read_text()
+          text = text.replace('#include "toshiba_model.h"', '#include "toshiba_identity.h"\n#include "toshiba_model_data.h"')
+          old_block = '''      this->idu_model_ = equipment.idu_model;\n      this->idu_family_ = equipment.idu_family;\n      this->capabilities_ = equipment.capabilities;'''
+          new_block = '''      this->idu_model_ = equipment.idu_model;\n      const auto &profile = model_profile_from_model(this->idu_model_);\n      this->idu_family_ = profile.family;\n      this->capabilities_ = profile.capabilities;'''
+          if old_block not in text:
+              raise SystemExit('diagnostic E0 model block not found')
+          text = text.replace(old_block, new_block, 1)
+          d.write_text(text)
+
+          # Move family-specific louvre encoding decisions out of the controller.
+          v = new / 'toshiba_validated_controls.cpp'
+          text = v.read_text()
+          text = text.replace('#include "toshiba_climate.h"', '#include "toshiba_climate.h"\n#include "toshiba_louvre.h"', 1)
+          local_profile = '''bool has_validated_mode_profile(ToshibaIndoorUnitFamily family) {\n  return family == ToshibaIndoorUnitFamily::J2FVG || family == ToshibaIndoorUnitFamily::P2KVSG;\n}\n\n'''
+          if local_profile not in text:
+              raise SystemExit('local validated profile helper not found')
+          text = text.replace(local_profile, '', 1)
+
+          text = text.replace('''    if (this->idu_family_ == ToshibaIndoorUnitFamily::P2KVSG && mode != ToshibaHvacMode::HEAT) {\n      ESP_LOGW(TAG, "Strong Defrost is only exposed in Heat on the validated P2 path");\n      return;\n    }''', '''    if (!validated_strong_defrost_allowed(this->idu_family_, mode)) {\n      ESP_LOGW(TAG, "Strong Defrost is not available for this model/mode profile");\n      return;\n    }''', 1)
+
+          start = text.index('void ToshibaValidatedControlUart::on_set_vertical_fixed_position_')
+          end = text.index('void ToshibaValidatedControlUart::publish_packed_fix_state_', start)
+          replacement = r'''void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::string &value) {
+  if (this->get_reported_idu_model().empty()) {
+    ESP_LOGW(TAG, "Vertical FIX unavailable: no usable IDU model reported by E0");
+    return;
+  }
+
+  auto index = FixedPositionIndexFromName(value);
+  if (!index.has_value()) {
+    ESP_LOGW(TAG, "Unknown vertical FIX index: %s", value.c_str());
+    return;
+  }
+
+  const uint8_t requested_vertical = index.value();
+  const auto encoding = louvre_encoding_for_family(this->idu_family_);
+  uint8_t raw = 0;
+  if (!encode_vertical_fix_command(encoding, requested_vertical, this->fix_horizontal_index_, raw)) {
+    ESP_LOGW(TAG, "Vertical FIX is not supported by the configured model profile");
+    return;
+  }
+
+  ESP_LOGD(TAG, "Requesting vertical FIX %s -> A3=%02X", value.c_str(), raw);
+  this->sendCmd(ToshibaCommandType::SWING, raw);
+  this->requestData(ToshibaCommandType::SWING);
+}
+
+void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::string &value) {
+  auto index = FixedPositionIndexFromName(value);
+  if (!index.has_value()) {
+    ESP_LOGW(TAG, "Unknown horizontal FIX index: %s", value.c_str());
+    return;
+  }
+
+  const uint8_t requested_horizontal = index.value();
+  const auto encoding = louvre_encoding_for_family(this->idu_family_);
+  uint8_t raw = 0;
+  if (!encode_horizontal_fix_command(encoding, requested_horizontal, this->fix_vertical_index_, raw)) {
+    ESP_LOGW(TAG, "Horizontal FIX is not supported by the configured model profile");
+    return;
+  }
+
+  ESP_LOGD(TAG, "Requesting horizontal FIX %s -> A3=%02X", value.c_str(), raw);
+  this->sendCmd(ToshibaCommandType::SWING, raw);
+  this->requestData(ToshibaCommandType::SWING);
+}
+
+'''
+          text = text[:start] + replacement + text[end:]
+
+          old_swing = '''  if (this->idu_family_ == ToshibaIndoorUnitFamily::J2FVG && call.get_swing_mode().has_value()) {\n    const auto requested_swing = *call.get_swing_mode();\n    uint8_t raw = 0x31;\n    if (requested_swing == climate::CLIMATE_SWING_VERTICAL) raw = 0x41;\n    else if (requested_swing != climate::CLIMATE_SWING_OFF) {\n      ESP_LOGW(TAG, "J2 supports vertical swing only");\n      return;\n    }\n\n    ESP_LOGD(TAG, "Requesting J2 swing %s -> A3=%02X", climate_swing_mode_to_string(requested_swing), raw);\n    this->sendCmd(ToshibaCommandType::SWING, raw);\n    this->requestData(ToshibaCommandType::SWING);\n\n    if (climate_call_is_swing_only(call)) return;\n\n    // Do not pass a combined J2 swing call into the inherited P2-oriented A3\n    // encoder. HA normally issues swing as a separate climate call.\n    ESP_LOGW(TAG, "Combined J2 swing + climate-property call rejected; issue the swing change separately");\n    return;\n  }'''
+          new_swing = '''  if (call.get_swing_mode().has_value() &&\n      louvre_encoding_for_family(this->idu_family_) == ToshibaLouvreEncoding::J2_VERTICAL) {\n    const auto requested_swing = *call.get_swing_mode();\n    uint8_t raw = 0;\n    if (!encode_swing_command(louvre_encoding_for_family(this->idu_family_), requested_swing, raw)) {\n      ESP_LOGW(TAG, "Requested swing mode is not supported by the configured louvre profile");\n      return;\n    }\n\n    ESP_LOGD(TAG, "Requesting swing %s -> A3=%02X", climate_swing_mode_to_string(requested_swing), raw);\n    this->sendCmd(ToshibaCommandType::SWING, raw);\n    this->requestData(ToshibaCommandType::SWING);\n\n    if (climate_call_is_swing_only(call)) return;\n    ESP_LOGW(TAG, "Combined swing + climate-property call rejected; issue the swing change separately");\n    return;\n  }'''
+          if old_swing not in text:
+              raise SystemExit('J2 swing block not found')
+          text = text.replace(old_swing, new_swing, 1)
+
+          # Replace family-specific A3 readback switch with a louvre-profile decoder.
+          a3_start = text.index('  if (response_register == static_cast<uint8_t>(ToshibaCommandType::SWING) &&')
+          a3_end = text.index('  if (response_register == static_cast<uint8_t>(ToshibaCommandType::SPECIAL_MODE)', a3_start)
+          a3 = r'''  if (response_register == static_cast<uint8_t>(ToshibaCommandType::SWING) &&
+      extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::SWING), value)) {
+    const auto encoding = louvre_encoding_for_family(this->idu_family_);
+    const auto fix = decode_fix_state(encoding, value);
+    if (fix.valid) {
+      if (fix.horizontal >= 1 && fix.horizontal <= 5) {
+        this->fix_horizontal_index_ = fix.horizontal;
+        const char *name = HorizontalFixedPositionName(fix.horizontal);
+        if (name != nullptr && this->horizontal_air_direction_select_ != nullptr)
+          this->horizontal_air_direction_select_->publish_state(name);
+      }
+      if (fix.vertical >= 1 && fix.vertical <= 5) {
+        this->fix_vertical_index_ = fix.vertical;
+        const char *name = VerticalFixedPositionName(fix.vertical);
+        if (name != nullptr && this->vertical_air_direction_select_ != nullptr)
+          this->vertical_air_direction_select_->publish_state(name);
+      }
+      this->have_packed_fix_state_ = true;
+      this->swing_mode = climate::CLIMATE_SWING_OFF;
+      this->publish_state();
+      ESP_LOGD(TAG, "A3 FIX state %02X -> H=%u V=%u", value, fix.horizontal, fix.vertical);
+      return;
+    }
+
+    climate::ClimateSwingMode swing_state;
+    if (decode_ordinary_swing_state(encoding, value, swing_state)) {
+      this->swing_mode = swing_state;
+      this->publish_state();
+      ESP_LOGI(TAG, "Received swing mode: %s", climate_swing_mode_to_string(swing_state));
+      return;
+    }
+
+    ESP_LOGD(TAG, "Ignoring unrecognised A3 state 0x%02X for configured louvre profile", value);
+    return;
+  }
+
+'''
+          text = text[:a3_start] + a3 + text[a3_end:]
+          v.write_text(text)
+
+          # The base climate mode helpers are protocol-common; update comments only.
+          cmh = new / 'toshiba_climate_mode.h'
+          text = cmh.read_text().replace('Genuine RB-N106S-G A3 commands captured on the tested P2 unit.',
+                                         'A3 swing command values used by the P2 louvre encoding variant.')
+          cmh.write_text(text)
+
+          # Rename the runtime log tag to project terminology.
+          h = new / 'toshiba_climate.h'
+          text = h.read_text().replace('static const char *const TAG = "ToshibaClimateUart";',
+                                       'static const char *const TAG = "ToshibaA2A";')
+          h.write_text(text)
+
+          # Update branch compile workflow to exercise this branch too.
+          wf = root / '.github/workflows/package-template-test.yml'
+          text = wf.read_text()
+          if 'refactor/toshiba-protocol-model-separation' not in text:
+              text = text.replace('      - main\n', '      - main\n      - refactor/toshiba-protocol-model-separation\n')
+          wf.write_text(text)
+
+          # Document the structural branch work. Historical upstream/project-name
+          # references deliberately retain the original suzumi repository name.
+          changelog = root / 'CHANGELOG.txt'
+          text = changelog.read_text()
+          marker = 'Sep 16th 2026\n\n'
+          entry = ('* branch refactor: renamed the ESPHome component/namespace from `toshiba_suzumi` to `toshiba_a2a`; '
+                   'split E0 identity parsing from declarative model/capability data; introduced a small louvre encoding layer so '
+                   'J2/P2 A3 differences are selected as function-specific encoding variants rather than spread through control code\n')
+          if entry not in text:
+              text = text.replace(marker, marker + entry, 1)
+          changelog.write_text(text)
+
+          # The one-shot workflow is not part of the resulting branch.
+          Path('.github/workflows/refactor-toshiba-a2a.yml').unlink()
+          PY
+
+      - name: Commit generated refactor
+        run: |
+          git config user.name "insipiens"
+          git config user.email "68975498+insipiens@users.noreply.github.com"
+          git add -A
+          git commit -m "Reorganise Toshiba A2A model and protocol code [refactor-generated]"
+          git push origin HEAD:refactor/toshiba-protocol-model-separation
