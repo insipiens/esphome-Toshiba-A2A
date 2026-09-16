@@ -99,12 +99,11 @@ Directly available HVAC hardware includes:
 - **RAS-5M34G3AVG-E1** multi-split outdoor unit;
 - **RAS-B13J2FVG-E1** floor/console IDU;
 - **RAS-B10J2FVG-family** floor/console IDUs, including units showing older/different firmware behaviour;
-- **RAS-B10P2KVSG-E** high-wall IDU, identified directly through the `0xE0` equipment-identification message;
-- a **RAS-B10G3KVSG-family** high-wall IDU used during UART/control investigation.
+- **RAS-B10P2KVSGB-E** high-wall IDU, identified directly through the `0xE0` equipment-identification message.
 
 Current development hardware is **ESP32**, primarily **ESP32-C3 SuperMini-based adapters**. Other ESP platforms may still work through inherited ESPHome compatibility, but this project does not currently claim or document them as tested. In particular, the inherited ESP8266 example has been removed because ESP8266 has not been tested by this project.
 
-Those HVAC units are enough to prove that significant behaviour differs by IDU/model/firmware, but they are **not** enough to assert that every J2FVG, P2KVSG, G3KVSG, Shorai, Seiya, Suzumi, Daiseikai or other Toshiba family behaves identically.
+Those HVAC units are enough to prove that significant behaviour differs by IDU/model/firmware, but they are **not** enough to assert that every J2FVG, P2KVSG, Shorai, Seiya, Suzumi, Daiseikai or other Toshiba family behaves identically.
 
 The original `esphome_toshiba_suzumi` project lists a substantially wider set of units believed compatible with the Toshiba RB-N105S-G/RB-N106S-G interface. That upstream compatibility list remains useful prior art, but this repository does not re-label those models as independently tested here.
 
@@ -138,7 +137,7 @@ This is still being validated. A shared register does not prove that all of thes
 
 Legacy `supported_presets` / `special_mode` handling remains in the component only as a migration compatibility path. It is not the preferred configuration model for this repository and is intentionally omitted from current examples.
 
-The next stage is to complete the **model × HVAC-mode × available-control** matrix from Toshiba manuals and physical-unit testing. See [TOSHIBA_CONTROL_MATRIX.md](TOSHIBA_CONTROL_MATRIX.md).
+The tested family/mode/control relationships are kept in [TOSHIBA_CONTROL_MATRIX.md](TOSHIBA_CONTROL_MATRIX.md).
 
 ## Installation during development
 
