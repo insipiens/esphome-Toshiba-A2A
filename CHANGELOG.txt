@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 16th 2026
 
+* separated ordinary A3 swing readback from FIX-selector readback on the validated path: ordinary Off/Vertical/Horizontal/Both states now remain climate swing state only, while packed P2 FIX values continue to update the fixed-position selectors; this removes invalid `Off`/`Swing` publications into FIX-only selects without adding any OFF-state write restriction yet
 * replaced E0-driven FIX exposure with an explicit optional package `capability_profile`: `full` is the default and exposes the expected family FIX controls, while `limited` hides firmware-variable FIX controls; the known older Office B10J2 example now opts into `limited`, and P2 vertical/horizontal FIX are restored to Home Assistant through stable package-level wrapper selects
 * added TOSHIBA_CONTROL_INTERACTION_RULES.md as the distinct shared control-policy resource: ordinary special functions are mutually exclusive, Power Select is normally independent, Silent 1/2 override both Power Select and the active special function, PURE remains independent, and heat-only functions in Auto are valid only while the unit is actually heating
 * validated boot-time J2 FIX exposure on the older Office B10J2: with no usable persisted E0 IDU model the FIX selector remained hidden from Home Assistant, while ordinary J2 swing 31/41 and Quiet fan operation continued to work normally
