@@ -3,107 +3,55 @@ ESPHome Toshiba A2A development
 
 Sep 16th 2026
 
-* simplified `README.md` to a short project overview, tested hardware summary, installation pointer, documentation index, safety note and attribution; moved implementation detail, current findings, known limitations and active investigation context into new `current_status.md`
-* replaced dynamic Home Assistant discovery for J2 FIX with one stable package-level selector: the raw J2 FIX select is internal, while the public `Upper Outlet Fixed Position` template reports `Not available` when no usable IDU model has been learned from `E0`, `Position unknown` when the model is known but no fixed position is decoded, and otherwise mirrors/forwards `Top / Upper / Centre / Lower / Bottom`; this keeps one J2 package for both B13 and older B10 firmware without an `expose_fix` variant
-* changed optional FIX discovery to use persisted Toshiba-reported `E0` identity on subsequent boots: the mandatory declared IDU model still selects family/protocol routing, but only a usable model actually learned from `E0` opens the UI gate; blank/`NULL` E0 models are never persisted, while a previously persisted valid E0 model now re-registers the applicable FIX entity during startup before normal Home Assistant discovery
-* returned the focused UART monitor to passive operation: enabling it no longer injects `A3`/`A4` reads or any other monitor-generated UART request; ordinary component traffic continues unchanged and received IDU traffic is logged with raw/decoded monitor output, including change-focused A3/A4 reporting
-* added an unconditional decoded `E0 equipment packet received` log so a repeated model that matches persisted state is still visibly distinguishable from no E0 packet arriving at all
-* treated `E4 +2 = FE/FF` as unavailable fan-speed feedback instead of a numeric speed, preventing sentinel values from feeding the model-specific airflow/output interpolation and producing impossible airflow values
-* confirmed the long Wi-Fi->IDU `0x99` onboarding frame as clock/calendar synchronisation from two independent captures: the leading fields decode as `[year-1900][month-1][day][hour][minute][second][weekday]`, followed in these captures by `00 00` and an `FF`-filled fixed structure; other long `0x99` programme/schedule forms remain distinct and unresolved
-* made the exact IDU model a mandatory package substitution and pass it into the Toshiba component before runtime control, so family selection no longer depends on older firmware publishing a usable E0 model
-* separated J2FVG and P2KVSG A3 control encoding in the validated runtime: J2 vertical FIX now sends `50..54` and J2 vertical swing uses the J2 `31/41` path, while P2 retains packed H/V FIX and its captured swing commands
-* standardised package consumer examples on the project naming convention; added the Office J2 example (`toshiba-a2a-03` / `toshiba-A2A-OF`) and removed the stale Ballroom, direct root and superseded direct P2 examples; package CI now compiles Office J2 plus Kitchen P2
-* integrated the reusable J2/P2 package implementation into `main`, including the model-aware control/runtime changes required by the package templates
-* added `packages/toshiba-a2a-p2.yaml` plus J2 and P2 minimal consumer examples, all pinned to canonical `main`; package compile CI now runs on `main`
-* rewrote `TOSHIBA_CONTROL_MATRIX.md` as a concise family/mode/control matrix for the actually tested J2FVG and P2KVSG units, with separate fan and compatibility/dependency tables; removed obsolete quoted high-wall family references
-* corrected repository documentation so the installed high-wall unit is consistently identified as P2KVSG; retained the real `RAS-5M34G3AVG-E1` outdoor-unit model because that is the installed ODU, not the superseded quoted IDU family
-* removed the obsolete quoted-model provenance from the provisional P2 airflow comments; P2 fan-speed feedback remains directly observed while its airflow endpoints remain explicitly provisional
+* changed J2 FIX to passive state handling: the Home Assistant selector now contains only Top / Upper / Centre / Lower / Bottom, has no 1-second template polling, and updates only when the IDU reports A3 50..54
+* separated ordinary J2 A3 swing readback from FIX readback so Off/Vertical states no longer get published into the fixed-position selector; FIX writes are rejected until a usable Toshiba-reported E0 IDU model is known
+* directly verified the full B13J2 FIX sequence while running: A3 50 Top, 51 Upper, 52 Centre, 53 Lower, 54 Bottom; a FIX write while the unit was off was ACKed but ordinary A3 Off remained the reported state until operation resumed
+* simplified README.md to a short project overview, tested-hardware summary, installation pointer, safety note and attribution; moved current implementation detail and limitations to current_status.md
+* returned Focused Monitor to passive operation: it no longer injects A3/A4 reads or other monitor-generated UART requests
+* added an unconditional decoded E0 equipment-packet log so repeated identity can be distinguished from no E0 traffic
+* treated E4 +2 FE/FF as unavailable fan-speed feedback instead of numeric speed
+* confirmed the long Wi-Fi->IDU 0x99 onboarding frame contains clock/calendar synchronisation fields
+* made the exact IDU model mandatory in package consumers for family/protocol routing while keeping E0 as the Toshiba-reported runtime identity source
+* separated J2FVG and P2KVSG A3 control encoding: J2 FIX uses 50..54 and J2 vertical swing uses 31/41; P2 retains its packed H/V FIX representation
+* integrated reusable J2 and P2 package templates into main and added package compile CI
+* rewrote the user-facing control matrix around the directly tested J2FVG and P2KVSG families
 
 Sep 15th 2026
 
-* extended the B13J2 vertical FIX result to the tested J2FVG family mapping (`A3 50..54`, top to bottom), with B13J2 retained as the directly verified model
-* confirmed J2FVG ON/OFF timer duration and enable registers (`92/90`, `96/94`), including `00 1E` = 30 minutes; captured autonomous ON-timer expiry as IDU push `90 42`, followed about 10 seconds later by non-zero E4 fan feedback
-* directly mapped B13J2FVG vertical A3 FIX commands from a genuine-adaptor top-to-bottom sweep: `50`, `51`, `52`, `53`, `54` for the five physical positions; documented this as a J2 family-specific encoding distinct from the P2 packed two-axis FIX scheme
-* independently reproduced the complete F8 fan-command enum on B13J2FVG in Fan mode: Quiet `31`, levels 1-5 `32..36`, Auto `41`; promoted the four-byte F8 `[mode][target][fan][function]` structure to confirmed across genuine-adaptor P2KVSG and J2FVG captures
+* confirmed J2FVG ON/OFF timer duration and enable registers (92/90 and 96/94), including autonomous ON-timer expiry behaviour
+* directly mapped B13J2FVG vertical FIX commands from genuine-adaptor captures: 50, 51, 52, 53, 54
+* independently reproduced the complete F8 fan-command enum on B13J2FVG: Quiet 31, levels 1-5 32..36, Auto 41
+* confirmed the four-byte F8 structure as mode / target / fan / function across directly captured J2FVG and P2KVSG traffic
 
 Sep 14th 2026
 
-* added a J2FVG family-specific capability profile based on the Toshiba J2 service/operation documentation and direct J2 observations, instead of inheriting the broader residential feature set; J2 no longer advertises the unproven F7 Sleep/Comfort features
-* added a J2FVG mode profile: Auto/Cool expose Power Select, ECO, Hi POWER, Silent and Comfort Sleep; Heat adds Fireplace, 8 °C heat and Floor; Dry exposes Power Select with Auto fan only; Fan exposes Power Select with manual/Auto/Quiet fan choices; removed the unused quoted-model family mapping from the control-profile mapper
-* documented J2 manual semantics for Power Select, Silent Operation, Hi POWER, Fireplace and 8 °C heating, with explicit separation between Toshiba-documented behaviour, direct remote observations and still-unproven multi-head/UART interactions
-* recorded that Power Select limits maximum current and that Silent Operation explicitly constrains outdoor-unit operation/capacity; on a shared multi-split these are treated as outdoor-unit-affecting controls, without claiming that their logical state is necessarily broadcast or globally stored across all IDUs
-* recorded that the J2 remote cycles Power Select and Silent choices through one user interface but that this alone does not prove internal mutual exclusion; added a concrete `0x87` versus F7/F8 coexistence/cancellation test plan
-* recorded the J2 manual description of Hi POWER as automatic room-temperature and airflow control for faster heating/cooling, distinguishing it from pure outdoor-unit current/noise caps while retaining the possibility of indirect system-wide effects through shared compressor loading
-* recorded Fireplace as a thermo-off indoor-fan circulation policy, plus Toshiba's restriction that Fireplace does not work with an IMS multi-system combination
-* directly observed on the physical J2 remote that `Normal / Fireplace 1 / Fireplace 2 / 8 °C heat` form a cycling mutually exclusive display state; documented this as the preferred J2 UI model while keeping underlying UART clearing/coexistence semantics unproven
-* recorded 8 °C heating as a low-energy 5–13 °C setback/frost-protection regime rather than a normal occupied-room optimisation actuator
-* added `J2_MANUAL_CONTROL_NOTES.md` and documented the optimisation implication that fan speed remains the cleanest clearly local J2 actuator, with the B13J2 serving as the instrumented reference for deriving fan-control policy for the less-instrumented B10J2 units
-* decoded the complete pushed `0xE0` equipment-identification payload as two 50-byte records (IDU then ODU), each containing a 21-byte model field followed by three fixed-width ASCII identity fields; captured examples now cover B13J2, older B10J2 firmware and the newer B10P2 while preserving unresolved field semantics
-* exposed all six non-model `0xE0` identity fields as optional ESPHome text sensors (`idu_identity_1..3`, `odu_identity_1..3`); blank/`NULL` publications do not erase known values, and restore methods allow the YAML to persist them across reboot in the same way as the IDU/ODU model strings
-* decoded A3 FIX as one packed two-axis byte: bit 7 marks FIX, bits 5..3 carry the horizontal field and bits 2..0 carry the vertical field; changing one axis preserves the other in the same command byte
-* replaced the inherited fixed-louvre constants with the genuine RB-N106S-G captures from the P2 unit: vertical sweep `88 89 8A 8B 8C 8D` and horizontal sequence `85 8D 95 9D A5 AD`; these are combined H/V states rather than twelve unrelated constants
-* exposed five indexed FIX choices (`Position 1`..`Position 5`) for both vertical and horizontal entities, deliberately postponing physical direction labels until empirical testing; horizontal writes now preserve the last decoded vertical field in the packed A3 value
-* separated A3 write commands from ordinary pushed/read state: standard climate swing now sends the directly captured commands Vertical `AE`, Horizontal `B6`, Both `80`, and Off transition `80`, rather than incorrectly writing the `31/41/42/43` state values
-* added a validated P2 control layer for the normal ESPHome board: the climate entity remains the Fan/HVAC interface while Toshiba app `Function` controls are exposed as separate Power Select, ECO, Hi POWER, Silent Operation, PURE, 8 °C Heat and defrost entities rather than climate presets
-* enforced the directly observed P2 mode rules: Dry forces Auto fan; manual/Quiet fan requests are rejected in Dry; ECO/Hi POWER/Silent are limited to Auto/Cool/Heat; 8 °C Heat is limited to Heat; normal Start Defrost is limited to Auto/Heat
-* implemented F7 mutual-exclusion state handling for ECO/Hi POWER/Silent/8 °C while preserving independent Function controls on other registers; changing Power Select in Auto/Cool/Heat cancels ECO/Hi POWER/Silent but leaves PURE unchanged
-* added direct PURE `C7 18/10` control/readback and separate normal/strong defrost buttons using `CB 02/01`; P2 `CB 10/11` is handled as inactive/Strong-Defrost-active state rather than the superseded self-clean assumption, while `CB 12` remains explicitly unconfirmed
-* added a dedicated `RAS-B10P2KVSGB-E` example configuration matching the validated Fan/Function split and evidence-limited louvre controls
-* mapped the Toshiba app's `Fan Speed` and `Function` groupings on the directly tested RAS-B10P2KVSGB-E instead of treating protocol registers as the UI model
-* confirmed fan commands remain the established A0/F8 fan enum: Quiet `31`, manual levels `32..36`, Auto `41`; F8 +2 mirrors the selected fan command rather than introducing a separate generic manual-mode value
-* recorded P2 mode-dependent Function matrix: Power Select and PURE in Auto/Cool/Heat/Dry/Fan; ECO, Hi POWER and Silent Operation in Auto/Cool/Heat; 8 °C heat in Heat; Start Defrost in Heat and Auto
-* recorded P2 fan availability by mode: Dry exposes Auto only, while Auto/Cool/Heat/Fan expose manual fan levels, Auto and Quiet
-* confirmed Silent Operation states through genuine-adaptor F8 traffic: Standard `00`, Silent 1 `02`, Silent 2 `0A`; Hi POWER remains `01` and ECO `03`
-* confirmed Power Select compatibility behaviour on P2: changing 100/75/50% in Auto/Cool/Heat cancels ECO, Hi POWER and Silent Operation back to Standard, while PURE remains independent
-* confirmed PURE is a separate Function control and is available in all five HVAC modes tested on P2
-* expanded the direct `0xCB` defrost mapping: `CB 01` requests Strong Defrost, `CB 02` requests Normal Defrost, `CB 00` stops/cancels forced defrost; IDU pushes `CB 11` when Strong Defrost is active and `CB 10` when inactive/stopped
-* recorded that `CB 02` can be ACKed while normal defrost is refused by operating conditions, proving the generic ACK confirms receipt rather than successful entry into defrost
-* recorded `CB 12` only as the inferred Normal Defrost active partner to the observed `10/11` state pattern; it remains unconfirmed until a successful normal-defrost activation is captured
-* recorded an additional `CB 03` write seen during one Strong Defrost startup sequence, deliberately leaving its meaning unresolved
-* removed the older assumption that the observed CB values could simply be treated as self-clean state on the tested P2 unit; self-clean now requires separate re-validation
-* added evidence-limited family+mode helpers for P2 Function availability, fan choices and Power Select cancellation rules; unvalidated families deliberately return no mode-rule result rather than inheriting P2 behaviour
-* added PURE and Start Defrost to the P2 family capability vocabulary without generalising those new findings to untested families
-* promoted `E4 +2` from a generic raw fan/airflow quantity to the established live IDU fan-speed feedback, with an approximately 10 rpm/count scale (`24` ≈ 240 rpm, `60` ≈ 600 rpm, `103` ≈ 1030 rpm); recorded that the higher P2KVSGB values are genuine higher blower speeds from the different high-wall fan/air-path geometry rather than a different protocol scale
-* refined the directly observed RAS-B10P2KVSGB-E live fan-speed envelope from `55..103` to `51..103` (~510..1030 rpm): `103` was reproduced at Fan-Only level 5 and under the documented maximum-heating-fan condition, while sustained low-demand heating produced `51/52`; updated the model-specific airflow/output interpolation to use the new lower anchor and to treat E4 +2 telemetry as authoritative over requested settings
+* added J2FVG family-specific capability and mode profiles instead of inheriting a broad generic residential profile
+* documented Toshiba J2 control semantics and separated documented behaviour, direct observations and unresolved multi-split interactions
+* decoded pushed E0 equipment identification into IDU and ODU records and exposed model/identity fields
+* decoded P2 A3 FIX as a packed two-axis value and implemented preserved-axis writes
+* added the validated P2 control layer with separate Home Assistant entities for Power Select, ECO, Hi POWER, Silent Operation, PURE, 8 °C Heat and defrost
+* implemented directly observed P2 mode restrictions and Power Select cancellation behaviour
+* promoted E4 +2 to live IDU fan-speed feedback on the tested units and updated model-specific airflow estimation accordingly
 
 Sep 13th 2026
 
-* split model handling into two lightweight runtime matrices: family-level control capabilities and exact-model airflow/performance ranges
-* made family capability mapping explicitly table-driven so capacity variants share the same control/function profile
-* replaced the large per-W-level/per-manual-level airflow lookup with compact exact-model cooling/heating endpoint ranges containing minimum/maximum fan feedback and minimum/maximum air volume
-* changed live airflow estimation to linear interpolation across those model-specific endpoints; values outside the known feedback range are deliberately not clamped so previously unseen fan speeds remain detectable
-* retained a lightweight five-step manual-fan fallback for IDU firmware that does not expose usable live fan feedback
-* expanded the UART register map from tentative observations into an evidence-graded protocol reference, separating confirmed sniffer observations from draft/provisional interpretations
-* validated aggregate F8 control traffic and documented command/state behaviour observed through the Toshiba Wi-Fi adaptor
-* captured the A3 horizontal test sequence `85 8D 95 9D A5 AD` while stepping the Toshiba UI's five horizontal FIX positions; later analysis showed these bytes contain both horizontal and vertical fields, so the six observed combined states must not be mistaken for six user-selectable horizontal positions
-* validated Hi Power switching through Wi-Fi sniffer traffic and retained feature-state semantics separately from the aggregate F8 command
-* validated ON-timer and OFF-timer command behaviour, including mirrored duration encoding; documented that the app exposes ON timer only while the unit is off and OFF timer only while the unit is on, while noting this restriction may be app-side logic
-* captured a complete ON-timer expiry sequence: the IDU unsolicited state push changes 0x90 to 0x42 at expiry and E4 subsequently shows fan activity; the wider logical-state interpretation remains explicitly DRAFT/provisional
-* confirmed CA as filter/service-time information: configured filter interval is returned in hours, including observed 1000 h (0x03E8) and 500 h (0x01F4) settings
-* documented CC-CD-CE-CF energy-monitoring/dashboard transfers and their large structured payloads; IDU versus system-wide field locality remains unresolved until multiple Wi-Fi-connected IDUs can be compared directly
-* recorded observed Toshiba app energy totals (hour/day/month context) as correlation targets for decoding the energy-monitoring payloads
-* improved documentation of register frame lengths, payload sections, request/response direction and validation status rather than treating registers as simple scalar values
-* retained unresolved fields and interpretations as draft/probable instead of promoting correlations to confirmed protocol semantics
+* split family-level control capability mapping from exact-model airflow/performance data
+* replaced large manual airflow lookup tables with compact model-specific interpolation ranges
+* expanded TOSHIBA_REGISTER_MAP.md into the evidence-graded protocol reference
+* validated major F8 control traffic, timer behaviour, filter/service-time data and energy-monitoring transfer families
 
 Sep 11th 2026
 
-* established independent `insipiens/esphome-Toshiba-A2A` repository from the substantially modified `esphome_toshiba_suzumi` codebase
-* retained GPLv3 licensing and explicit provenance/attribution to the upstream project and its referenced prior work
-* documented the project's deliberately limited direct test population and evidence-driven reverse-engineering method
-* added E0 equipment-identification decoding and IDU/ODU model entities
-* introduced model/family capability groundwork
-* began replacing the legacy F7 climate-preset abstraction with separate Toshiba-specific Home Assistant controls
-* documented a model x HVAC-mode x control capability/dependency matrix as the next validation stage
-* separated passive UART capture, engineering telemetry and experimental output-estimation examples from the normal installation example
-* removed the ESP8266 example because this project has not tested ESP8266
+* established insipiens/esphome-Toshiba-A2A as an independent GPLv3 repository derived from pedobry/esphome_toshiba_suzumi
+* retained explicit provenance and upstream acknowledgements
+* introduced E0 model identification, family capability groundwork and the move away from one monolithic climate-preset abstraction
+* separated normal installation examples from diagnostic, engineering and output-estimation research examples
 
 Jul-Aug 2026 development carried into this repository
 
-* replaced the earlier one-shot register scanner with passive/raw diagnostic capture and controlled register-investigation tooling
-* added focused header/raw/decoded logging and clean stop/resume behaviour
-* renamed diagnostic YAML options and internal identifiers to consistent IDU/ODU terminology
-* renamed inherited `cdu_*` / `fcu_*` diagnostic keys to descriptive `odu_*` / `idu_*` names
-* added/extended E4 IDU and E5 ODU/system telemetry handling
-* calibrated the current-like E5 value against independent electrical metering; exact locality/system semantics remain under investigation
-* corrected the interpretation of the IDU fan field: it is not claimed to be literal RPM
-* added an empirical IDU sensible-output estimator calibrated from the B13J2FVG reference unit; this remains experimental and is not a generic Toshiba COP model
+* replaced the earlier scanner with passive/raw diagnostic capture and controlled investigation tooling
+* standardised IDU/ODU terminology
+* extended E4/E5 engineering telemetry handling and began calibration against independent measurements
+* added the experimental IDU sensible-output estimator
+
+Detailed register-level findings and evidence history are maintained in TOSHIBA_REGISTER_MAP.md and current implementation status in current_status.md.
