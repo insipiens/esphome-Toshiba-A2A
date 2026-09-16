@@ -1,8 +1,8 @@
 # Reusable ESPHome package for the validated Toshiba P2 high-wall profile.
 #
-# The consuming device YAML only needs to provide substitutions plus the local
-# Wi-Fi/API/OTA secrets. The package owns the Toshiba UART component, climate
-# controls, identity persistence, engineering sensors and output estimator.
+# The consuming device YAML must provide the exact IDU model plus naming and
+# local Wi-Fi/API/OTA secrets. The declared model selects the runtime family,
+# capability matrix and family-specific command encoding.
 # MQTT is intentionally not included; it is a project-specific test transport.
 
 substitutions:
@@ -24,67 +24,27 @@ esphome:
           auto *controller =
               static_cast<toshiba_suzumi::ToshibaClimateUart *>(id(room_id));
 
-          if (!id(saved_idu_model).empty())
-            controller->restore_idu_model(id(saved_idu_model));
-          if (!id(saved_idu_identity_1).empty())
-            controller->restore_idu_identity_1(id(saved_idu_identity_1));
-          if (!id(saved_idu_identity_2).empty())
-            controller->restore_idu_identity_2(id(saved_idu_identity_2));
-          if (!id(saved_idu_identity_3).empty())
-            controller->restore_idu_identity_3(id(saved_idu_identity_3));
-          if (!id(saved_odu_model).empty())
-            controller->restore_odu_model(id(saved_odu_model));
-          if (!id(saved_odu_identity_1).empty())
-            controller->restore_odu_identity_1(id(saved_odu_identity_1));
-          if (!id(saved_odu_identity_2).empty())
-            controller->restore_odu_identity_2(id(saved_odu_identity_2));
-          if (!id(saved_odu_identity_3).empty())
-            controller->restore_odu_identity_3(id(saved_odu_identity_3));
+          if (!id(saved_idu_model).empty()) controller->restore_idu_model(id(saved_idu_model));
+          if (!id(saved_idu_identity_1).empty()) controller->restore_idu_identity_1(id(saved_idu_identity_1));
+          if (!id(saved_idu_identity_2).empty()) controller->restore_idu_identity_2(id(saved_idu_identity_2));
+          if (!id(saved_idu_identity_3).empty()) controller->restore_idu_identity_3(id(saved_idu_identity_3));
+          if (!id(saved_odu_model).empty()) controller->restore_odu_model(id(saved_odu_model));
+          if (!id(saved_odu_identity_1).empty()) controller->restore_odu_identity_1(id(saved_odu_identity_1));
+          if (!id(saved_odu_identity_2).empty()) controller->restore_odu_identity_2(id(saved_odu_identity_2));
+          if (!id(saved_odu_identity_3).empty()) controller->restore_odu_identity_3(id(saved_odu_identity_3));
 
 preferences:
   flash_write_interval: 10min
 
 globals:
-  - id: saved_idu_model
-    type: std::string
-    restore_value: yes
-    max_restore_data_length: 32
-    initial_value: '""'
-  - id: saved_idu_identity_1
-    type: std::string
-    restore_value: yes
-    max_restore_data_length: 32
-    initial_value: '""'
-  - id: saved_idu_identity_2
-    type: std::string
-    restore_value: yes
-    max_restore_data_length: 32
-    initial_value: '""'
-  - id: saved_idu_identity_3
-    type: std::string
-    restore_value: yes
-    max_restore_data_length: 32
-    initial_value: '""'
-  - id: saved_odu_model
-    type: std::string
-    restore_value: yes
-    max_restore_data_length: 32
-    initial_value: '""'
-  - id: saved_odu_identity_1
-    type: std::string
-    restore_value: yes
-    max_restore_data_length: 32
-    initial_value: '""'
-  - id: saved_odu_identity_2
-    type: std::string
-    restore_value: yes
-    max_restore_data_length: 32
-    initial_value: '""'
-  - id: saved_odu_identity_3
-    type: std::string
-    restore_value: yes
-    max_restore_data_length: 32
-    initial_value: '""'
+  - { id: saved_idu_model, type: std::string, restore_value: yes, max_restore_data_length: 32, initial_value: '""' }
+  - { id: saved_idu_identity_1, type: std::string, restore_value: yes, max_restore_data_length: 32, initial_value: '""' }
+  - { id: saved_idu_identity_2, type: std::string, restore_value: yes, max_restore_data_length: 32, initial_value: '""' }
+  - { id: saved_idu_identity_3, type: std::string, restore_value: yes, max_restore_data_length: 32, initial_value: '""' }
+  - { id: saved_odu_model, type: std::string, restore_value: yes, max_restore_data_length: 32, initial_value: '""' }
+  - { id: saved_odu_identity_1, type: std::string, restore_value: yes, max_restore_data_length: 32, initial_value: '""' }
+  - { id: saved_odu_identity_2, type: std::string, restore_value: yes, max_restore_data_length: 32, initial_value: '""' }
+  - { id: saved_odu_identity_3, type: std::string, restore_value: yes, max_restore_data_length: 32, initial_value: '""' }
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -117,7 +77,7 @@ climate:
     name: ${room_name}
     id: room_id
     uart_id: uart_bus
-
+    model_override: ${idu_model}
     time_id: hass_time
     time_sync_interval: 24h
 
@@ -125,43 +85,32 @@ climate:
 
     power_select:
       name: "Power level"
-
     eco:
       name: "ECO"
-
     hi_power:
       name: "Hi POWER"
-
     outdoor_silent:
       name: "Outdoor Silent"
-
     pure:
       name: "PURE"
-
     eight_degree_heat:
       name: "8 Degree Heat"
-
     start_defrost:
       name: "Start Defrost"
       entity_category: diagnostic
-
     strong_defrost:
       name: "Strong Defrost"
       entity_category: diagnostic
-
     defrost_active:
       name: "Defrost Active"
       id: defrost_active_state
       entity_category: diagnostic
-
     self_clean:
       name: "IDU Self Clean Active"
       id: self_clean_state
       entity_category: diagnostic
-
     vertical_air_direction:
       name: "Vertical Fixed Position"
-
     horizontal_air_direction:
       name: "Horizontal Fixed Position"
 
@@ -169,51 +118,41 @@ climate:
       name: "IDU Daily Energy"
       id: idu_daily_energy
       entity_category: diagnostic
-
     indoor_temp:
       name: "Indoor Temp"
       id: indoor_temp
-
     outdoor_temp:
       name: "Outdoor Temp"
       id: outdoor_temp
       entity_category: diagnostic
-
     compressor_load:
       name: "IDU Load"
       id: compressor_load
       entity_category: diagnostic
-
     compressor_current:
       name: "IDU Current"
       id: idu_current
       entity_category: diagnostic
-
     odu_discharge_temp:
       name: "ODU Discharge Temp"
       id: odu_discharge_temp
       entity_category: diagnostic
-
     odu_suction_temp:
       name: "ODU Suction Temp"
       id: odu_suction_temp
       entity_category: diagnostic
-
     odu_heat_exchanger_temp:
       name: "ODU Heat Exchanger Temp"
       id: odu_heat_exchanger_temp
       entity_category: diagnostic
-
     idu_heat_exchanger_temp:
       name: "IDU Heat Exchanger Temp"
       id: room_hx
       entity_category: diagnostic
-
     idu_junction_temp:
       name: "IDU Junction Temp"
       id: idu_branch_temp
       entity_category: diagnostic
-
     idu_fan_speed:
       name: "IDU Fan RPM"
       id: idu_fan_speed
@@ -226,9 +165,7 @@ climate:
       on_value:
         then:
           - lambda: |-
-              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable")
-                id(saved_idu_model) = x;
-
+              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable") id(saved_idu_model) = x;
     idu_identity_1:
       name: "IDU Identity 1"
       id: idu_identity_1
@@ -236,9 +173,7 @@ climate:
       on_value:
         then:
           - lambda: |-
-              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable")
-                id(saved_idu_identity_1) = x;
-
+              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable") id(saved_idu_identity_1) = x;
     idu_identity_2:
       name: "IDU Identity 2"
       id: idu_identity_2
@@ -246,9 +181,7 @@ climate:
       on_value:
         then:
           - lambda: |-
-              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable")
-                id(saved_idu_identity_2) = x;
-
+              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable") id(saved_idu_identity_2) = x;
     idu_identity_3:
       name: "IDU Identity 3"
       id: idu_identity_3
@@ -256,9 +189,7 @@ climate:
       on_value:
         then:
           - lambda: |-
-              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable")
-                id(saved_idu_identity_3) = x;
-
+              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable") id(saved_idu_identity_3) = x;
     odu_model:
       name: "ODU Model"
       id: odu_model
@@ -266,9 +197,7 @@ climate:
       on_value:
         then:
           - lambda: |-
-              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable")
-                id(saved_odu_model) = x;
-
+              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable") id(saved_odu_model) = x;
     odu_identity_1:
       name: "ODU Identity 1"
       id: odu_identity_1
@@ -276,9 +205,7 @@ climate:
       on_value:
         then:
           - lambda: |-
-              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable")
-                id(saved_odu_identity_1) = x;
-
+              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable") id(saved_odu_identity_1) = x;
     odu_identity_2:
       name: "ODU Identity 2"
       id: odu_identity_2
@@ -286,9 +213,7 @@ climate:
       on_value:
         then:
           - lambda: |-
-              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable")
-                id(saved_odu_identity_2) = x;
-
+              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable") id(saved_odu_identity_2) = x;
     odu_identity_3:
       name: "ODU Identity 3"
       id: odu_identity_3
@@ -296,29 +221,24 @@ climate:
       on_value:
         then:
           - lambda: |-
-              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable")
-                id(saved_odu_identity_3) = x;
+              if (!x.empty() && x != "NULL" && x != "Unknown" && x != "Unavailable") id(saved_odu_identity_3) = x;
 
 toshiba_output:
   climate_id: room_id
   heat_exchanger_temperature: room_hx
   fan_feedback: idu_fan_speed
-
   airflow:
     name: "IDU Airflow"
     id: idu_airflow
     entity_category: diagnostic
-
   heating_output:
     name: "Heating Output"
     id: heating_output
     entity_category: diagnostic
-
   cooling_output:
     name: "Cooling Output"
     id: cooling_output
     entity_category: diagnostic
-
   heat_exchanger_factor: 1.0
 
 switch:
@@ -329,15 +249,11 @@ switch:
     optimistic: true
     restore_mode: ALWAYS_OFF
     entity_category: diagnostic
-
     turn_on_action:
       - lambda: |-
-          auto *controller =
-              static_cast<toshiba_suzumi::ToshibaClimateUart *>(id(room_id));
+          auto *controller = static_cast<toshiba_suzumi::ToshibaClimateUart *>(id(room_id));
           controller->set_scan_enabled(true);
-
     turn_off_action:
       - lambda: |-
-          auto *controller =
-              static_cast<toshiba_suzumi::ToshibaClimateUart *>(id(room_id));
+          auto *controller = static_cast<toshiba_suzumi::ToshibaClimateUart *>(id(room_id));
           controller->set_scan_enabled(false);
