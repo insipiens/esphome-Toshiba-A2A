@@ -9,6 +9,7 @@ substitutions:
   device_name: "toshiba-a2a"
   friendly_name: "Toshiba A2A"
   room_name: "Toshiba A2A"
+  capability_profile: "full"
 
 esphome:
   name: ${device_name}
@@ -32,15 +33,17 @@ esphome:
           if (!id(saved_odu_identity_2).empty()) controller->restore_odu_identity_2(id(saved_odu_identity_2));
           if (!id(saved_odu_identity_3).empty()) controller->restore_odu_identity_3(id(saved_odu_identity_3));
 
-          // ESPHome 2026.8.x does not safely support changing entity exposure
-          // after API discovery. Use the persisted Toshiba-reported E0 model as
-          // a boot-time exposure flag instead. A newly discovered valid E0
-          // model is saved below and becomes visible after the next reboot.
-          const bool have_reported_idu_model = !id(saved_idu_model).empty();
-          id(upper_outlet_fixed_position).set_internal(!have_reported_idu_model);
-          ESP_LOGI("ToshibaClimateUart", "Vertical FIX entity at boot: %s",
-                   have_reported_idu_model ? "exposed (persisted E0 model available)"
-                                           : "internal (no persisted E0 model)");
+          const std::string capability_profile = "${capability_profile}";
+          const bool limited_capabilities = capability_profile == "limited";
+          if (capability_profile != "full" && capability_profile != "limited") {
+            ESP_LOGW("ToshibaClimateUart",
+                     "Unknown capability_profile '%s'; using full capability exposure",
+                     capability_profile.c_str());
+          }
+          id(upper_outlet_fixed_position).set_internal(limited_capabilities);
+          ESP_LOGI("ToshibaClimateUart", "Capability profile: %s; J2 FIX entity %s",
+                   limited_capabilities ? "limited" : "full",
+                   limited_capabilities ? "internal" : "exposed");
 
 preferences:
   flash_write_interval: 10min
@@ -261,14 +264,6 @@ select:
       - "Bottom"
     set_action:
       - lambda: |-
-          const auto &model = id(idu_model).state;
-          const bool model_available =
-              !model.empty() && model != "NULL" && model != "Unknown" && model != "Unavailable";
-          if (!model_available) {
-            ESP_LOGW("ToshibaClimateUart", "Vertical FIX unavailable: no usable IDU model reported by E0");
-            return;
-          }
-
           auto call = id(raw_upper_outlet_fixed_position).make_call();
           call.set_option(std::string(x.begin(), x.end()));
           call.perform();
