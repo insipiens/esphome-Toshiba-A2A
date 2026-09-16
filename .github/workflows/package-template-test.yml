@@ -31,7 +31,7 @@ jobs:
           iot2_wifi_ssid: test-iot2
           iot2_wifi_password: test-password
           fallback_password: test-fallback
-          key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
           ota_password: test-ota
           EOF
 
