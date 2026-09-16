@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 16th 2026
 
+* replaced dynamic Home Assistant discovery for J2 FIX with one stable package-level selector: the raw J2 FIX select is internal, while the public `Upper Outlet Fixed Position` template reports `Not available` when no usable IDU model has been learned from `E0`, `Position unknown` when the model is known but no fixed position is decoded, and otherwise mirrors/forwards `Top / Upper / Centre / Lower / Bottom`; this keeps one J2 package for both B13 and older B10 firmware without an `expose_fix` variant
 * changed optional FIX discovery to use persisted Toshiba-reported `E0` identity on subsequent boots: the mandatory declared IDU model still selects family/protocol routing, but only a usable model actually learned from `E0` opens the UI gate; blank/`NULL` E0 models are never persisted, while a previously persisted valid E0 model now re-registers the applicable FIX entity during startup before normal Home Assistant discovery
 * returned the focused UART monitor to passive operation: enabling it no longer injects `A3`/`A4` reads or any other monitor-generated UART request; ordinary component traffic continues unchanged and received IDU traffic is logged with raw/decoded monitor output, including change-focused A3/A4 reporting
 * added an unconditional decoded `E0 equipment packet received` log so a repeated model that matches persisted state is still visibly distinguishable from no E0 packet arriving at all
