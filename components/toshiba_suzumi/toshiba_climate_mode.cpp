@@ -159,17 +159,13 @@ const optional<SWING> StringToVerticalAirDirection(const std::string &position) 
 }
 
 const char* SwingToVerticalAirDirection(SWING mode) {
-  if (mode == SWING::HORIZONTAL) return "Off";
-  if (mode == SWING::BOTH) return "Swing";
-
+  // FIX position and ordinary swing are separate logical states. Only a packed
+  // P2 FIX value may update a FIX-position selector; ordinary A3 Off/Vertical/
+  // Horizontal/Both states belong exclusively to the climate swing state.
   uint8_t horizontal_index = 0;
   uint8_t vertical_index = 0;
   if (DecodePackedFixPosition(static_cast<uint8_t>(mode), horizontal_index, vertical_index)) {
     return VerticalFixedPositionName(vertical_index);
-  }
-
-  for (auto const &direction : VERTICAL_AIR_DIRECTIONS) {
-    if (mode == direction.swing) return direction.name;
   }
   return nullptr;
 }
