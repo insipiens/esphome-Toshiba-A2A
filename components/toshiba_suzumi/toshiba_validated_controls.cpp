@@ -55,13 +55,16 @@ bool has_validated_mode_profile(ToshibaIndoorUnitFamily family) {
   return family == ToshibaIndoorUnitFamily::J2FVG || family == ToshibaIndoorUnitFamily::P2KVSG;
 }
 
+bool climate_call_is_swing_only(const climate::ClimateCall &call) {
+  return call.get_swing_mode().has_value() && !call.get_mode().has_value() &&
+         !call.get_target_temperature().has_value() && !call.get_fan_mode().has_value() &&
+         !call.has_custom_fan_mode() && !call.get_preset().has_value() && !call.has_custom_preset();
+}
+
 }  // namespace
 
 void ToshibaValidatedControlUart::setup() {
   ToshibaDiagnosticMonitorUart::setup();
-  // Home Assistant preserves the order of custom fan modes. Keep every Toshiba
-  // fan setting in one list so the two intermediate levels are not appended
-  // after ESPHome's standard enum values.
   this->set_supported_custom_fan_modes({
       CUSTOM_FAN_AUTO,
       CUSTOM_FAN_QUIET,
@@ -75,8 +78,6 @@ void ToshibaValidatedControlUart::setup() {
 
 climate::ClimateTraits ToshibaValidatedControlUart::traits() {
   auto traits = ToshibaDiagnosticMonitorUart::traits();
-  // The validated J2/P2 path exposes the complete Toshiba ladder as custom fan
-  // modes. Suppress standard fan enums because HA orders them separately.
   traits.set_supported_fan_modes({});
   return traits;
 }
@@ -224,17 +225,34 @@ void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::str
   }
 
   const uint8_t requested_vertical = index.value();
+
+  if (this->idu_family_ == ToshibaIndoorUnitFamily::J2FVG) {
+    const uint8_t raw = static_cast<uint8_t>(0x4F + requested_vertical);  // 50..54
+    ESP_LOGD(TAG, "Requesting J2 vertical FIX %s -> A3=%02X", value.c_str(), raw);
+    this->sendCmd(ToshibaCommandType::SWING, raw);
+    this->requestData(ToshibaCommandType::SWING);
+    return;
+  }
+
+  if (this->idu_family_ != ToshibaIndoorUnitFamily::P2KVSG) {
+    ESP_LOGW(TAG, "Vertical FIX requested with unknown/unsupported IDU family");
+    return;
+  }
+
   const uint8_t raw = EncodePackedFixPosition(this->fix_horizontal_index_, requested_vertical);
-  ESP_LOGD(TAG, "Requesting vertical FIX %s -> A3=%02X (retained H=%u, requested V=%u)%s", value.c_str(), raw,
+  ESP_LOGD(TAG, "Requesting P2 vertical FIX %s -> A3=%02X (retained H=%u, requested V=%u)%s", value.c_str(), raw,
            this->fix_horizontal_index_, requested_vertical,
            this->have_packed_fix_state_ ? "" : " using provisional retained H");
   this->sendCmd(ToshibaCommandType::SWING, raw);
-  // A3 readback is authoritative. Do not alter the HA select or climate swing
-  // state until the IDU reports the packed H/V state.
   this->requestData(ToshibaCommandType::SWING);
 }
 
 void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::string &value) {
+  if (this->idu_family_ != ToshibaIndoorUnitFamily::P2KVSG) {
+    ESP_LOGW(TAG, "Horizontal FIX is only implemented for the P2 family");
+    return;
+  }
+
   auto index = FixedPositionIndexFromName(value);
   if (!index.has_value()) {
     ESP_LOGW(TAG, "Unknown horizontal FIX index: %s", value.c_str());
@@ -243,12 +261,10 @@ void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::st
 
   const uint8_t requested_horizontal = index.value();
   const uint8_t raw = EncodePackedFixPosition(requested_horizontal, this->fix_vertical_index_);
-  ESP_LOGD(TAG, "Requesting horizontal FIX %s -> A3=%02X (requested H=%u, retained V=%u)%s", value.c_str(), raw,
+  ESP_LOGD(TAG, "Requesting P2 horizontal FIX %s -> A3=%02X (requested H=%u, retained V=%u)%s", value.c_str(), raw,
            requested_horizontal, this->fix_vertical_index_,
            this->have_packed_fix_state_ ? "" : " using provisional retained V");
   this->sendCmd(ToshibaCommandType::SWING, raw);
-  // A3 readback is authoritative. Do not alter the HA select or climate swing
-  // state until the IDU reports the packed H/V state.
   this->requestData(ToshibaCommandType::SWING);
 }
 
@@ -269,8 +285,6 @@ void ToshibaValidatedControlUart::publish_packed_fix_state_(uint8_t raw) {
   if (vertical_name != nullptr && this->vertical_air_direction_select_ != nullptr)
     this->vertical_air_direction_select_->publish_state(vertical_name);
 
-  // FIX is mutually exclusive with swing. Only publish Off after the IDU has
-  // confirmed a packed FIX state, not when the command is merely requested.
   this->swing_mode = climate::CLIMATE_SWING_OFF;
   this->publish_state();
 
@@ -314,6 +328,27 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
   if (call.get_target_temperature().has_value() && has_validated_mode_profile(this->idu_family_) &&
       *call.get_target_temperature() < MIN_TEMP_STANDARD && requested_mode != ToshibaHvacMode::HEAT) {
     ESP_LOGW(TAG, "8 °C heat setpoints are only valid in Heat on the validated J2/P2 path");
+    return;
+  }
+
+  if (this->idu_family_ == ToshibaIndoorUnitFamily::J2FVG && call.get_swing_mode().has_value()) {
+    const auto requested_swing = *call.get_swing_mode();
+    uint8_t raw = 0x31;
+    if (requested_swing == climate::CLIMATE_SWING_VERTICAL) raw = 0x41;
+    else if (requested_swing != climate::CLIMATE_SWING_OFF) {
+      ESP_LOGW(TAG, "J2 supports vertical swing only");
+      return;
+    }
+
+    ESP_LOGD(TAG, "Requesting J2 swing %s -> A3=%02X", climate_swing_mode_to_string(requested_swing), raw);
+    this->sendCmd(ToshibaCommandType::SWING, raw);
+    this->requestData(ToshibaCommandType::SWING);
+
+    if (climate_call_is_swing_only(call)) return;
+
+    // Do not pass a combined J2 swing call into the inherited P2-oriented A3
+    // encoder. HA normally issues swing as a separate climate call.
+    ESP_LOGW(TAG, "Combined J2 swing + climate-property call rejected; issue the swing change separately");
     return;
   }
 
@@ -392,7 +427,19 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
 
   if (response_register == static_cast<uint8_t>(ToshibaCommandType::SWING) &&
       extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::SWING), value)) {
-    this->publish_horizontal_air_direction_(value);
+    if (this->idu_family_ == ToshibaIndoorUnitFamily::J2FVG && value >= 0x50 && value <= 0x54) {
+      const uint8_t vertical = static_cast<uint8_t>(value - 0x4F);
+      const char *vertical_name = VerticalFixedPositionName(vertical);
+      if (vertical_name != nullptr && this->vertical_air_direction_select_ != nullptr)
+        this->vertical_air_direction_select_->publish_state(vertical_name);
+      this->swing_mode = climate::CLIMATE_SWING_OFF;
+      this->publish_state();
+      ESP_LOGD(TAG, "J2 A3 FIX state %02X -> V=%u", value, vertical);
+      return;
+    }
+
+    if (this->idu_family_ == ToshibaIndoorUnitFamily::P2KVSG)
+      this->publish_horizontal_air_direction_(value);
   }
 
   if (response_register == static_cast<uint8_t>(ToshibaCommandType::SPECIAL_MODE) &&
