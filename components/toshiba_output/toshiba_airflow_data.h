@@ -25,10 +25,9 @@ namespace toshiba_output {
 // Sources:
 //   J2FVG console: Toshiba Service Manual SVM-20012-1, indoor fan air-flow-rate
 //                  tables (cooling/heating).
-//   P2KVSGB: provisional airflow endpoints, based on observed fan-speed feedback
-//            plus the B10 G3 service-manual airflow envelope until an exact P2
-//            service table is available. The E4+2 fan-speed interpretation
-//            itself is established.
+//   P2KVSGB: provisional airflow endpoints. The observed E4+2 fan-speed envelope
+//            is direct P2 evidence; the airflow endpoints remain provisional
+//            until exact P2 service data or direct airflow calibration is available.
 
 enum class AirflowMode : uint8_t { COOLING, HEATING };
 
