@@ -1,8 +1,8 @@
 # Reusable ESPHome package for Toshiba J2FVG floor-console IDUs.
 #
-# The consuming device YAML provides only substitutions and local Wi-Fi/API/OTA
-# secrets. The package owns the Toshiba UART component, climate controls,
-# identity persistence, engineering sensors and output estimator.
+# The consuming device YAML must provide the exact IDU model plus naming and
+# local Wi-Fi/API/OTA secrets. The declared model selects the runtime family,
+# capability matrix and family-specific command encoding.
 # MQTT is intentionally excluded; it is only used by this project's test rigs.
 
 substitutions:
@@ -76,6 +76,7 @@ climate:
     name: ${room_name}
     id: room_id
     uart_id: uart_bus
+    model_override: ${idu_model}
     time_id: hass_time
     time_sync_interval: 24h
 
