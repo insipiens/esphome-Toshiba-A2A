@@ -3,6 +3,8 @@ ESPHome Toshiba A2A development
 
 Sep 16th 2026
 
+* made the exact IDU model a mandatory package substitution and pass it into the Toshiba component before runtime control, so family selection no longer depends on older firmware publishing a usable E0 model
+* separated J2FVG and P2KVSG A3 control encoding in the validated runtime: J2 vertical FIX now sends `50..54` and J2 vertical swing uses the J2 `31/41` path, while P2 retains packed H/V FIX and its captured swing commands
 * standardised package consumer examples on the project naming convention; added the Office J2 example (`toshiba-a2a-03` / `toshiba-A2A-OF`) and removed the stale Ballroom, direct root and superseded direct P2 examples; package CI now compiles Office J2 plus Kitchen P2
 * integrated the reusable J2/P2 package implementation into `main`, including the model-aware control/runtime changes required by the package templates
 * added `packages/toshiba-a2a-p2.yaml` plus J2 and P2 minimal consumer examples, all pinned to canonical `main`; package compile CI now runs on `main`
