@@ -87,17 +87,19 @@ Bottom  54
 
 J2 vertical swing uses the separate J2 path (`31/41`) rather than the P2 packed-axis encoding.
 
-The Home Assistant FIX selector is a stable five-position entity containing only `Top`, `Upper`, `Centre`, `Lower` and `Bottom`. Its state is passive: it changes only when the component receives a J2 `A3 50..54` FIX state from the IDU. There is no periodic template polling and no synthetic `Not available` or `Position unknown` option in the dropdown.
+The Home Assistant FIX selector contains only `Top`, `Upper`, `Centre`, `Lower` and `Bottom`. Its state is passive: it changes only when the component receives a J2 `A3 50..54` FIX state from the IDU. There is no periodic template polling and no synthetic `Not available` or `Position unknown` option in the dropdown.
 
 Ordinary J2 A3 swing states are handled by the climate swing state and are not published into the FIX selector. This prevents normal `Off`/swing readback from being treated as an invalid FIX choice.
 
-FIX writes are gated by Toshiba-reported identity. The declared YAML model still selects the J2 protocol and capability profile, but a FIX command is rejected until a usable IDU model has been learned from `E0` or restored from a previously accepted E0 report. If no usable E0 model has ever been reported, the entity remains present but has no confirmed FIX state and cannot issue FIX commands.
+FIX exposure is learned from Toshiba-reported identity. On boot the package restores the last accepted E0 IDU model from persistent storage. If a usable E0 model has previously been learned, the public FIX selector remains exposed. If no usable E0 model has ever been learned, the selector is marked `internal` before Home Assistant API discovery and is therefore not exposed. A newly discovered valid E0 model is saved during the first run and the selector becomes public after the next reboot/install. This two-boot behaviour is a temporary ESPHome 2026.8.x compatibility measure until setup-time entity exposure is formally supported by the stable platform.
+
+The command path is independently gated by Toshiba-reported identity. The declared YAML model still selects the J2 protocol and family capability profile, but a FIX command is rejected until a usable IDU model has been learned from E0 or restored from a previously accepted E0 report.
 
 Direct B13J2 testing confirmed passive readback of all five positions after the unit was running: `50` Top, `51` Upper, `52` Centre, `53` Lower and `54` Bottom. A FIX write while the IDU was off was ACKed but the IDU continued to report ordinary A3 Off state until operation resumed, so ACK alone is not treated as authoritative position state.
 
 ### Older B10J2 firmware
 
-One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
+One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. Because no usable E0 IDU model is persisted, the public FIX selector remains internal/hidden on subsequent boots. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
 
 ### P2KVSG
 
