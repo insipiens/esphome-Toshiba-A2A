@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 16th 2026
 
+* changed the focused UART monitor from purely passive capture to targeted louvre observation: while enabled it now alternates explicit `A3`/`A4` reads every 500 ms (1 Hz per register) and emits a dedicated `FOCUSED LOUVRE CHANGE` log only when the decoded louvre payload changes, allowing older J2 units that do not push IR-remote FIX changes to be investigated without fitting the genuine Wi-Fi adaptor
 * made the exact IDU model a mandatory package substitution and pass it into the Toshiba component before runtime control, so family selection no longer depends on older firmware publishing a usable E0 model
 * separated J2FVG and P2KVSG A3 control encoding in the validated runtime: J2 vertical FIX now sends `50..54` and J2 vertical swing uses the J2 `31/41` path, while P2 retains packed H/V FIX and its captured swing commands
 * standardised package consumer examples on the project naming convention; added the Office J2 example (`toshiba-a2a-03` / `toshiba-A2A-OF`) and removed the stale Ballroom, direct root and superseded direct P2 examples; package CI now compiles Office J2 plus Kitchen P2
