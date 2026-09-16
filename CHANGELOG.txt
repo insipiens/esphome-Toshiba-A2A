@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 16th 2026
 
+* validated boot-time J2 FIX exposure on the older Office B10J2: with no usable persisted E0 IDU model the FIX selector remained hidden from Home Assistant, while ordinary J2 swing 31/41 and Quiet fan operation continued to work normally
 * changed J2 FIX exposure to a boot-time decision using the persisted Toshiba-reported E0 IDU model: no learned model keeps the public FIX selector internal/hidden, while a previously learned valid model exposes it; first-time discovery therefore requires one reboot/install on ESPHome 2026.8.x
 * fixed ESPHome fan-mode exposure/readback so Auto / Quiet / Low / Medium / High use native climate fan modes while only Toshiba's intermediate levels 2 and 4 use custom fan modes; this restores working Quiet control (`A0/F8 = 31`) and keeps readback consistent with Home Assistant traits
 * changed J2 FIX to passive state handling: the Home Assistant selector now contains only Top / Upper / Centre / Lower / Bottom, has no 1-second template polling, and updates only when the IDU reports A3 50..54
@@ -30,7 +31,7 @@ Sep 14th 2026
 * added J2FVG family-specific capability and mode profiles instead of inheriting a broad generic residential profile
 * documented Toshiba J2 control semantics and separated documented behaviour, direct observations and unresolved multi-split interactions
 * decoded pushed E0 equipment identification into IDU and ODU records and exposed model/identity fields
-* decoded P2 A3 FIX as a packed two-axis value and implemented preserved-axis writes
+* decoded P2 A3 FIX as a packed horizontal/vertical `A3` representation. Vertical and horizontal state are therefore handled differently from J2 and remain in the P2 package.
 * added the validated P2 control layer with separate Home Assistant entities for Power Select, ECO, Hi POWER, Silent Operation, PURE, 8 °C Heat and defrost
 * implemented directly observed P2 mode restrictions and Power Select cancellation behaviour
 * promoted E4 +2 to live IDU fan-speed feedback on the tested units and updated model-specific airflow estimation accordingly
