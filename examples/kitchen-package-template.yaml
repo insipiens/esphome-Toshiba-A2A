@@ -1,11 +1,12 @@
-# Minimal device YAML for the installed Kitchen RAS-B10P2KVSGB-E.
-# The GitHub package creates the Toshiba climate entity, controls, sensors,
-# identity persistence and output estimator. MQTT is intentionally omitted.
+# Minimal consuming YAML for the installed Kitchen RAS-B10P2KVSGB-E.
+# The exact IDU model is mandatory; the package derives the family profile,
+# capabilities and family-specific command encoding from it.
 
 substitutions:
   device_name: "toshiba-a2a-02"
   friendly_name: "toshiba-A2A-Ki"
   room_name: "Kitchen"
+  idu_model: "RAS-B10P2KVSGB-E"
 
 packages:
   toshiba_a2a:
