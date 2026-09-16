@@ -21,7 +21,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Apply refactor
-        run: python tools/refactor_toshiba_a2a.py
+        run: |
+          python tools/refactor_toshiba_a2a.py
+          git checkout -- .github/workflows/refactor-toshiba-a2a.yml
       - name: Commit generated refactor
         run: |
           git config user.name "github-actions[bot]"
