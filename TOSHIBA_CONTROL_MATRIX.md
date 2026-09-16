@@ -109,4 +109,6 @@ The UART register is transport, not the public UI model. Family capability, HVAC
 
 The exact IDU model is mandatory in the consuming YAML and is the configuration authority for family selection. The runtime maps that model to `J2FVG`, `P2KVSG`, or a conservative unknown profile before control commands are issued.
 
-`0xE0` remains the Toshiba-reported identity source when available. Older J2 firmware may not report a usable model, so control behaviour must not depend on `0xE0` being present.
+`0xE0` remains the Toshiba-reported identity source when available. A declared model therefore continues to select the correct family protocol even on older firmware whose `0xE0` IDU-model field is blank/`NULL`.
+
+Optional FIX entities are intentionally a separate UI-confidence decision. They are configured by the package but are registered with ESPHome/Home Assistant only after the IDU itself reports a usable model in `0xE0`. If the IDU model field is blank/`NULL`, the family still retains its documented FIX capability, but the optional FIX controls are not advertised. After first startup or a package change affecting optional discovery, reconnect/restart the Home Assistant client after E0 identity detection so the final entity list is requested again.
