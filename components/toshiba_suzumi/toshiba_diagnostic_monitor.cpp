@@ -153,9 +153,8 @@ void ToshibaSpecialModeLevelSelect::control(const std::string &value) {
 }
 
 void ToshibaDiagnosticMonitorUart::update() {
-  // The development monitor is passive. Normal polling must continue while the
-  // switch is enabled, so temporarily hide the monitor flag from the base
-  // update() guard.
+  // Normal polling must continue while the focused monitor is enabled, so
+  // temporarily hide the monitor flag from the base update() guard.
   const bool monitoring = this->scan_active_;
   if (monitoring) this->scan_active_ = false;
   ToshibaClimateUart::update();
@@ -253,20 +252,31 @@ void ToshibaDiagnosticMonitorUart::set_scan_enabled(bool enabled) {
   this->monitor_stop_requested_ = false;
 
   if (enabled) {
-    this->monitor_cycle_started_ = millis();
+    this->monitor_cycle_started_ = 0;
+    this->monitor_register_index_ = 0;
     this->monitor_last_payload_.fill({});
     this->monitor_payload_seen_.fill(false);
-    ESP_LOGI(TAG, "========== TOSHIBA PASSIVE UART MONITOR STARTED ==========");
-    ESP_LOGI(TAG, "capturing every received Toshiba frame; no diagnostic register polling is generated");
-    ESP_LOGI(TAG, "normal command TX remains visible through the existing ToshibaCommand debug log");
+    ESP_LOGI(TAG, "========== TOSHIBA FOCUSED UART MONITOR STARTED ==========");
+    ESP_LOGI(TAG, "polling louvre registers A3/A4 at 1 Hz each; received UART traffic remains visible");
+    ESP_LOGI(TAG, "use the physical remote between polls to expose non-pushed louvre state changes");
   } else {
-    ESP_LOGI(TAG, "========== TOSHIBA PASSIVE UART MONITOR STOPPED ==========");
+    ESP_LOGI(TAG, "========== TOSHIBA FOCUSED UART MONITOR STOPPED ==========");
   }
 }
 
 void ToshibaDiagnosticMonitorUart::process_scan_() {
-  // Intentionally empty: the development monitor is passive and must not alter
-  // bus traffic or pause ordinary climate communication.
+  if (!this->scan_active_ || this->monitor_stop_requested_) return;
+
+  const uint32_t now = millis();
+  if (this->monitor_cycle_started_ != 0 && now - this->monitor_cycle_started_ < 500) return;
+  this->monitor_cycle_started_ = now;
+
+  // Alternate A3 and A4 every 500 ms, giving each louvre register a 1 Hz poll.
+  // A4 is not otherwise part of the public command enum, but the request frame
+  // format is register-generic, so casting the raw register is intentional.
+  const uint8_t reg = (this->monitor_register_index_++ & 0x01) == 0 ? 0xA3 : 0xA4;
+  ESP_LOGD(TAG, "FOCUSED LOUVRE POLL reg=0x%02X", static_cast<unsigned>(reg));
+  this->requestData(static_cast<ToshibaCommandType>(reg));
 }
 
 void ToshibaDiagnosticMonitorUart::send_monitor_request_() {}
@@ -308,13 +318,13 @@ void ToshibaDiagnosticMonitorUart::remember_monitor_payload_(uint8_t reg,
 }
 
 void ToshibaDiagnosticMonitorUart::log_timer_bank_snapshot_() const {
-  // Retained for compatibility with older development builds. Passive monitor
+  // Retained for compatibility with older development builds. Focused monitor
   // mode no longer generates a synthetic register-bank snapshot.
 }
 
 void ToshibaDiagnosticMonitorUart::log_scan_packet_(const std::vector<uint8_t> &raw) {
-  // No active scan requests are issued in passive-monitor mode, but if an older
-  // call path reaches here, treat the packet exactly like ordinary live traffic.
+  // Focused monitor polling uses the normal request/response path rather than
+  // the legacy scanner path; keep this fallback for older call paths.
   this->parseResponse(raw);
 }
 
@@ -339,12 +349,29 @@ void ToshibaDiagnosticMonitorUart::log_monitor_bytes_(const std::vector<uint8_t>
 
 void ToshibaDiagnosticMonitorUart::log_monitor_decoded_(const std::vector<uint8_t> &raw, int16_t reg) {
   std::vector<uint8_t> payload;
-  if (this->extract_monitor_payload_(raw, reg, payload)) {
-    this->remember_monitor_payload_(static_cast<uint8_t>(reg), payload);
-    ESP_LOGI(TAG, "UART MONITOR VALUE reg=0x%02X value=[%s] len=%u",
-             static_cast<unsigned>(reg), format_hex_pretty(payload).c_str(),
-             static_cast<unsigned>(payload.size()));
+  if (!this->extract_monitor_payload_(raw, reg, payload)) return;
+
+  bool changed = true;
+  if (reg >= 0x80) {
+    const size_t index = static_cast<size_t>(reg - 0x80);
+    if (index < this->monitor_last_payload_.size() && this->monitor_payload_seen_[index])
+      changed = this->monitor_last_payload_[index] != payload;
   }
+
+  this->remember_monitor_payload_(static_cast<uint8_t>(reg), payload);
+
+  if (reg == 0xA3 || reg == 0xA4) {
+    if (changed) {
+      ESP_LOGI(TAG, "FOCUSED LOUVRE CHANGE reg=0x%02X value=[%s] len=%u",
+               static_cast<unsigned>(reg), format_hex_pretty(payload).c_str(),
+               static_cast<unsigned>(payload.size()));
+    }
+    return;
+  }
+
+  ESP_LOGI(TAG, "UART MONITOR VALUE reg=0x%02X value=[%s] len=%u",
+           static_cast<unsigned>(reg), format_hex_pretty(payload).c_str(),
+           static_cast<unsigned>(payload.size()));
 }
 
 }  // namespace toshiba_suzumi
