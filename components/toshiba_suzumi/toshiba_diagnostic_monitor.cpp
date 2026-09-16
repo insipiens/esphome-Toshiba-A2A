@@ -23,8 +23,12 @@ void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentific
       ESP_LOGI(TAG, "E0 IDU family: %s", indoor_unit_family_to_string(this->idu_family_));
       if (this->idu_model_sensor_ != nullptr) this->idu_model_sensor_->publish_state(this->idu_model_);
     }
+    // Optional model-dependent entities are deliberately registered only after
+    // Toshiba itself reports a usable IDU model in E0. A YAML model override
+    // still selects protocol routing, but it does not bypass this UI gate.
+    this->on_reported_idu_model_available_();
   } else {
-    ESP_LOGD(TAG, "E0 IDU model unavailable; retaining current runtime identity");
+    ESP_LOGD(TAG, "E0 IDU model unavailable; retaining current runtime identity and conservative UI");
   }
 
   if (!equipment.idu_identity_1.empty() && this->idu_identity_1_ != equipment.idu_identity_1) {
@@ -223,7 +227,12 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
       if (val != 127) this->idu_junction_temp_sensor_->publish_state(val);
     }
     if (this->idu_fan_speed_sensor_ != nullptr) {
-      this->idu_fan_speed_sensor_->publish_state(raw[offset + 2]);
+      const uint8_t fan_raw = raw[offset + 2];
+      if (fan_raw < 0xFE) {
+        this->idu_fan_speed_sensor_->publish_state(fan_raw);
+      } else {
+        ESP_LOGD(TAG, "E4 IDU fan-speed feedback unavailable (raw=0x%02X)", fan_raw);
+      }
     }
     return;
   }
