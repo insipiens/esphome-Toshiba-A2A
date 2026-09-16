@@ -14,6 +14,7 @@ The summary table is an index. Detailed sections below describe framing, payload
 | `0x92` | ON timer programmed delay | Write | `HH MM`; `00 1E` = 30 min, `01 00` = 1 h, `0C 00` = 12 h | **confirmed on P2KVSG and J2FVG** |
 | `0x94` | OFF timer state/control | R/W | `0x41` active, `0x42` inactive/cancelled | **confirmed on P2KVSG and J2FVG** |
 | `0x96` | OFF timer programmed delay | R/W | `HH MM`; `00 1E` = 30 min, `01 00` = 1 h | **confirmed on P2KVSG and J2FVG** |
+| `0x99` | Clock/calendar and programme structure | Write / pushed variants observed | Long Wi-Fi→IDU onboarding frame begins `[year-1900][month-1][day][hour][minute][second][weekday]`; other long `0x99` structures may carry programme/schedule data | **clock/calendar prefix confirmed from two independent captures; wider structure partially decoded** |
 | `0xA0` | Fan command | R/W | Quiet `31`; levels `32..36`; Auto `41` | **validated / established** |
 | `0xA3` | Swing / louvre / FIX / H.DA | R/W / pushed | Readback `31/41/42/43/60`; command encoding is family-specific: P2 uses packed H/V FIX values, while J2FVG uses vertical FIX `50..54`; IDU also pushes `80` | **confirmed register; family-specific FIX encoding confirmed on P2; J2FVG mapping directly verified on B13J2** |
 | `0xA4` | Structured louvre state | Read | 3-byte record; byte 0 tracks ordinary `A3` state; bytes 1-2 unresolved | **observed, partially decoded** |
@@ -34,8 +35,8 @@ The summary table is an index. Detailed sections below describe framing, payload
 | `0xDB` | Legacy yearly energy | declared | No current parser/use | **declared only** |
 | `0xDE` | Wireless/Wi-Fi LED | Write | `00` OFF, `05` ON | **confirmed** |
 | `0xDF` | Additional Wi-Fi-related control | Write | Existing component uses it alongside `DE` | **not independently validated** |
-| `0xE0` | Equipment/model information | pushed | Two 50-byte records: IDU then ODU; each contains model plus three fixed ASCII identity fields | **confirmed across B13J2, B10J2 and B10P2** |
-| `0xE4` | IDU engineering status | pushed/read | 8-byte record; `+2` is live IDU fan-speed feedback at approximately 10 rpm/count (RPM/10), distinct from the fan command enum | **confirmed field purpose and scale on tested units** |
+| `0xE0` | Equipment/model information | pushed | Two 50-byte records: IDU then ODU; each contains model plus three fixed ASCII identity fields; older J2 firmware can report IDU model as literal `NULL` while other identity fields remain populated | **confirmed across B13J2, B10J2 and B10P2** |
+| `0xE4` | IDU engineering status | pushed/read | 8-byte record; `+2` is live IDU fan-speed feedback at approximately 10 rpm/count (RPM/10), distinct from the fan command enum; `FE/FF` are treated as unavailable rather than speed values | **confirmed field purpose/scale; unavailable handling based on observed sentinel form** |
 | `0xE5` | ODU/system engineering status | pushed/read | 8-byte engineering record; `+6` is current-like and tracks ODU electrical activity | **partially decoded** |
 | `0xEA` | Date/time sync | Write | Multi-byte time/date write; ACK pattern previously mapped | **established** |
 | `0xF7` | Special-function selector | R/W | Standard `00`, Hi POWER `01`, Silent 1 `02`, ECO `03`, 8°C `04`, Sleep `05`, Floor `06`, Comfort `07`, Silent 2 `0A`, Fireplace 1 `20`, Fireplace 2 `30` | **enum established; authoritative readback still to test** |
@@ -282,6 +283,35 @@ cancel:
 ```
 
 Clearing the timer does not require zeroing `0x96`.
+
+## Register `0x99` — Clock/calendar and programme structure
+
+A long class-`0x10` `0x99` frame is sent by the genuine Wi-Fi adaptor during onboarding/pairing. Two independent captures prove that the leading bytes are a clock/calendar synchronisation record rather than a capability query.
+
+Observed leading payloads:
+
+```text
+7E 08 10 0F 12 13 03 ...   captured at about 2026-09-16 15:18:19
+7E 08 10 0F 21 14 03 ...   captured at about 2026-09-16 15:33:20
+```
+
+They decode exactly as:
+
+```text
++0 = year since 1900   0x7E = 126 -> 2026
++1 = zero-based month  0x08 = September
++2 = day of month      0x10 = 16
++3 = hour              0x0F = 15
++4 = minute
++5 = second
++6 = weekday           0x03 = Wednesday when Sunday=0
++7 = 00
++8 = 00
+```
+
+In these onboarding captures the remaining fixed-width structure is filled with `FF`, and the IDU returns a short ACK-like response for register `0x99`.
+
+This establishes the clock/calendar prefix for the Wi-Fi→IDU long form. It does **not** establish that every long `0x99` frame has only this purpose: other previously observed long `0x99` traffic, including IDU-originated programme/schedule-like structures, remains only partially decoded.
 
 ## Register `0xA0` — Fan command
 
@@ -776,6 +806,8 @@ RAS-5M34G3AVG-E1
 
 The identical four-field ODU record across all three captures, combined with the differing IDU-side fields, confirms the record boundary and field locality. The older B10J2 firmware can publish literal `NULL` for its first two IDU fields while still providing identity fields 2 and 3.
 
+This `NULL` model observation is **not** evidence that the B10J2 family lacks controls such as FIX. In the project package the mandatory declared model remains authoritative for family/protocol routing. The absence of a Toshiba-reported E0 model is used only as a conservative UI-confidence signal: optional FIX entities are not advertised until a usable model is actually reported by E0.
+
 `0xE0` is pushed asynchronously. Ordinary short active reads have timed out on tested J2 units, so implementations should not assume the record can be obtained by polling during initialisation. The Wi-Fi side acknowledges a received `E0` push with the standard class-`0x91` ACK.
 
 ## Register `0xE4` — IDU engineering status
@@ -803,6 +835,8 @@ Examples of the established scale include:
 61  -> ~610 rpm
 103 -> ~1030 rpm
 ```
+
+The older Office J2 firmware has also returned `FE` in this field when usable live fan feedback is not available. `FE` must not be interpreted as decimal 254 and passed through the RPM/airflow conversion. The runtime therefore treats `FE` and `FF` as unavailable engineering values and leaves the previous derived airflow/output state untouched. The observed sentinel behaviour is clear; the protocol's formal definition of the sentinel range remains undocumented.
 
 The lower-speed J2FVG console values and the substantially higher P2KVSGB high-wall values are physically consistent with their different blower and air-path geometry. The P2 high-wall fan runs faster; this is not evidence of an alternate E4 encoding.
 
