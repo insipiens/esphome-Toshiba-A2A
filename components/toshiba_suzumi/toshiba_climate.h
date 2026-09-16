@@ -278,6 +278,7 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
                                  const std::string &value);
   void publish_special_mode_entities_(SPECIAL_MODE mode);
   void set_detected_equipment_(const ToshibaEquipmentIdentification &equipment);
+  virtual void on_reported_idu_model_available_() {}
   virtual void process_scan_();
   void send_scan_request_();
   void complete_scan_register_();
@@ -338,6 +339,12 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
  public:
   void setup() override;
   void set_horizontal_air_direction_select(select::Select *sel) { horizontal_air_direction_select_ = sel; }
+  void set_deferred_vertical_air_direction_select(ToshibaValidatedVerticalAirDirectionSelect *sel) {
+    deferred_vertical_air_direction_select_ = sel;
+  }
+  void set_deferred_horizontal_air_direction_select(ToshibaHorizontalAirDirectionSelect *sel) {
+    deferred_horizontal_air_direction_select_ = sel;
+  }
   void set_pure_switch(ToshibaPureSwitch *entity) { pure_switch_ = entity; }
   void set_defrost_active_sensor(binary_sensor::BinarySensor *sensor) { defrost_active_sensor_ = sensor; }
   void set_eco_switch(ToshibaValidatedFunctionSwitch *entity) { validated_eco_switch_ = entity; }
@@ -349,6 +356,7 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
   void parseResponse(std::vector<uint8_t> raw_data) override;
+  void on_reported_idu_model_available_() override;
   ToshibaHvacMode current_hvac_mode_() const;
   bool validated_function_allowed_(ToshibaFeature feature, ToshibaHvacMode mode) const;
   bool validated_fan_allowed_(uint8_t fan_option, ToshibaHvacMode mode) const;
@@ -365,6 +373,10 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   void publish_horizontal_air_direction_(uint8_t raw);
 
   select::Select *horizontal_air_direction_select_ = nullptr;
+  ToshibaValidatedVerticalAirDirectionSelect *deferred_vertical_air_direction_select_ = nullptr;
+  ToshibaHorizontalAirDirectionSelect *deferred_horizontal_air_direction_select_ = nullptr;
+  bool vertical_air_direction_registered_{false};
+  bool horizontal_air_direction_registered_{false};
   ToshibaPureSwitch *pure_switch_ = nullptr;
   binary_sensor::BinarySensor *defrost_active_sensor_ = nullptr;
   ToshibaValidatedFunctionSwitch *validated_eco_switch_ = nullptr;
