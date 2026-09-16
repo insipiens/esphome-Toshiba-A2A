@@ -113,6 +113,10 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
     this->idu_family_ = indoor_unit_family_from_model(model);
     this->capabilities_ = capability_profile_from_model(model);
     if (this->idu_model_sensor_ != nullptr) this->idu_model_sensor_->publish_state(model);
+    // Persisted IDU models are written only from accepted Toshiba E0 reports.
+    // Re-apply the same optional-entity gate during startup so discovery is
+    // complete before Home Assistant reconnects on subsequent boots.
+    this->on_reported_idu_model_available_();
   }
   void restore_idu_identity_1(const std::string &value) {
     if (value.empty()) return;
