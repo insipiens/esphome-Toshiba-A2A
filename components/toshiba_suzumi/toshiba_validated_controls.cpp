@@ -66,14 +66,11 @@ bool climate_call_is_swing_only(const climate::ClimateCall &call) {
 
 void ToshibaValidatedControlUart::setup() {
   ToshibaDiagnosticMonitorUart::setup();
+  // ESPHome already has native Auto / Quiet / Low / Medium / High fan modes.
+  // Only Toshiba's two intermediate levels need to be exposed as custom modes.
   this->set_supported_custom_fan_modes({
-      CUSTOM_FAN_AUTO,
-      CUSTOM_FAN_QUIET,
-      CUSTOM_FAN_LOW,
       CUSTOM_FAN_LEVEL_2,
-      CUSTOM_FAN_MEDIUM,
       CUSTOM_FAN_LEVEL_4,
-      CUSTOM_FAN_HIGH,
   });
 }
 
@@ -96,9 +93,10 @@ void ToshibaValidatedControlUart::on_reported_idu_model_available_() {
 }
 
 climate::ClimateTraits ToshibaValidatedControlUart::traits() {
-  auto traits = ToshibaDiagnosticMonitorUart::traits();
-  traits.set_supported_fan_modes({});
-  return traits;
+  // Keep the base component's native Auto / Quiet / Low / Medium / High modes.
+  // The two Toshiba-only intermediate fan levels are registered as custom modes
+  // during setup().
+  return ToshibaDiagnosticMonitorUart::traits();
 }
 
 ToshibaHvacMode ToshibaValidatedControlUart::current_hvac_mode_() const {
@@ -397,16 +395,10 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
   const int16_t response_register = this->extract_response_register_(raw);
   uint8_t value = 0;
 
-  if (response_register == static_cast<uint8_t>(ToshibaCommandType::FAN) &&
-      extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::FAN), value)) {
-    const char *fan_mode = IntToCustomFanMode(static_cast<FAN>(value));
-    if (std::strcmp(fan_mode, "Unknown") != 0) {
-      ESP_LOGI(TAG, "Received Toshiba fan mode: %s", fan_mode);
-      this->set_custom_fan_mode_(fan_mode);
-      this->publish_state();
-      return;
-    }
-  }
+  // FAN readback deliberately falls through to ToshibaClimateUart via the
+  // diagnostic layer. The base parser maps Auto / Quiet / Low / Medium / High
+  // to native ESPHome fan modes and only Toshiba levels 2 and 4 to custom fan
+  // modes, matching the traits exposed to Home Assistant.
 
   if (response_register == static_cast<uint8_t>(ToshibaCommandType::PURE) &&
       extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::PURE), value)) {
