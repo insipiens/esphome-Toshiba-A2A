@@ -237,6 +237,11 @@ void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
 }
 
 void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::string &value) {
+  if (this->get_reported_idu_model().empty()) {
+    ESP_LOGW(TAG, "Vertical FIX unavailable: no usable IDU model reported by E0");
+    return;
+  }
+
   auto index = FixedPositionIndexFromName(value);
   if (!index.has_value()) {
     ESP_LOGW(TAG, "Unknown vertical FIX index: %s", value.c_str());
@@ -446,14 +451,33 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
 
   if (response_register == static_cast<uint8_t>(ToshibaCommandType::SWING) &&
       extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::SWING), value)) {
-    if (this->idu_family_ == ToshibaIndoorUnitFamily::J2FVG && value >= 0x50 && value <= 0x54) {
-      const uint8_t vertical = static_cast<uint8_t>(value - 0x4F);
-      const char *vertical_name = VerticalFixedPositionName(vertical);
-      if (vertical_name != nullptr && this->vertical_air_direction_select_ != nullptr)
-        this->vertical_air_direction_select_->publish_state(vertical_name);
-      this->swing_mode = climate::CLIMATE_SWING_OFF;
-      this->publish_state();
-      ESP_LOGD(TAG, "J2 A3 FIX state %02X -> V=%u", value, vertical);
+    if (this->idu_family_ == ToshibaIndoorUnitFamily::J2FVG) {
+      if (value >= 0x50 && value <= 0x54) {
+        const uint8_t vertical = static_cast<uint8_t>(value - 0x4F);
+        const char *vertical_name = VerticalFixedPositionName(vertical);
+        if (!this->get_reported_idu_model().empty() && vertical_name != nullptr &&
+            this->vertical_air_direction_select_ != nullptr)
+          this->vertical_air_direction_select_->publish_state(vertical_name);
+        this->swing_mode = climate::CLIMATE_SWING_OFF;
+        this->publish_state();
+        ESP_LOGD(TAG, "J2 A3 FIX state %02X -> V=%u", value, vertical);
+        return;
+      }
+
+      if (value == 0x31) {
+        this->swing_mode = climate::CLIMATE_SWING_OFF;
+        this->publish_state();
+        ESP_LOGI(TAG, "Received J2 swing mode: OFF");
+        return;
+      }
+      if (value == 0x41) {
+        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+        this->publish_state();
+        ESP_LOGI(TAG, "Received J2 swing mode: VERTICAL");
+        return;
+      }
+
+      ESP_LOGD(TAG, "Ignoring unrecognised J2 A3 state 0x%02X for FIX selector", value);
       return;
     }
 
