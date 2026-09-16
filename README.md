@@ -141,25 +141,18 @@ The tested family/mode/control relationships are kept in [TOSHIBA_CONTROL_MATRIX
 
 ## Installation during development
 
-Use [example.yaml](example.yaml) as the current minimal example. It is deliberately limited to normal climate operation and directly useful entities.
+Normal installations use the reusable family package on canonical `main`. Current minimal consumer examples are:
 
-```yaml
-external_components:
-  - source:
-      type: git
-      url: https://github.com/insipiens/esphome-Toshiba-A2A
-      ref: main
-    components: [toshiba_suzumi]
-    refresh: 1min
-```
+- [examples/office-j2-package-template.yaml](examples/office-j2-package-template.yaml) — J2FVG floor-console package example using the project device naming convention;
+- [examples/kitchen-package-template.yaml](examples/kitchen-package-template.yaml) — P2KVSG high-wall package example using the same naming convention.
 
-The example uses an ESP32-C3 build target because that reflects current project hardware. Its GPIO assignments are examples only and must match the user's actual adapter wiring.
+The package owns the ESP32-C3 target, UART, Toshiba climate entities, engineering sensors, identity persistence and output estimator. The consuming YAML supplies the device substitutions and local Wi-Fi/API/OTA configuration.
 
-Additional examples are separated by purpose rather than being mixed into the normal configuration:
+Research examples remain separate from normal installation:
 
-- [examples/diagnostic_capture.yaml](examples/diagnostic_capture.yaml) — passive raw UART research capture; not needed for normal use;
-- [examples/engineering_telemetry.yaml](examples/engineering_telemetry.yaml) — E4/E5 engineering/status sensors whose availability varies by IDU/model/firmware;
-- [examples/output_estimation.yaml](examples/output_estimation.yaml) — experimental sensible-output estimator calibrated on the B13J2FVG reference unit, not a generic Toshiba output or COP model.
+- [examples/diagnostic_capture.yaml](examples/diagnostic_capture.yaml) — passive raw UART research capture;
+- [examples/engineering_telemetry.yaml](examples/engineering_telemetry.yaml) — focused E4/E5 engineering/status telemetry;
+- [examples/output_estimation.yaml](examples/output_estimation.yaml) — experimental sensible-output estimation.
 
 ## Hardware interface and safety
 
