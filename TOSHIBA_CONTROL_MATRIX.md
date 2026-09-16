@@ -9,7 +9,7 @@ Legend: `yes` = observed/documented for this family and mode, `no` = unavailable
 - `J2FVG` floor/console: directly tested on `RAS-B13J2FVG-E1`; older `RAS-B10J2FVG` units have different firmware behaviour.
 - `P2KVSG` high-wall: directly tested on installed `RAS-B10P2KVSGB-E`.
 
-The pushed `0xE0` model is used to select the family profile. Exact-model airflow/performance data remains separate from this control matrix.
+The consuming YAML must declare the exact IDU model. That model selects the runtime family profile and family-specific command encoding. Pushed `0xE0` identity remains diagnostic evidence and can confirm the declared model where the firmware reports it. Exact-model airflow/performance data remains separate from this control matrix.
 
 ## J2FVG mode matrix
 
@@ -105,8 +105,8 @@ This matrix is directly observed on the genuine Toshiba app connected to `RAS-B1
 
 The UART register is transport, not the public UI model. Family capability, HVAC-mode availability and compatibility rules determine which entities/actions are valid.
 
-## Family identification and fallback
+## Family identification
 
-`0xE0` pushed equipment identity supplies the normal IDU model. A static model override is only a fallback for older units whose valid `0xE0` payload reports no usable IDU model.
+The exact IDU model is mandatory in the consuming YAML and is the configuration authority for family selection. The runtime maps that model to `J2FVG`, `P2KVSG`, or a conservative unknown profile before control commands are issued.
 
-Unknown families fall back conservatively rather than inheriting J2 or P2 controls.
+`0xE0` remains the Toshiba-reported identity source when available. Older J2 firmware may not report a usable model, so control behaviour must not depend on `0xE0` being present.
