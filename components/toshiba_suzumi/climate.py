@@ -162,6 +162,16 @@ async def _register_special_switch(config, parent, key, mode_value, setter_name)
     cg.add(ent.set_special_mode(mode_value))
     cg.add(getattr(parent, setter_name)(ent))
 
+async def _new_deferred_select(config, parent_config, options):
+    """Configure a Select without adding it to App until the IDU reports a model."""
+    sel = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_parented(sel, parent_config[CONF_ID])
+    # setup_select_core_ configures name/object-id/traits but, unlike
+    # select.new_select(), does not queue App.register_select(). The C++ parent
+    # registers the entity only after a positive E0 IDU-model report.
+    await select.setup_select_core_(sel, config, options=options)
+    return sel
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -208,13 +218,11 @@ async def to_code(config):
     vertical_fixed_options = ["Top", "Upper", "Centre", "Lower", "Bottom"]
     horizontal_fixed_options = ["Left", "Left-Centre", "Centre", "Right-Centre", "Right"]
     if CONF_VERTICAL_AIR_DIRECTION in config:
-        sel = await select.new_select(config[CONF_VERTICAL_AIR_DIRECTION], options=vertical_fixed_options)
-        await cg.register_parented(sel, config[CONF_ID])
-        cg.add(var.set_vertical_air_direction_select(sel))
+        sel = await _new_deferred_select(config[CONF_VERTICAL_AIR_DIRECTION], config, vertical_fixed_options)
+        cg.add(var.set_deferred_vertical_air_direction_select(sel))
     if CONF_HORIZONTAL_AIR_DIRECTION in config:
-        sel = await select.new_select(config[CONF_HORIZONTAL_AIR_DIRECTION], options=horizontal_fixed_options)
-        await cg.register_parented(sel, config[CONF_ID])
-        cg.add(var.set_horizontal_air_direction_select(sel))
+        sel = await _new_deferred_select(config[CONF_HORIZONTAL_AIR_DIRECTION], config, horizontal_fixed_options)
+        cg.add(var.set_deferred_horizontal_air_direction_select(sel))
 
     if CONF_SELF_CLEAN in config:
         sens = await binary_sensor.new_binary_sensor(config[CONF_SELF_CLEAN])
