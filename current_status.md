@@ -1,0 +1,173 @@
+# Current status
+
+This document records the current implementation state, the hardware directly tested, the findings that affect the design, and the main limitations still under investigation.
+
+It is intentionally more detailed than the README. Protocol-level detail belongs in `TOSHIBA_REGISTER_MAP.md`; family/mode availability belongs in `TOSHIBA_CONTROL_MATRIX.md`.
+
+## Project scope
+
+The repository controls Toshiba residential air-to-air indoor units over the internal UART connection used by Toshiba Wi-Fi accessories. The component currently targets ESP32, primarily ESP32-C3 boards, under ESPHome.
+
+The current codebase is a substantial rewrite and extension of `pedobry/esphome_toshiba_suzumi`. The component directory still uses the historical `toshiba_suzumi` name to avoid an unnecessary breaking rename while development is active.
+
+## Hardware directly tested
+
+The current test installation includes:
+
+- `RAS-5M34G3AVG-E1` multi-split outdoor unit;
+- `RAS-B13J2FVG-E1` floor/console indoor unit;
+- `RAS-B10J2FVG` family floor/console indoor units, including older firmware behaviour;
+- `RAS-B10P2KVSGB-E` high-wall indoor unit;
+- ESP32-C3 SuperMini-based UART adapters.
+
+Results from these units must not be treated as proof of identical behaviour across all Toshiba residential families or firmware revisions.
+
+## Current architecture
+
+The consuming YAML declares the exact IDU model. That declared model is used for family selection, command encoding and model-specific performance data.
+
+Toshiba `0xE0` equipment-identification traffic is treated as reported runtime identity and diagnostic evidence. Some older firmware sends `NULL` in the IDU-model field even though the rest of the equipment-identification packet is valid.
+
+The main control architecture is:
+
+```text
+UART traffic
+   -> protocol decoder
+   -> Toshiba logical state
+   -> family/model capability and mode rules
+   -> ESPHome entities
+   -> Home Assistant
+```
+
+A UART register is therefore treated as a transport detail rather than automatically as the correct Home Assistant user-interface abstraction.
+
+## Packages
+
+Two reusable package profiles are currently maintained:
+
+- `packages/toshiba-a2a-j2.yaml` for J2FVG floor/console units;
+- `packages/toshiba-a2a-p2.yaml` for P2KVSG high-wall units.
+
+The J2 package is shared by the tested B10J2 and B13J2 units. Firmware differences are handled at runtime where evidence requires it rather than by maintaining separate package copies.
+
+The package owns the ESP32-C3 target, UART, Toshiba climate entities, engineering sensors, identity handling and output estimator. The consuming YAML supplies model/name substitutions and local Wi-Fi/API/OTA settings.
+
+## Home Assistant control model
+
+The project no longer treats all Toshiba special functions as one climate-preset list. Functions are exposed separately so that the Home Assistant controls better resemble the Toshiba remote/application model.
+
+Examples include:
+
+- Power Select as a select;
+- ECO as a switch;
+- Hi POWER as a switch;
+- Silent operation as a select;
+- Fireplace as a select;
+- 8 °C heat as a switch;
+- Floor mode as a switch;
+- PURE as a switch;
+- FIX/louvre position as select entities where implemented;
+- defrost as explicit actions/state rather than a climate preset.
+
+Availability by HVAC mode and family is documented in `TOSHIBA_CONTROL_MATRIX.md`.
+
+## FIX / louvre control
+
+### J2FVG
+
+Vertical FIX has been directly captured on the genuine Toshiba adaptor on the B13J2. The five positions use J2-family `A3` values:
+
+```text
+Top     50
+Upper   51
+Centre  52
+Lower   53
+Bottom  54
+```
+
+J2 vertical swing uses the separate J2 path (`31/41`) rather than the P2 packed-axis encoding.
+
+The J2 Home Assistant FIX selector is now a stable entity rather than a dynamically registered entity. Its state is gated by Toshiba-reported `E0` identity:
+
+- no usable IDU model ever reported by `E0` -> `Not available`;
+- usable E0 model known, but no current FIX position decoded -> `Position unknown`;
+- usable E0 model and known FIX state -> normal five-position selection.
+
+This was introduced because late ESPHome entity registration did not reliably appear through Home Assistant native API discovery.
+
+### Older B10J2 firmware
+
+One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
+
+### P2KVSG
+
+P2 FIX uses a packed horizontal/vertical `A3` representation. Vertical and horizontal state are therefore handled differently from J2 and remain in the P2 package.
+
+## Fan and airflow telemetry
+
+`0xE4 +2` is treated as live IDU fan-speed feedback on the tested units, approximately 10 rpm per count.
+
+`FE` and `FF` are treated as unavailable/sentinel values rather than numeric fan speeds. They are excluded from derived airflow and output calculations.
+
+Airflow conversion is model-specific because different indoor-unit fan and air-path geometries produce very different airflow for the same protocol-scale concept.
+
+The current estimator therefore uses exact-model airflow/performance data where available rather than one generic Toshiba equation.
+
+## Engineering and energy data
+
+The component exposes engineering/status data from `0xE4` and `0xE5`, including selected IDU and ODU temperatures, load/current-like values and fan feedback.
+
+Energy data is also exposed, but some larger Toshiba energy-monitoring structures remain under investigation. Register-level interpretation and evidence grades are kept in `TOSHIBA_REGISTER_MAP.md`.
+
+## Equipment identification
+
+The pushed `0xE0` packet has been decoded as separate IDU and ODU records containing model and additional identity fields.
+
+Observed behaviour includes:
+
+- valid B13J2 model reporting;
+- valid P2 model reporting;
+- older B10J2 firmware returning `NULL` for IDU model;
+- usable ODU model reporting on the same installation.
+
+A decoded E0 packet is logged even when the reported model matches an already-known value so that packet receipt can be distinguished from absence of E0 traffic.
+
+## Diagnostics
+
+The normal package includes a `Toshiba focused monitor` diagnostic switch.
+
+Focused Monitor is passive. It does not inject its own A3/A4 reads or other register requests. Normal component traffic continues and received UART packets are logged in more detail while the monitor is enabled.
+
+Separate research examples remain available for deeper protocol work:
+
+- `examples/diagnostic_capture.yaml`;
+- `examples/engineering_telemetry.yaml`;
+- `examples/output_estimation.yaml`.
+
+## Current known limitations
+
+- Compatibility has only been directly tested on a small number of physical units.
+- Firmware differences within a nominal family are real and can affect model reporting and control behaviour.
+- Some controls are shared-ODU functions on a multi-split system and should not be assumed to be purely local to one IDU.
+- Several timer, maintenance and energy fields remain only partly decoded.
+- Exact locality of some ODU/current/energy values is still being verified.
+- Output estimation is experimental and is not a general Toshiba COP model.
+- P2 airflow endpoint data remains less mature than the J2 reference data.
+
+## Evidence policy
+
+The project tries to keep three levels separate:
+
+- directly observed on the physical unit;
+- supported by Toshiba documentation or strong repeatable protocol evidence;
+- unresolved/inferred.
+
+Unknown values should remain unknown until repeatable evidence justifies promoting them.
+
+## Detailed references
+
+- `TOSHIBA_CONTROL_MATRIX.md` — current family and HVAC-mode control matrix;
+- `TOSHIBA_REGISTER_MAP.md` — protocol/register findings and evidence grades;
+- `J2_MANUAL_CONTROL_NOTES.md` — notes derived from J2 Toshiba documentation;
+- `CHANGELOG.txt` — chronological development history;
+- `PROVENANCE.md` — upstream attribution and project lineage.
