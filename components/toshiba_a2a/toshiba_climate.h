@@ -12,13 +12,14 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "toshiba_climate_mode.h"
-#include "toshiba_model.h"
+#include "toshiba_device_profile.h"
+#include "toshiba_identity.h"
 
 namespace esphome {
 namespace time {
 class RealTimeClock;
 }  // namespace time
-namespace toshiba_suzumi {
+namespace toshiba_a2a {
 
 static const char *const TAG = "ToshibaClimateUart";
 static const uint8_t MAX_TEMP = 30;
@@ -485,5 +486,5 @@ class ToshibaHorizontalAirDirectionSelect : public select::Select,
   void control(const std::string &value) override;
 };
 
-}  // namespace toshiba_suzumi
+}  // namespace toshiba_a2a
 }  // namespace esphome

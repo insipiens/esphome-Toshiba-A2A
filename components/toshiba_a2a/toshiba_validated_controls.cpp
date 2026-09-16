@@ -5,7 +5,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace toshiba_suzumi {
+namespace toshiba_a2a {
 
 namespace {
 
@@ -50,10 +50,6 @@ bool extract_scalar(const std::vector<uint8_t> &raw, uint8_t reg, uint8_t &value
 
 SPECIAL_MODE current_special_mode(const optional<SPECIAL_MODE> &mode) {
   return mode.has_value() ? mode.value() : SPECIAL_MODE::STANDARD;
-}
-
-bool has_validated_mode_profile(ToshibaIndoorUnitFamily family) {
-  return family == ToshibaIndoorUnitFamily::J2FVG || family == ToshibaIndoorUnitFamily::P2KVSG;
 }
 
 bool climate_call_is_swing_only(const climate::ClimateCall &call) {
@@ -219,7 +215,7 @@ void ToshibaValidatedControlUart::on_set_pure_(bool enabled) {
 void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
   const ToshibaHvacMode mode = this->current_hvac_mode_();
   if (strong) {
-    if (this->idu_family_ == ToshibaIndoorUnitFamily::P2KVSG && mode != ToshibaHvacMode::HEAT) {
+    if (!validated_strong_defrost_allowed(this->idu_family_, mode)) {
       ESP_LOGW(TAG, "Strong Defrost is only exposed in Heat on the validated P2 path");
       return;
     }
@@ -248,7 +244,7 @@ void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::str
 
   const uint8_t requested_vertical = index.value();
 
-  if (this->idu_family_ == ToshibaIndoorUnitFamily::J2FVG) {
+  if (louvre_encoding_for_family(this->idu_family_) == ToshibaLouvreEncoding::J2_VERTICAL) {
     const uint8_t raw = static_cast<uint8_t>(0x4F + requested_vertical);  // 50..54
     ESP_LOGD(TAG, "Requesting J2 vertical FIX %s -> A3=%02X", value.c_str(), raw);
     this->sendCmd(ToshibaCommandType::SWING, raw);
@@ -256,8 +252,8 @@ void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::str
     return;
   }
 
-  if (this->idu_family_ != ToshibaIndoorUnitFamily::P2KVSG) {
-    ESP_LOGW(TAG, "Vertical FIX requested with unknown/unsupported IDU family");
+  if (louvre_encoding_for_family(this->idu_family_) != ToshibaLouvreEncoding::P2_PACKED) {
+    ESP_LOGW(TAG, "Vertical FIX requested with unknown/unsupported louvre encoding");
     return;
   }
 
@@ -270,8 +266,8 @@ void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::str
 }
 
 void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::string &value) {
-  if (this->idu_family_ != ToshibaIndoorUnitFamily::P2KVSG) {
-    ESP_LOGW(TAG, "Horizontal FIX is only implemented for the P2 family");
+  if (louvre_encoding_for_family(this->idu_family_) != ToshibaLouvreEncoding::P2_PACKED) {
+    ESP_LOGW(TAG, "Horizontal FIX is unavailable for this louvre encoding");
     return;
   }
 
@@ -353,7 +349,8 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
     return;
   }
 
-  if (this->idu_family_ == ToshibaIndoorUnitFamily::J2FVG && call.get_swing_mode().has_value()) {
+  if (louvre_encoding_for_family(this->idu_family_) == ToshibaLouvreEncoding::J2_VERTICAL &&
+      call.get_swing_mode().has_value()) {
     const auto requested_swing = *call.get_swing_mode();
     uint8_t raw = 0x31;
     if (requested_swing == climate::CLIMATE_SWING_VERTICAL) raw = 0x41;
@@ -443,7 +440,7 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
 
   if (response_register == static_cast<uint8_t>(ToshibaCommandType::SWING) &&
       extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::SWING), value)) {
-    if (this->idu_family_ == ToshibaIndoorUnitFamily::J2FVG) {
+    if (louvre_encoding_for_family(this->idu_family_) == ToshibaLouvreEncoding::J2_VERTICAL) {
       if (value >= 0x50 && value <= 0x54) {
         const uint8_t vertical = static_cast<uint8_t>(value - 0x4F);
         const char *vertical_name = VerticalFixedPositionName(vertical);
@@ -473,7 +470,7 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
       return;
     }
 
-    if (this->idu_family_ == ToshibaIndoorUnitFamily::P2KVSG)
+    if (louvre_encoding_for_family(this->idu_family_) == ToshibaLouvreEncoding::P2_PACKED)
       this->publish_horizontal_air_direction_(value);
   }
 
@@ -515,5 +512,5 @@ void ToshibaHorizontalAirDirectionSelect::control(const std::string &value) {
   this->parent_->on_set_horizontal_air_direction_(value);
 }
 
-}  // namespace toshiba_suzumi
+}  // namespace toshiba_a2a
 }  // namespace esphome

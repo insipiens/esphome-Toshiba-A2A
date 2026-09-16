@@ -2,10 +2,9 @@
 
 #include <cstdint>
 #include <string>
-#include <vector>
 
 namespace esphome {
-namespace toshiba_suzumi {
+namespace toshiba_a2a {
 
 enum class ToshibaIndoorUnitFamily : uint8_t {
   UNKNOWN = 0,
@@ -20,6 +19,13 @@ enum class ToshibaHvacMode : uint8_t {
   HEAT,
   DRY,
   FAN,
+};
+
+// A3 is the only currently proven family-dependent command encoding.
+enum class ToshibaLouvreEncoding : uint8_t {
+  UNKNOWN = 0,
+  J2_VERTICAL,
+  P2_PACKED,
 };
 
 enum ToshibaFeature : uint32_t {
@@ -70,8 +76,6 @@ struct ToshibaCapabilityProfile {
   }
 };
 
-struct ToshibaEquipmentIdentification {
-  bool valid{false};
   bool idu_model_available{false};
   bool odu_model_available{false};
   std::string idu_model;
@@ -86,29 +90,14 @@ struct ToshibaEquipmentIdentification {
   ToshibaCapabilityProfile capabilities;
 };
 
-/**
- * Decode pushed class-0x11 register-0xE0 equipment identification.
- *
- * Captured layout:
- *   byte 12      0xE0
- *   bytes 13-62  50-byte IDU record
- *   bytes 63-112 50-byte ODU record
- *   byte 113     checksum
- *
- * Each 50-byte record is:
- *   +0..20   model field (21 bytes, ASCII then NUL padding)
- *   +21..33  identity field 1 (13 bytes; meaning unresolved)
- *   +34..42  identity field 2 (9 bytes; meaning unresolved)
- *   +43..49  identity field 3 (7 bytes; meaning unresolved)
- *
- * A literal NULL/blank field is treated as unavailable. Positive identity
- * values are retained by the climate component and may be persisted by YAML.
- */
-ToshibaEquipmentIdentification decode_equipment_identification(const std::vector<uint8_t> &raw_data);
+
 
 ToshibaIndoorUnitFamily indoor_unit_family_from_model(const std::string &model);
 const char *indoor_unit_family_to_string(ToshibaIndoorUnitFamily family);
 ToshibaCapabilityProfile capability_profile_from_model(const std::string &model);
+ToshibaLouvreEncoding louvre_encoding_for_family(ToshibaIndoorUnitFamily family);
+bool has_validated_mode_profile(ToshibaIndoorUnitFamily family);
+bool validated_strong_defrost_allowed(ToshibaIndoorUnitFamily family, ToshibaHvacMode mode);
 ToshibaFeatureScope feature_scope(ToshibaFeature feature);
 const char *feature_scope_to_string(ToshibaFeatureScope scope);
 
@@ -121,5 +110,5 @@ uint8_t validated_fan_options_for_mode(ToshibaIndoorUnitFamily family, ToshibaHv
 ToshibaCapabilityProfile power_select_cancel_profile(ToshibaIndoorUnitFamily family,
                                                       ToshibaHvacMode mode);
 
-}  // namespace toshiba_suzumi
+}  // namespace toshiba_a2a
 }  // namespace esphome

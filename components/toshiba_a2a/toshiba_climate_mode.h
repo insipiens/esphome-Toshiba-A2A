@@ -5,7 +5,7 @@
 #include "esphome/components/climate/climate.h"
 
 namespace esphome {
-namespace toshiba_suzumi {
+namespace toshiba_a2a {
 
 // Expose the complete Toshiba fan ladder as one ordered custom list so Home
 // Assistant does not place ESPHome standard fan modes ahead of the intermediate
@@ -165,5 +165,5 @@ const char* ClimatePresetToString(climate::ClimatePreset preset);
 const optional<SPECIAL_MODE> ClimatePresetToSpecialMode(climate::ClimatePreset preset);
 const optional<climate::ClimatePreset> SpecialModeToClimatePreset(SPECIAL_MODE mode);
 
-}  // namespace toshiba_suzumi
+}  // namespace toshiba_a2a
 }  // namespace esphome

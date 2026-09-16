@@ -4,7 +4,7 @@
 #include "toshiba_climate.h"
 
 namespace esphome {
-namespace toshiba_suzumi {
+namespace toshiba_a2a {
 
 const MODE ClimateModeToInt(climate::ClimateMode mode) {
   switch (mode) {
@@ -285,5 +285,5 @@ const optional<climate::ClimatePreset> SpecialModeToClimatePreset(SPECIAL_MODE m
   }
 }
 
-}  // namespace toshiba_suzumi
+}  // namespace toshiba_a2a
 }  // namespace esphome

@@ -1,12 +1,13 @@
 #include <algorithm>
 #include <utility>
 #include "toshiba_climate.h"
-#include "toshiba_model.h"
+#include "toshiba_device_profile.h"
+#include "toshiba_identity.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace toshiba_suzumi {
+namespace toshiba_a2a {
 
 static constexpr size_t CHUNK = 24;
 
@@ -375,5 +376,5 @@ void ToshibaDiagnosticMonitorUart::log_monitor_decoded_(const std::vector<uint8_
            static_cast<unsigned>(payload.size()));
 }
 
-}  // namespace toshiba_suzumi
+}  // namespace toshiba_a2a
 }  // namespace esphome

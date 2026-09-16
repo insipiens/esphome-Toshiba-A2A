@@ -6,7 +6,7 @@
 #endif
 
 namespace esphome {
-namespace toshiba_suzumi {
+namespace toshiba_a2a {
 
 using namespace esphome::climate;
 
@@ -1229,5 +1229,5 @@ void ToshibaClimateUart::estimate_wattage_(uint32_t current_energy) {
   this->last_energy_update_ms_ = now;
 }
 
-}  // namespace toshiba_suzumi
+}  // namespace toshiba_a2a
 }  // namespace esphome

@@ -4,7 +4,7 @@
 #include <cstring>
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/toshiba_suzumi/toshiba_climate.h"
+#include "esphome/components/toshiba_a2a/toshiba_climate.h"
 #include "toshiba_airflow_data.h"
 
 namespace esphome {
@@ -12,7 +12,7 @@ namespace toshiba_output {
 
 class ToshibaOutputEstimator : public PollingComponent {
  public:
-  void set_climate(toshiba_suzumi::ToshibaClimateUart *value) { climate_ = value; }
+  void set_climate(toshiba_a2a::ToshibaClimateUart *value) { climate_ = value; }
   void set_heat_exchanger_temperature_sensor(sensor::Sensor *value) { heat_exchanger_temp_ = value; }
   void set_fan_feedback_sensor(sensor::Sensor *value) { fan_feedback_ = value; }
   void set_cooling_output_sensor(sensor::Sensor *value) { cooling_output_ = value; }
@@ -129,23 +129,23 @@ class ToshibaOutputEstimator : public PollingComponent {
   bool resolve_manual_fan_(ManualFanLevel &level) const {
     if (climate_->has_custom_fan_mode()) {
       const auto custom = climate_->get_custom_fan_mode();
-      if (std::strcmp(custom.c_str(), toshiba_suzumi::CUSTOM_FAN_LOW) == 0) {
+      if (std::strcmp(custom.c_str(), toshiba_a2a::CUSTOM_FAN_LOW) == 0) {
         level = ManualFanLevel::LOW;
         return true;
       }
-      if (std::strcmp(custom.c_str(), toshiba_suzumi::CUSTOM_FAN_LEVEL_2) == 0) {
+      if (std::strcmp(custom.c_str(), toshiba_a2a::CUSTOM_FAN_LEVEL_2) == 0) {
         level = ManualFanLevel::LOW_MEDIUM;
         return true;
       }
-      if (std::strcmp(custom.c_str(), toshiba_suzumi::CUSTOM_FAN_MEDIUM) == 0) {
+      if (std::strcmp(custom.c_str(), toshiba_a2a::CUSTOM_FAN_MEDIUM) == 0) {
         level = ManualFanLevel::MEDIUM;
         return true;
       }
-      if (std::strcmp(custom.c_str(), toshiba_suzumi::CUSTOM_FAN_LEVEL_4) == 0) {
+      if (std::strcmp(custom.c_str(), toshiba_a2a::CUSTOM_FAN_LEVEL_4) == 0) {
         level = ManualFanLevel::MEDIUM_HIGH;
         return true;
       }
-      if (std::strcmp(custom.c_str(), toshiba_suzumi::CUSTOM_FAN_HIGH) == 0) {
+      if (std::strcmp(custom.c_str(), toshiba_a2a::CUSTOM_FAN_HIGH) == 0) {
         level = ManualFanLevel::HIGH;
         return true;
       }
@@ -187,7 +187,7 @@ class ToshibaOutputEstimator : public PollingComponent {
     if (heating_output_ != nullptr) heating_output_->publish_state(NAN);
   }
 
-  toshiba_suzumi::ToshibaClimateUart *climate_{nullptr};
+  toshiba_a2a::ToshibaClimateUart *climate_{nullptr};
   sensor::Sensor *heat_exchanger_temp_{nullptr};
   sensor::Sensor *fan_feedback_{nullptr};
   sensor::Sensor *cooling_output_{nullptr};

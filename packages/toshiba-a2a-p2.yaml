@@ -23,7 +23,7 @@ esphome:
     then:
       - lambda: |-
           auto *controller =
-              static_cast<toshiba_suzumi::ToshibaClimateUart *>(id(room_id));
+              static_cast<toshiba_a2a::ToshibaClimateUart *>(id(room_id));
 
           if (!id(saved_idu_model).empty()) controller->restore_idu_model(id(saved_idu_model));
           if (!id(saved_idu_identity_1).empty()) controller->restore_idu_identity_1(id(saved_idu_identity_1));
@@ -71,7 +71,7 @@ external_components:
       url: https://github.com/insipiens/esphome-Toshiba-A2A
       ref: main
     components:
-      - toshiba_suzumi
+      - toshiba_a2a
       - toshiba_output
     refresh: 0s
 
@@ -87,7 +87,7 @@ time:
     id: hass_time
 
 climate:
-  - platform: toshiba_suzumi
+  - platform: toshiba_a2a
     name: ${room_name}
     id: room_id
     uart_id: uart_bus
@@ -308,9 +308,9 @@ switch:
     entity_category: diagnostic
     turn_on_action:
       - lambda: |-
-          auto *controller = static_cast<toshiba_suzumi::ToshibaClimateUart *>(id(room_id));
+          auto *controller = static_cast<toshiba_a2a::ToshibaClimateUart *>(id(room_id));
           controller->set_scan_enabled(true);
     turn_off_action:
       - lambda: |-
-          auto *controller = static_cast<toshiba_suzumi::ToshibaClimateUart *>(id(room_id));
+          auto *controller = static_cast<toshiba_a2a::ToshibaClimateUart *>(id(room_id));
           controller->set_scan_enabled(false);
