@@ -35,6 +35,7 @@ UART traffic
    -> protocol decoder
    -> Toshiba logical state
    -> family/model capability and mode rules
+   -> installation capability profile
    -> ESPHome entities
    -> Home Assistant
 ```
@@ -48,7 +49,9 @@ Two reusable package profiles are currently maintained:
 - `packages/toshiba-a2a-j2.yaml` for J2FVG floor/console units;
 - `packages/toshiba-a2a-p2.yaml` for P2KVSG high-wall units.
 
-The J2 package is shared by the tested B10J2 and B13J2 units. Firmware differences are handled at runtime where evidence requires it rather than by maintaining separate package copies.
+The J2 package is shared by the tested B10J2 and B13J2 units. Firmware differences do not require separate package copies.
+
+Both packages accept an optional `capability_profile` substitution. It defaults to `full`, so normal consumers do not need to add anything. `full` exposes the FIX controls expected for the declared family. `limited` hides firmware-variable FIX controls for installations whose physical unit/firmware does not implement the expected FIX behaviour. The profile is an exposure/capability mask layered on top of the normal family protocol, not a separate implementation.
 
 The package owns the ESP32-C3 target, UART, Toshiba climate entities, engineering sensors, identity handling and output estimator. The consuming YAML supplies model/name substitutions and local Wi-Fi/API/OTA settings.
 
@@ -91,19 +94,19 @@ The Home Assistant FIX selector contains only `Top`, `Upper`, `Centre`, `Lower` 
 
 Ordinary J2 A3 swing states are handled by the climate swing state and are not published into the FIX selector. This prevents normal `Off`/swing readback from being treated as an invalid FIX choice.
 
-FIX exposure is learned from Toshiba-reported identity. On boot the package restores the last accepted E0 IDU model from persistent storage. If a usable E0 model has previously been learned, the public FIX selector remains exposed. If no usable E0 model has ever been learned, the selector is marked `internal` before Home Assistant API discovery and is therefore not exposed. A newly discovered valid E0 model is saved during the first run and the selector becomes public after the next reboot/install. This two-boot behaviour is a temporary ESPHome 2026.8.x compatibility measure until setup-time entity exposure is formally supported by the stable platform.
-
-The command path is independently gated by Toshiba-reported identity. The declared YAML model still selects the J2 protocol and family capability profile, but a FIX command is rejected until a usable IDU model has been learned from E0 or restored from a previously accepted E0 report.
+FIX entity exposure is now explicit at installation time rather than inferred from E0 identity. The package default is `capability_profile: "full"`, which exposes the public J2 vertical FIX selector. Setting `capability_profile: "limited"` marks the public selector internal before Home Assistant API discovery. This avoids using model-reporting behaviour as a proxy for physical louvre capability and avoids active capability probing during startup.
 
 Direct B13J2 testing confirmed passive readback of all five positions after the unit was running: `50` Top, `51` Upper, `52` Centre, `53` Lower and `54` Bottom. A FIX write while the IDU was off was ACKed but the IDU continued to report ordinary A3 Off state until operation resumed, so ACK alone is not treated as authoritative position state.
 
 ### Older B10J2 firmware
 
-One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. Because no usable E0 IDU model is persisted, the public FIX selector remains internal/hidden on subsequent boots. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
+One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. The installed Office example therefore explicitly selects `capability_profile: "limited"`, which hides the public FIX selector. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
 
 ### P2KVSG
 
 P2 FIX uses a packed horizontal/vertical `A3` representation. Vertical and horizontal state are therefore handled differently from J2 and remain in the P2 package.
+
+With the default `full` profile, the P2 package exposes stable package-level `Vertical Fixed Position` and `Horizontal Fixed Position` selects in Home Assistant while retaining internal raw component selects for protocol state/write handling. `limited` hides both public FIX entities. The installed Kitchen P2 uses the default full profile.
 
 ## Fan and airflow telemetry
 
@@ -134,6 +137,8 @@ Observed behaviour includes:
 
 A decoded E0 packet is logged even when the reported model matches an already-known value so that packet receipt can be distinguished from absence of E0 traffic.
 
+E0 remains diagnostic identity evidence. It is no longer used by the package as the public FIX-entity exposure decision.
+
 ## Diagnostics
 
 The normal package includes a `Toshiba focused monitor` diagnostic switch.
@@ -150,6 +155,7 @@ Separate research examples remain available for deeper protocol work:
 
 - Compatibility has only been directly tested on a small number of physical units.
 - Firmware differences within a nominal family are real and can affect model reporting and control behaviour.
+- The `limited` profile currently masks the firmware-variable FIX controls; other firmware-dependent features may be added to that mask only when evidence justifies it.
 - Some controls are shared-ODU functions on a multi-split system and should not be assumed to be purely local to one IDU.
 - Several timer, maintenance and energy fields remain only partly decoded.
 - Exact locality of some ODU/current/energy values is still being verified.
@@ -169,6 +175,7 @@ Unknown values should remain unknown until repeatable evidence justifies promoti
 ## Detailed references
 
 - `TOSHIBA_CONTROL_MATRIX.md` — current family and HVAC-mode control matrix;
+- `TOSHIBA_CONTROL_INTERACTION_RULES.md` — shared control interaction/override policy;
 - `TOSHIBA_REGISTER_MAP.md` — protocol/register findings and evidence grades;
 - `J2_MANUAL_CONTROL_NOTES.md` — notes derived from J2 Toshiba documentation;
 - `CHANGELOG.txt` — chronological development history;
