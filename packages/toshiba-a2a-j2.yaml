@@ -98,6 +98,10 @@ climate:
       id: raw_upper_outlet_fixed_position
       name: "Upper Outlet Fixed Position Raw"
       internal: true
+      on_value:
+        then:
+          - lambda: |-
+              id(upper_outlet_fixed_position).publish_state(x);
 
     defrost_active:
       name: "Defrost Active"
@@ -240,33 +244,18 @@ select:
     name: "Upper Outlet Fixed Position"
     id: upper_outlet_fixed_position
     options:
-      - "Not available"
-      - "Position unknown"
       - "Top"
       - "Upper"
       - "Centre"
       - "Lower"
       - "Bottom"
-    update_interval: 1s
-    lambda: |-
-      const auto &model = id(idu_model).state;
-      const bool model_available =
-          !model.empty() && model != "NULL" && model != "Unknown" && model != "Unavailable";
-      if (!model_available) {
-        return std::string("Not available");
-      }
-
-      const auto current = id(raw_upper_outlet_fixed_position).current_option();
-      if (current.size() > 0) {
-        return std::string(current.begin(), current.end());
-      }
-      return std::string("Position unknown");
     set_action:
       - lambda: |-
           const auto &model = id(idu_model).state;
           const bool model_available =
               !model.empty() && model != "NULL" && model != "Unknown" && model != "Unavailable";
-          if (!model_available || x == "Not available" || x == "Position unknown") {
+          if (!model_available) {
+            ESP_LOGW("ToshibaClimateUart", "Vertical FIX unavailable: no usable IDU model reported by E0");
             return;
           }
 
