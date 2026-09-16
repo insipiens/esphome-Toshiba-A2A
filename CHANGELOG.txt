@@ -3,6 +3,9 @@ ESPHome Toshiba A2A development
 
 Sep 16th 2026
 
+* changed optional FIX discovery so the package still uses the mandatory declared IDU model for family/protocol routing, but vertical/horizontal FIX selects are only registered with ESPHome/Home Assistant after Toshiba itself reports a usable IDU model in pushed `E0`; a blank/`NULL` E0 model therefore keeps the family FIX capability intact while presenting a conservative UI, and Home Assistant should reconnect/reload after identity detection to request the final entity list
+* treated `E4 +2 = FE/FF` as unavailable fan-speed feedback instead of a numeric speed, preventing sentinel values from feeding the model-specific airflow/output interpolation and producing impossible airflow values
+* confirmed the long Wi-Fi->IDU `0x99` onboarding frame as clock/calendar synchronisation from two independent captures: the leading fields decode as `[year-1900][month-1][day][hour][minute][second][weekday]`, followed in these captures by `00 00` and an `FF`-filled fixed structure; other long `0x99` programme/schedule forms remain distinct and unresolved
 * changed the focused UART monitor from purely passive capture to targeted louvre observation: while enabled it now alternates explicit `A3`/`A4` reads every 500 ms (1 Hz per register) and emits a dedicated `FOCUSED LOUVRE CHANGE` log only when the decoded louvre payload changes, allowing older J2 units that do not push IR-remote FIX changes to be investigated without fitting the genuine Wi-Fi adaptor
 * made the exact IDU model a mandatory package substitution and pass it into the Toshiba component before runtime control, so family selection no longer depends on older firmware publishing a usable E0 model
 * separated J2FVG and P2KVSG A3 control encoding in the validated runtime: J2 vertical FIX now sends `50..54` and J2 vertical swing uses the J2 `31/41` path, while P2 retains packed H/V FIX and its captured swing commands
