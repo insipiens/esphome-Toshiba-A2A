@@ -87,13 +87,13 @@ Bottom  54
 
 J2 vertical swing uses the separate J2 path (`31/41`) rather than the P2 packed-axis encoding.
 
-The J2 Home Assistant FIX selector is now a stable entity rather than a dynamically registered entity. Its state is gated by Toshiba-reported `E0` identity:
+The Home Assistant FIX selector is a stable five-position entity containing only `Top`, `Upper`, `Centre`, `Lower` and `Bottom`. Its state is passive: it changes only when the component receives a J2 `A3 50..54` FIX state from the IDU. There is no periodic template polling and no synthetic `Not available` or `Position unknown` option in the dropdown.
 
-- no usable IDU model ever reported by `E0` -> `Not available`;
-- usable E0 model known, but no current FIX position decoded -> `Position unknown`;
-- usable E0 model and known FIX state -> normal five-position selection.
+Ordinary J2 A3 swing states are handled by the climate swing state and are not published into the FIX selector. This prevents normal `Off`/swing readback from being treated as an invalid FIX choice.
 
-This was introduced because late ESPHome entity registration did not reliably appear through Home Assistant native API discovery.
+FIX writes are gated by Toshiba-reported identity. The declared YAML model still selects the J2 protocol and capability profile, but a FIX command is rejected until a usable IDU model has been learned from `E0` or restored from a previously accepted E0 report. If no usable E0 model has ever been reported, the entity remains present but has no confirmed FIX state and cannot issue FIX commands.
+
+Direct B13J2 testing confirmed passive readback of all five positions after the unit was running: `50` Top, `51` Upper, `52` Centre, `53` Lower and `54` Bottom. A FIX write while the IDU was off was ACKed but the IDU continued to report ordinary A3 Off state until operation resumed, so ACK alone is not treated as authoritative position state.
 
 ### Older B10J2 firmware
 
