@@ -1,6 +1,5 @@
 #include "toshiba_climate.h"
 
-#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -70,23 +69,6 @@ void ToshibaValidatedControlUart::setup() {
   });
 }
 
-void ToshibaValidatedControlUart::on_reported_idu_model_available_() {
-  if (!this->vertical_air_direction_registered_ && this->deferred_vertical_air_direction_select_ != nullptr &&
-      this->capabilities_.has(FEATURE_VERTICAL_AIRFLOW)) {
-    App.register_select(this->deferred_vertical_air_direction_select_);
-    this->vertical_air_direction_select_ = this->deferred_vertical_air_direction_select_;
-    this->vertical_air_direction_registered_ = true;
-    ESP_LOGI(TAG, "E0 model confirmed; registered vertical FIX entity");
-  }
-
-  if (!this->horizontal_air_direction_registered_ && this->deferred_horizontal_air_direction_select_ != nullptr &&
-      this->capabilities_.has(FEATURE_HORIZONTAL_AIRFLOW)) {
-    App.register_select(this->deferred_horizontal_air_direction_select_);
-    this->horizontal_air_direction_select_ = this->deferred_horizontal_air_direction_select_;
-    this->horizontal_air_direction_registered_ = true;
-    ESP_LOGI(TAG, "E0 model confirmed; registered horizontal FIX entity");
-  }
-}
 
 climate::ClimateTraits ToshibaValidatedControlUart::traits() {
   // Keep the base component's native Auto / Quiet / Low / Medium / High modes.
@@ -189,15 +171,6 @@ void ToshibaValidatedControlUart::on_set_validated_power_level_(const std::strin
     return;
   }
 
-  if (this->special_mode_.has_value()) {
-    const ToshibaFeature active_feature = feature_for_special_mode(this->special_mode_.value());
-    const auto cancel = power_select_cancel_profile(this->idu_family_, this->current_hvac_mode_());
-    if (active_feature != FEATURE_NONE && cancel.has(active_feature)) {
-      this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(SPECIAL_MODE::STANDARD));
-      this->requestData(ToshibaCommandType::SPECIAL_MODE);
-    }
-  }
-
   this->sendCmd(ToshibaCommandType::POWER_SEL, static_cast<uint8_t>(pwr_level.value()));
   this->requestData(ToshibaCommandType::POWER_SEL);
 }
@@ -231,11 +204,6 @@ void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
 }
 
 void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::string &value) {
-  if (this->get_reported_idu_model().empty()) {
-    ESP_LOGW(TAG, "Vertical FIX unavailable: no usable IDU model reported by E0");
-    return;
-  }
-
   auto index = FixedPositionIndexFromName(value);
   if (!index.has_value()) {
     ESP_LOGW(TAG, "Unknown vertical FIX index: %s", value.c_str());
@@ -444,8 +412,7 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
       if (value >= 0x50 && value <= 0x54) {
         const uint8_t vertical = static_cast<uint8_t>(value - 0x4F);
         const char *vertical_name = VerticalFixedPositionName(vertical);
-        if (!this->get_reported_idu_model().empty() && vertical_name != nullptr &&
-            this->vertical_air_direction_select_ != nullptr)
+        if (vertical_name != nullptr && this->vertical_air_direction_select_ != nullptr)
           this->vertical_air_direction_select_->publish_state(vertical_name);
         this->swing_mode = climate::CLIMATE_SWING_OFF;
         this->publish_state();

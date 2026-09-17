@@ -209,21 +209,6 @@ uint8_t validated_fan_options_for_mode(ToshibaIndoorUnitFamily family, ToshibaHv
   return FAN_OPTION_NONE;
 }
 
-ToshibaCapabilityProfile power_select_cancel_profile(ToshibaIndoorUnitFamily family,
-                                                      ToshibaHvacMode mode) {
-  ToshibaCapabilityProfile profile;
-
-  // Directly observed in the P2 app: changing Power Select in Auto/Cool/Heat
-  // cancels ECO, Hi POWER and Silent Operation back to Standard. PURE remains
-  // independent and is deliberately not included in this mask.
-  if (family == ToshibaIndoorUnitFamily::P2KVSG &&
-      (mode == ToshibaHvacMode::AUTO || mode == ToshibaHvacMode::COOL ||
-       mode == ToshibaHvacMode::HEAT)) {
-    profile.features = FEATURE_ECO | FEATURE_HI_POWER | FEATURE_OUTDOOR_SILENT;
-  }
-
-  return profile;
-}
 
 
 }  // namespace toshiba_a2a

@@ -1,4 +1,3 @@
-#include "toshiba_identity.h"
 #pragma once
 
 #include <cstdint>
@@ -22,7 +21,6 @@ struct ToshibaEquipmentIdentification {
   std::string odu_identity_3;
 };
 
-// Decode the pushed class-0x11 / register-0xE0 equipment-identification payload.
 ToshibaEquipmentIdentification decode_equipment_identification(const std::vector<uint8_t> &raw_data);
 
 }  // namespace toshiba_a2a

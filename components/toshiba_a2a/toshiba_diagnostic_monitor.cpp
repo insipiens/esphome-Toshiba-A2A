@@ -27,7 +27,6 @@ void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentific
     // Optional model-dependent entities are deliberately registered only after
     // Toshiba itself reports a usable IDU model in E0. A YAML model override
     // still selects protocol routing, but it does not bypass this UI gate.
-    this->on_reported_idu_model_available_();
   } else {
     ESP_LOGD(TAG, "E0 IDU model unavailable; retaining current runtime identity and conservative UI");
   }
