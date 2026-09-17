@@ -1,4 +1,4 @@
-name: Refactor Toshiba A2A generator
+name: Refactor Toshiba A2A compile test
 
 on:
   push:
@@ -7,11 +7,8 @@ on:
     paths:
       - .github/workflows/refactor-toshiba-a2a.yml
 
-permissions:
-  contents: write
-
 jobs:
-  generate:
+  compile:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,14 +17,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Apply refactor
+      - name: Install ESPHome
+        run: python -m pip install --upgrade esphome
+      - name: Point package templates at refactor branch
         run: |
-          python tools/refactor_toshiba_a2a.py
-          git checkout -- .github/workflows/refactor-toshiba-a2a.yml
-      - name: Commit generated refactor
+          sed -i 's/ref: main/ref: refactor\/toshiba-protocol-model-separation/g' packages/toshiba-a2a-j2.yaml packages/toshiba-a2a-p2.yaml
+      - name: Create dummy compile-time secrets
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "[refactor-generated] Reorganise Toshiba A2A component"
-          git push origin HEAD:refactor/toshiba-protocol-model-separation
+          cat > examples/secrets.yaml <<'EOF'
+          wifi_ssid: test-wifi
+          wifi_password: test-password
+          iot_wifi_ssid: test-iot
+          iot_wifi_password: test-password
+          iot2_wifi_ssid: test-iot2
+          iot2_wifi_password: test-password
+          fallback_password: test-fallback
+          key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+          ota_password: test-ota
+          EOF
+      - name: Compile Kitchen P2 package template
+        run: esphome compile examples/kitchen-package-template.yaml
+      - name: Compile Office J2 package template
+        run: esphome compile examples/office-j2-package-template.yaml
