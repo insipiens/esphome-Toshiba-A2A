@@ -1,6 +1,10 @@
 ESPHome Toshiba A2A development
 ===============================
 
+Sep 17th 2026
+
+* refactor branch hardware-test packages now point their external component source at `refactor/toshiba-protocol-model-separation` rather than `main`, ensuring J2/P2 test flashes actually build the refactored `toshiba_a2a` code
+
 Sep 16th 2026
 
 * refactor branch review cleanup: repaired generated profile/identity headers, removed E0-driven FIX registration/write gates, made FIX selects normal ESPHome entities governed by the explicit installation capability profile, and removed the obsolete Power Select cancellation path so functional code follows the current interaction policy
