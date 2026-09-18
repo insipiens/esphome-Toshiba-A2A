@@ -243,6 +243,8 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void enqueue_command_(const ToshibaCommand &command);
   void send_to_uart(const ToshibaCommand command);
   virtual void on_uart_tx_(const ToshibaCommand &command) {}
+  virtual void on_uart_rx_unparsed_(const std::vector<uint8_t> &raw_data,
+                                    const char *reason) {}
   void start_handshake();
   virtual void parseResponse(std::vector<uint8_t> rawData);
   void requestData(ToshibaRegister cmd);
@@ -287,18 +289,11 @@ class ToshibaDiagnosticMonitorUart : public ToshibaClimateUart {
   bool monitor_stop_requested_ = false;
   int16_t monitor_pending_register_{-1};
   uint32_t monitor_pending_since_{0};
-  bool monitor_pending_write_{false};
-  bool monitor_pending_has_value_{false};
-  uint8_t monitor_pending_value_{0};
-  std::array<std::vector<uint8_t>, 128> monitor_last_payload_{};
-  std::array<bool, 128> monitor_payload_seen_{};
 
-  void log_monitor_bytes_(const std::vector<uint8_t> &raw_data, int16_t response_register) const;
-  void log_monitor_decoded_(const std::vector<uint8_t> &raw_data, int16_t response_register,
-                            bool correlated);
-  bool extract_monitor_payload_(const std::vector<uint8_t> &raw_data, int16_t response_register,
-                                std::vector<uint8_t> &payload) const;
-  void remember_monitor_payload_(uint8_t response_register, const std::vector<uint8_t> &payload);
+  void on_uart_rx_unparsed_(const std::vector<uint8_t> &raw_data,
+                            const char *reason) override;
+  void log_monitor_rx_(const std::vector<uint8_t> &raw_data,
+                       int16_t response_register, const char *relation) const;
 };
 
 class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
