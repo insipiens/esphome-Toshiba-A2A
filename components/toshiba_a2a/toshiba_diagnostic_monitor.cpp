@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <utility>
 #include "toshiba_climate.h"
 #include "toshiba_device_profile.h"
@@ -233,11 +234,30 @@ void ToshibaDiagnosticMonitorUart::on_uart_rx_unparsed_(
 
 void ToshibaDiagnosticMonitorUart::log_monitor_rx_(
     const std::vector<uint8_t> &raw, int16_t reg, const char *relation) const {
-  ESP_LOGI(TAG, "UART MONITOR RX relation=%s reg=%s len=%u bytes=[%s]",
-           relation,
-           reg >= 0 ? str_sprintf("0x%02X", static_cast<unsigned>(reg)).c_str() : "unknown",
-           static_cast<unsigned>(raw.size()),
-           format_hex_pretty(raw).c_str());
+  constexpr size_t CHUNK_SIZE = 100;
+  const char *reg_text =
+      reg >= 0 ? str_sprintf("0x%02X", static_cast<unsigned>(reg)).c_str() : "unknown";
+
+  if (raw.size() <= CHUNK_SIZE) {
+    ESP_LOGI(TAG, "UART MONITOR RX relation=%s reg=%s len=%u bytes=[%s]",
+             relation, reg_text, static_cast<unsigned>(raw.size()),
+             format_hex_pretty(raw).c_str());
+    return;
+  }
+
+  const size_t chunks = (raw.size() + CHUNK_SIZE - 1) / CHUNK_SIZE;
+  ESP_LOGI(TAG, "UART MONITOR RX relation=%s reg=%s len=%u chunks=%u",
+           relation, reg_text, static_cast<unsigned>(raw.size()),
+           static_cast<unsigned>(chunks));
+
+  for (size_t i = 0; i < chunks; ++i) {
+    const size_t first = i * CHUNK_SIZE;
+    const size_t last = std::min(first + CHUNK_SIZE, raw.size());
+    std::vector<uint8_t> chunk(raw.begin() + first, raw.begin() + last);
+    ESP_LOGI(TAG, "UART MONITOR RX [%u/%u] bytes=[%s]",
+             static_cast<unsigned>(i + 1), static_cast<unsigned>(chunks),
+             format_hex_pretty(chunk).c_str());
+  }
 }
 
 void ToshibaDiagnosticMonitorUart::log_scan_packet_(const std::vector<uint8_t> &raw) {
