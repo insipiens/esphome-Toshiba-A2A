@@ -107,19 +107,17 @@ The Home Assistant FIX selector contains only `Top`, `Upper`, `Centre`, `Lower` 
 
 Ordinary J2 A3 swing states are handled by the climate swing state and are not published into the FIX selector. This prevents normal `Off`/swing readback from being treated as an invalid FIX choice.
 
-FIX entity exposure is now explicit at installation time rather than inferred from E0 identity. The package default is `capability_profile: "full"`, which exposes the public J2 vertical FIX selector. Setting `capability_profile: "limited"` marks the public selector internal before Home Assistant API discovery. This avoids using model-reporting behaviour as a proxy for physical louvre capability and avoids active capability probing during startup.
+FIX entity exposure now follows the family default capability set. If an older controller does not implement the expected FIX behaviour, the installation can add `disable_features: [fixed_position]`; the component then keeps the FIX entity internal before Home Assistant API discovery. This avoids using model-reporting behaviour as a proxy for physical louvre capability and avoids active capability probing during startup.
 
 Direct B13J2 testing confirmed passive readback of all five positions after the unit was running: `50` Top, `51` Upper, `52` Centre, `53` Lower and `54` Bottom. A FIX write while the IDU was off was ACKed but the IDU continued to report ordinary A3 Off state until operation resumed, so ACK alone is not treated as authoritative position state.
 
 ### Older B10J2 firmware
 
-One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. The installed Office example therefore explicitly selects `capability_profile: "limited"`, which hides the public FIX selector. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
+One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. The installed Office example therefore explicitly disables `fixed_position`, which hides the FIX selector without changing the J2 family definition. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
 
 ### P2KVSG
 
-P2 FIX uses a packed horizontal/vertical `A3` representation. Vertical and horizontal state are therefore handled differently from J2 and remain in the P2 package.
-
-With the default `full` profile, the P2 package exposes stable package-level `Vertical Fixed Position` and `Horizontal Fixed Position` selects in Home Assistant while retaining internal raw component selects for protocol state/write handling. `limited` hides both public FIX entities. The installed Kitchen P2 uses the default full profile.
+P2 FIX uses a packed horizontal/vertical `A3` representation. Vertical and horizontal state are therefore handled differently from J2 internally, while the same universal package exposes the appropriate FIX controls from the resolved family capability set. `disable_features: [fixed_position]` hides both P2 FIX controls if an installation needs that compatibility override.
 
 ## Fan and airflow telemetry
 
@@ -174,7 +172,6 @@ Separate research examples remain available for deeper protocol work:
 
 - Compatibility has only been directly tested on a small number of physical units.
 - Firmware differences within a nominal family are real and can affect model reporting and control behaviour.
-- The `limited` profile currently masks the firmware-variable FIX controls; other firmware-dependent features may be added to that mask only when evidence justifies it.
 - Some controls are shared-ODU functions on a multi-split system and should not be assumed to be purely local to one IDU.
 - Several timer, maintenance and energy fields remain only partly decoded.
 - Exact locality of some ODU/current/energy values is still being verified.
