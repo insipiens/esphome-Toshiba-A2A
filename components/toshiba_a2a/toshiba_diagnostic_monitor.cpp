@@ -94,9 +94,17 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
     const bool correlated =
         pending_fresh && response_register == this->monitor_pending_register_;
 
+    const char *source =
+        correlated ? (this->monitor_pending_write_ ? "write-response" : "request-response")
+                   : "unsolicited";
+    const std::string tx_value =
+        correlated && this->monitor_pending_has_value_
+            ? str_sprintf(" tx_value=0x%02X", static_cast<unsigned>(this->monitor_pending_value_))
+            : "";
+
     ESP_LOGI(TAG,
-             "UART MONITOR RX source=%s class=0x%02X reg=%s length=%u checksum=OK%s",
-             correlated ? "response" : "unsolicited",
+             "UART MONITOR RX source=%s class=0x%02X reg=%s length=%u checksum=OK%s%s",
+             source,
              raw.size() > 3 ? static_cast<unsigned>(raw[3]) : 0U,
              response_register >= 0
                  ? str_sprintf("0x%02X", static_cast<unsigned>(response_register)).c_str()
@@ -104,7 +112,8 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
              static_cast<unsigned>(raw.size()),
              correlated
                  ? str_sprintf(" latency=%ums", static_cast<unsigned>(now - this->monitor_pending_since_)).c_str()
-                 : "");
+                 : "",
+             tx_value.c_str());
 
     this->log_monitor_bytes_(raw, response_register);
     this->log_monitor_decoded_(raw, response_register, correlated);
@@ -277,11 +286,6 @@ void ToshibaDiagnosticMonitorUart::remember_monitor_payload_(uint8_t reg,
     this->monitor_last_payload_[index] = payload;
     this->monitor_payload_seen_[index] = true;
   }
-}
-
-void ToshibaDiagnosticMonitorUart::log_timer_bank_snapshot_() const {
-  // Retained for compatibility with older development builds. Focused monitor
-  // mode does not generate a synthetic register-bank snapshot.
 }
 
 void ToshibaDiagnosticMonitorUart::log_scan_packet_(const std::vector<uint8_t> &raw) {
