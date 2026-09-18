@@ -34,7 +34,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/insipiens/esphome-Toshiba-A2A
-      ref: refactor/toshiba-protocol-model-separation
+      ref: main
     components:
       - toshiba_a2a
     refresh: 0s
