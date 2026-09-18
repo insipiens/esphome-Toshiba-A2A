@@ -37,6 +37,7 @@ external_components:
       ref: main
     components:
       - toshiba_a2a
+      - toshiba_output
     refresh: 0s
 
 uart:
@@ -123,12 +124,14 @@ climate:
       entity_category: diagnostic
     idu_heat_exchanger_temp:
       name: "IDU Heat Exchanger Temp"
+      id: idu_heat_exchanger_temp
       entity_category: diagnostic
     idu_junction_temp:
       name: "IDU Junction Temp"
       entity_category: diagnostic
     idu_fan_speed:
       name: "IDU Fan RPM"
+      id: idu_fan_feedback
       entity_category: diagnostic
 
     idu_model:
@@ -155,6 +158,42 @@ climate:
     odu_identity_3:
       name: "ODU Identity 3"
       entity_category: diagnostic
+
+# Model-specific sensible thermal-output estimate:
+#   Q = rho_air * cp_air * Vdot * delta-T * heat_exchanger_factor
+#       * output_multiplier
+# Unsupported models or unresolved airflow remain unavailable rather than
+# falling back to a generic Toshiba airflow assumption.
+number:
+  - platform: template
+    name: "IDU Output Multiplier"
+    id: idu_output_multiplier
+    icon: "mdi:tune-variant"
+    entity_category: config
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.01
+    initial_value: 1.0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+toshiba_output:
+  climate_id: room_id
+  heat_exchanger_temperature: idu_heat_exchanger_temp
+  fan_feedback: idu_fan_feedback
+  output_multiplier: idu_output_multiplier
+
+  airflow:
+    name: "IDU Airflow"
+
+  cooling_output:
+    name: "Estimated IDU Cooling Output"
+
+  heating_output:
+    name: "Estimated IDU Heating Output"
+
+  heat_exchanger_factor: 1.0
 
 switch:
   - platform: template

@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 18th 2026
 
+* integrated the model-specific sensible-output estimator into the universal package: supported models now expose IDU airflow plus estimated heating and cooling output automatically; unsupported models or unresolved airflow remain unavailable instead of using a generic estimate; a restored 0.00–1.00 `IDU Output Multiplier` permits runtime calibration of both output estimates; the standalone output example now uses a non-conflicting climate ID on current ESPHome
 * prepared the tested protocol/model refactor for promotion to `main`: the universal package and reference examples now track `main` rather than the temporary refactor branch
 * restored `climate_entity_name` as a separate optional installation substitution for the climate entity name, while retaining `device_name` for ESPHome/network identity, `friendly_name` for the Home Assistant device name and `toshiba_model` for family/profile selection; `climate_entity_name: ""` is supported for users who prefer composed naming
 * simplified Focused Monitor into a raw UART recorder: logs TX/RX direction, hexadecimal register address when structurally identifiable, frame length and raw bytes; retains simple request/response correlation but removes payload/state interpretation and speculative remote-origin labelling; timeout, checksum-failed and invalid-header RX traffic is now logged instead of silently discarded

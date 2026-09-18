@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import climate, sensor
+from esphome.components import climate, number, sensor
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_POWER,
@@ -15,13 +15,16 @@ CONF_COOLING_OUTPUT = "cooling_output"
 CONF_HEATING_OUTPUT = "heating_output"
 CONF_AIRFLOW = "airflow"
 CONF_HEAT_EXCHANGER_FACTOR = "heat_exchanger_factor"
+CONF_OUTPUT_MULTIPLIER = "output_multiplier"
 
 # toshiba_a2a is supplied as a climate platform rather than a top-level
 # component. Declaring it in DEPENDENCIES makes ESPHome's component dependency
 # validator reject an otherwise valid climate: platform: toshiba_a2a config.
 # The C++ estimator still takes the ToshibaClimateUart instance selected by
 # climate_id; climate and sensor are the actual top-level dependencies here.
+# Number is auto-loaded because the runtime output multiplier is optional.
 DEPENDENCIES = ["climate", "sensor"]
+AUTO_LOAD = ["number"]
 
 toshiba_output_ns = cg.esphome_ns.namespace("toshiba_output")
 ToshibaOutputEstimator = toshiba_output_ns.class_(
@@ -51,6 +54,7 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=0,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
+        cv.Optional(CONF_OUTPUT_MULTIPLIER): cv.use_id(number.Number),
         # Ratio between the IDU heat-exchanger thermistor delta-T and the
         # effective leaving-air delta-T. Start at 1.0 for comparison testing,
         # then fit from simultaneous HX/outlet-air measurements.
@@ -73,6 +77,10 @@ async def to_code(config):
     if CONF_FAN_FEEDBACK in config:
         fan_var = await cg.get_variable(config[CONF_FAN_FEEDBACK])
         cg.add(var.set_fan_feedback_sensor(fan_var))
+
+    if CONF_OUTPUT_MULTIPLIER in config:
+        multiplier_var = await cg.get_variable(config[CONF_OUTPUT_MULTIPLIER])
+        cg.add(var.set_output_multiplier_number(multiplier_var))
 
     if CONF_COOLING_OUTPUT in config:
         sens = await sensor.new_sensor(config[CONF_COOLING_OUTPUT])

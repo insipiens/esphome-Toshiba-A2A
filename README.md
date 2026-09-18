@@ -55,7 +55,7 @@ See [examples/toshiba-a2a-template.yaml](examples/toshiba-a2a-template.yaml).
 
 ## What it provides
 
-The component exposes the normal climate controls plus Toshiba-specific functions such as Power Select, ECO, Hi POWER, Silent operation, Fireplace, 8 °C heat, Floor mode, PURE, louvre/FIX controls where supported, engineering temperatures, fan feedback, energy data and model identification.
+The component exposes the normal climate controls plus Toshiba-specific functions such as Power Select, ECO, Hi POWER, Silent operation, Fireplace, 8 °C heat, Floor mode, PURE, louvre/FIX controls where supported, engineering temperatures, fan feedback, energy data and model identification. The universal package also exposes model-specific IDU airflow and estimated sensible heating/cooling output for models with an airflow calibration; unsupported models report those derived values as unavailable. A restored `IDU Output Multiplier` number (`0.00`–`1.00`) permits later calibration without recompiling.
 
 Not every function is available on every model or in every HVAC mode.
 

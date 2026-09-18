@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 #include "esphome/core/component.h"
+#include "esphome/components/number/number.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/toshiba_a2a/toshiba_climate.h"
 #include "toshiba_airflow_data.h"
@@ -15,6 +16,7 @@ class ToshibaOutputEstimator : public PollingComponent {
   void set_climate(toshiba_a2a::ToshibaClimateUart *value) { climate_ = value; }
   void set_heat_exchanger_temperature_sensor(sensor::Sensor *value) { heat_exchanger_temp_ = value; }
   void set_fan_feedback_sensor(sensor::Sensor *value) { fan_feedback_ = value; }
+  void set_output_multiplier_number(number::Number *value) { output_multiplier_ = value; }
   void set_cooling_output_sensor(sensor::Sensor *value) { cooling_output_ = value; }
   void set_heating_output_sensor(sensor::Sensor *value) { heating_output_ = value; }
   void set_airflow_sensor(sensor::Sensor *value) { airflow_ = value; }
@@ -59,6 +61,15 @@ class ToshibaOutputEstimator : public PollingComponent {
       return;
     }
 
+    float output_multiplier = 1.0f;
+    if (output_multiplier_ != nullptr) {
+      if (!std::isfinite(output_multiplier_->state)) {
+        publish_invalid_();
+        return;
+      }
+      output_multiplier = output_multiplier_->state;
+    }
+
     AirflowMode airflow_mode;
     float delta_t = 0.0f;
     bool heating = false;
@@ -98,7 +109,8 @@ class ToshibaOutputEstimator : public PollingComponent {
 
     // Sensible thermal output based on model-specific airflow interpretation and
     // the IDU-reported heat-exchanger/room temperature difference.
-    const float thermal_w = mass_flow_kg_s * AIR_SPECIFIC_HEAT_J_KG_K * delta_t * heat_exchanger_factor_;
+    const float thermal_w = mass_flow_kg_s * AIR_SPECIFIC_HEAT_J_KG_K * delta_t *
+                            heat_exchanger_factor_ * output_multiplier;
 
     if (airflow_ != nullptr) airflow_->publish_state(airflow_m3h);
     if (cooling_output_ != nullptr) cooling_output_->publish_state(heating ? 0.0f : thermal_w);
@@ -190,6 +202,7 @@ class ToshibaOutputEstimator : public PollingComponent {
   toshiba_a2a::ToshibaClimateUart *climate_{nullptr};
   sensor::Sensor *heat_exchanger_temp_{nullptr};
   sensor::Sensor *fan_feedback_{nullptr};
+  number::Number *output_multiplier_{nullptr};
   sensor::Sensor *cooling_output_{nullptr};
   sensor::Sensor *heating_output_{nullptr};
   sensor::Sensor *airflow_{nullptr};

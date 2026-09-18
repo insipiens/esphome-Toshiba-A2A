@@ -136,6 +136,23 @@ Airflow conversion is model-specific because different indoor-unit fan and air-p
 
 The current estimator therefore uses exact-model airflow/performance data where available rather than one generic Toshiba equation.
 
+The universal package instantiates that estimator and exposes `IDU Airflow`,
+`Estimated IDU Heating Output` and `Estimated IDU Cooling Output`. It combines
+the effective model identity, IDU heat-exchanger temperature, room/return-air
+temperature and live fan feedback. Where live fan feedback is unavailable, a
+known manual fan setting can be mapped across the same model-specific airflow
+range. An unsupported model or unresolved airflow produces unavailable derived
+values rather than a generic estimate.
+
+The estimate is sensible output only:
+`Q = rho_air * cp_air * Vdot * delta-T * heat_exchanger_factor * output_multiplier`.
+The package exposes `IDU Output Multiplier` as a restored Home Assistant number
+from `0.00` to `1.00` in `0.01` steps, defaulting to `1.00`. This permits the
+published heating and cooling estimates to be reduced at runtime if calibration
+shows a consistent overestimate. The internal heat-exchanger factor also
+defaults to `1.0`; the distinction is that it remains a build-time estimator
+parameter, while the output multiplier is the user-facing runtime adjustment.
+
 ## Engineering and energy data
 
 The component exposes engineering/status data from `0xE4` and `0xE5`, including selected IDU and ODU temperatures, load/current-like values and fan feedback.
@@ -188,7 +205,7 @@ Separate research examples remain available for deeper protocol work:
 - Some controls are shared-ODU functions on a multi-split system and should not be assumed to be purely local to one IDU.
 - Several timer, maintenance and energy fields remain only partly decoded.
 - Exact locality of some ODU/current/energy values is still being verified.
-- Output estimation is experimental and is not a general Toshiba COP model.
+- Output estimation remains experimental, is limited to models with explicit airflow data, and is not a general Toshiba COP model.
 - P2 airflow endpoint data remains less mature than the J2 reference data.
 
 ## Evidence policy

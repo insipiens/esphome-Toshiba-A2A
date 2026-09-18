@@ -28,7 +28,7 @@ esphome:
     priority: -200
     then:
       - lambda: |-
-          auto *controller = static_cast<toshiba_a2a::ToshibaClimateUart *>(id(toshiba_a2a));
+          auto *controller = static_cast<toshiba_a2a::ToshibaClimateUart *>(id(room_id));
           if (!id(saved_idu_model).empty())
             controller->restore_idu_model(id(saved_idu_model));
           if (!id(saved_odu_model).empty())
@@ -76,7 +76,7 @@ uart:
 climate:
   - platform: toshiba_a2a
     name: "Toshiba A2A"
-    id: toshiba_a2a
+    id: room_id
     uart_id: uart_bus
 
     indoor_temp:
@@ -112,7 +112,7 @@ climate:
 #   Q = rho_air * cp_air * Vdot * delta-T * heat_exchanger_factor
 # with the sign/mode handled internally.
 toshiba_output:
-  climate_id: toshiba_a2a
+  climate_id: room_id
   heat_exchanger_temperature: idu_hx_temp
   fan_feedback: idu_fan_feedback
 
