@@ -46,6 +46,7 @@ ToshibaClimateUart::ToshibaClimateUart() {
  */
 void ToshibaClimateUart::send_to_uart(ToshibaCommand command) {
   this->last_command_timestamp_ = millis();
+  this->on_uart_tx_(command);
   ESP_LOGV(TAG, "Sending: [%s]", format_hex_pretty(command.payload).c_str());
   this->write_array(command.payload);
 }
