@@ -1,23 +1,24 @@
-# Minimal consuming YAML for the installed Office RAS-B10J2FVG-E.
-# The exact IDU model is mandatory; the package derives the family profile,
-# capabilities and family-specific command encoding from it.
-# This known older unit uses the limited capability profile because vertical
-# FIX commands are ACKed but do not produce physical FIX movement/readback.
-
+# CI/reference fixture: older J2 model through the universal Toshiba package.
 substitutions:
   device_name: "toshiba-a2a-03"
-  friendly_name: "toshiba-A2A-OF"
-  room_name: "Office"
-  idu_model: "RAS-B10J2FVG-E"
-  capability_profile: "limited"
+  friendly_name: "Toshiba A2A Office"
+  toshiba_model: "RAS-B10J2FVG-E"
 
 packages:
   toshiba_a2a:
     url: https://github.com/insipiens/esphome-Toshiba-A2A
-    ref: main
+    ref: refactor/toshiba-protocol-model-separation
     files:
-      - packages/toshiba-a2a-j2.yaml
+      - packages/toshiba-a2a.yaml
     refresh: 0s
+
+# This older controller accepts J2 FIX commands but does not implement the
+# expected physical FIX behaviour/readback, so the user-level override disables
+# only that feature.
+climate:
+  - id: room_id
+    disable_features:
+      - fixed_position
 
 wifi:
   networks:
@@ -26,8 +27,7 @@ wifi:
     - ssid: !secret iot_wifi_ssid
       password: !secret iot_wifi_password
     - ssid: !secret iot2_wifi_ssid
-      password: !secret iot2_wifi_password
-
+      password: !secret iot_wifi_password
   ap:
     ssid: office Hotspot
     password: !secret fallback_password
