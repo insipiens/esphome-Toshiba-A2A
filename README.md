@@ -41,7 +41,7 @@ example:
 
 ```yaml
 climate:
-  - id: room_id
+  - id: !extend room_id
     disable_features:
       - fixed_position
 ```
