@@ -315,6 +315,14 @@ void ToshibaDiagnosticMonitorUart::log_monitor_bytes_(const std::vector<uint8_t>
 
 void ToshibaDiagnosticMonitorUart::log_monitor_decoded_(const std::vector<uint8_t> &raw, int16_t reg,
                                                          bool correlated) {
+  if (raw.size() == 16) {
+    ESP_LOGI(TAG, "UART MONITOR ACK source=%s reg=%s bytes=[%s]",
+             correlated ? "correlated" : "unsolicited",
+             reg >= 0 ? str_sprintf("0x%02X", static_cast<unsigned>(reg)).c_str() : "unknown",
+             format_hex_pretty(raw).c_str());
+    return;
+  }
+
   std::vector<uint8_t> payload;
   if (!this->extract_monitor_payload_(raw, reg, payload)) return;
 
