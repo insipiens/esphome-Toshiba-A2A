@@ -68,11 +68,27 @@ CONF_STRONG_DEFROST = "strong_defrost"
 CONF_DEFROST_ACTIVE = "defrost_active"
 
 CONF_SUPPORTED_PRESETS = "supported_presets"
+CONF_DISABLE_FEATURES = "disable_features"
 
 FEATURE_HORIZONTAL_SWING = "horizontal_swing"
 MIN_TEMP = "min_temp"
 DISABLE_HEAT_MODE = "disable_heat_mode"
 DISABLE_WIFI_LED = "disable_wifi_led"
+
+DISABLE_FEATURE_VALUES = {
+    "fixed_position": 1 << 17,
+    "eco": 1 << 1,
+    "hi_power": 1 << 2,
+    "power_select": 1 << 4,
+    "outdoor_silent": 1 << 5,
+    "fireplace": 1 << 6,
+    "eight_degree_heat": 1 << 7,
+    "floor": 1 << 10,
+    "sleep": 1 << 13,
+    "comfort": 1 << 14,
+    "pure": 1 << 15,
+    "defrost": 1 << 16,
+}
 
 toshiba_ns = cg.esphome_ns.namespace("toshiba_a2a")
 ToshibaClimateUart = toshiba_ns.class_("ToshibaValidatedControlUart", cg.PollingComponent, climate.Climate, uart.UARTDevice)
@@ -139,6 +155,7 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
         cv.Optional(DISABLE_WIFI_LED): cv.boolean,
         cv.Optional(DISABLE_HEAT_MODE): cv.boolean,
         cv.Optional(CONF_SUPPORTED_PRESETS): cv.ensure_list(cv.one_of("Standard", "Hi POWER", "ECO", "Fireplace 1", "Fireplace 2", "8 degrees", "Silent#1", "Silent#2", "Sleep", "Floor", "Comfort")),
+        cv.Optional(CONF_DISABLE_FEATURES, default=[]): cv.ensure_list(cv.one_of(*DISABLE_FEATURE_VALUES.keys())),
         cv.Optional(MIN_TEMP): cv.int_,
         cv.Optional(CONF_TIME_ID): cv.use_id(cg.esphome_ns.namespace("time").class_("RealTimeClock")),
         cv.Optional(CONF_TIME_SYNC_INTERVAL, default="24h"): cv.positive_time_period_milliseconds,
@@ -162,6 +179,11 @@ async def to_code(config):
 
     if CONF_MODEL_OVERRIDE in config:
         cg.add(var.set_model_override(config[CONF_MODEL_OVERRIDE]))
+
+    disabled_features = 0
+    for feature in config[CONF_DISABLE_FEATURES]:
+        disabled_features |= DISABLE_FEATURE_VALUES[feature]
+    cg.add(var.set_disabled_features(disabled_features))
 
     sensor_setters = {
         CONF_INDOOR_TEMP: "set_indoor_temp_sensor", CONF_OUTDOOR_TEMP: "set_outdoor_temp_sensor",
@@ -240,10 +262,12 @@ async def to_code(config):
         ent = await button.new_button(config[CONF_START_DEFROST])
         await cg.register_parented(ent, config[CONF_ID])
         cg.add(ent.set_strong(False))
+        cg.add(var.set_start_defrost_button(ent))
     if CONF_STRONG_DEFROST in config:
         ent = await button.new_button(config[CONF_STRONG_DEFROST])
         await cg.register_parented(ent, config[CONF_ID])
         cg.add(ent.set_strong(True))
+        cg.add(var.set_strong_defrost_button(ent))
 
     if FEATURE_HORIZONTAL_SWING in config:
         cg.add(var.set_horizontal_swing(config[FEATURE_HORIZONTAL_SWING]))
