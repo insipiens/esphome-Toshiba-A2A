@@ -2,6 +2,7 @@
 substitutions:
   device_name: "toshiba-a2a-03"
   friendly_name: "Toshiba A2A Office"
+  room_name: "Office"
   toshiba_model: "RAS-B10J2FVG-E"
 
 packages:
