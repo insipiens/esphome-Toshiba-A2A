@@ -1,8 +1,10 @@
 # Universal ESPHome package for Toshiba residential A2A IDUs.
 #
-# Consumers provide only device_name, friendly_name and the exact Toshiba IDU
-# model. The component resolves the protocol family and capability defaults
-# internally from toshiba_model.
+# Consumers provide device_name, friendly_name and the exact Toshiba IDU model.
+# room_name is optional: set it when a distinct climate entity name is useful,
+# or leave it blank to rely on Home Assistant's composed naming.
+# The component resolves the protocol family and capability defaults internally
+# from toshiba_model.
 #
 # Optional per-installation feature disables belong in the consuming YAML,
 # normally only after testing reveals an older/reduced IDU controller.
@@ -10,6 +12,7 @@
 substitutions:
   device_name: "toshiba-a2a"
   friendly_name: "Toshiba Air Conditioner"
+  room_name: ""
   toshiba_model: "REPLACE_WITH_EXACT_IDU_MODEL"
 
 esphome:
@@ -49,7 +52,7 @@ time:
 
 climate:
   - platform: toshiba_a2a
-    name: ${friendly_name}
+    name: ${room_name}
     id: room_id
     uart_id: uart_bus
     model_override: ${toshiba_model}
