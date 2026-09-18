@@ -40,3 +40,6 @@ jobs:
 
       - name: Compile Office J2 package template
         run: esphome compile examples/office-j2-package-template.yaml
+
+      - name: Compile universal installation template
+        run: esphome compile examples/toshiba-a2a-template.yaml
