@@ -18,10 +18,9 @@ void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentific
   if (equipment.idu_model_available && !equipment.idu_model.empty()) {
     if (this->idu_model_ != equipment.idu_model) {
       this->idu_model_ = equipment.idu_model;
-      this->idu_family_ = equipment.idu_family;
-      this->capabilities_ = equipment.capabilities;
+      this->family_profile_ = &profile_for_model(equipment.idu_model);
       ESP_LOGI(TAG, "E0 IDU model: %s", this->idu_model_.c_str());
-      ESP_LOGI(TAG, "E0 IDU family: %s", indoor_unit_family_to_string(this->idu_family_));
+      ESP_LOGI(TAG, "E0 IDU family: %s", indoor_unit_family_to_string(this->family_profile_->family));
       if (this->idu_model_sensor_ != nullptr) this->idu_model_sensor_->publish_state(this->idu_model_);
     }
     // Optional model-dependent entities are deliberately registered only after
@@ -125,7 +124,7 @@ void ToshibaClimateUart::publish_special_mode_entities_(SPECIAL_MODE mode) {
 
 void ToshibaClimateUart::on_set_special_mode_switch(SPECIAL_MODE mode, bool enabled) {
   ESP_LOGD(TAG, "Setting divided Toshiba function %s to %s", SpecialModeToPreset(mode), enabled ? "ON" : "OFF");
-  this->sendCmd(ToshibaCommandType::SPECIAL_MODE,
+  this->sendCmd(ToshibaRegister::SPECIAL_MODE,
                 static_cast<uint8_t>(enabled ? mode : SPECIAL_MODE::STANDARD));
 }
 
@@ -143,7 +142,7 @@ void ToshibaClimateUart::on_set_special_mode_level(SPECIAL_MODE level_one, SPECI
     return;
   }
   ESP_LOGD(TAG, "Setting divided Toshiba level function to %s", value.c_str());
-  this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(mode));
+  this->sendCmd(ToshibaRegister::SPECIAL_MODE, static_cast<uint8_t>(mode));
 }
 
 void ToshibaSpecialModeSwitch::write_state(bool state) {
@@ -179,7 +178,7 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
   }
 
   if (raw.size() > 12 && raw[3] == 0x11 &&
-      raw[12] == static_cast<uint8_t>(ToshibaCommandType::EQUIPMENT_INFO)) {
+      raw[12] == static_cast<uint8_t>(ToshibaRegister::EQUIPMENT_INFO)) {
     const auto equipment = decode_equipment_identification(raw);
     if (!equipment.valid) {
       ESP_LOGW(TAG, "E0 equipment-identification packet did not match the expected class-0x11 layout");
@@ -192,7 +191,7 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
   }
 
   // Suppress the temporary verbose E4/E5 base dumps while retaining sensors.
-  if (response_register == static_cast<uint8_t>(ToshibaCommandType::ODU_STATUS) &&
+  if (response_register == static_cast<uint8_t>(ToshibaRegister::ODU_STATUS) &&
       (raw.size() == 22 || raw.size() == 24)) {
     const uint8_t offset = (raw.size() == 22) ? 13 : 15;
     if (this->odu_discharge_temp_sensor_ != nullptr) {
@@ -218,7 +217,7 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
     return;
   }
 
-  if (response_register == static_cast<uint8_t>(ToshibaCommandType::IDU_STATUS) &&
+  if (response_register == static_cast<uint8_t>(ToshibaRegister::IDU_STATUS) &&
       (raw.size() == 22 || raw.size() == 24)) {
     const uint8_t offset = (raw.size() == 22) ? 13 : 15;
     if (this->idu_heat_exchanger_temp_sensor_ != nullptr) {
@@ -242,10 +241,10 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
 
   SPECIAL_MODE received_mode;
   bool have_special_mode = false;
-  if (raw.size() == 15 && raw[12] == static_cast<uint8_t>(ToshibaCommandType::SPECIAL_MODE)) {
+  if (raw.size() == 15 && raw[12] == static_cast<uint8_t>(ToshibaRegister::SPECIAL_MODE)) {
     received_mode = static_cast<SPECIAL_MODE>(raw[13]);
     have_special_mode = true;
-  } else if (raw.size() == 17 && raw[14] == static_cast<uint8_t>(ToshibaCommandType::SPECIAL_MODE)) {
+  } else if (raw.size() == 17 && raw[14] == static_cast<uint8_t>(ToshibaRegister::SPECIAL_MODE)) {
     received_mode = static_cast<SPECIAL_MODE>(raw[15]);
     have_special_mode = true;
   }
