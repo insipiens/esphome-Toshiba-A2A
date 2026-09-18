@@ -47,6 +47,7 @@ enum ToshibaFeature : uint32_t {
   FEATURE_PURE = 1UL << 15,
   FEATURE_START_DEFROST = 1UL << 16,
   FEATURE_FIXED_POSITION = 1UL << 17,
+  FEATURE_STRONG_DEFROST = 1UL << 18,
 };
 
 enum class ToshibaFeatureScope : uint8_t {
@@ -126,12 +127,6 @@ inline uint8_t validated_fan_options_for_mode(const ToshibaFamilyProfile &profil
   return entry == nullptr ? FAN_OPTION_NONE : entry->fan_options;
 }
 
-inline bool validated_strong_defrost_allowed(const ToshibaFamilyProfile &profile,
-                                             ToshibaHvacMode mode) {
-  return profile.family == ToshibaIndoorUnitFamily::P2KVSG &&
-         mode == ToshibaHvacMode::HEAT;
-}
-
 inline ToshibaFeatureScope feature_scope(ToshibaFeature feature) {
   switch (feature) {
     case FEATURE_VERTICAL_AIRFLOW:
@@ -155,6 +150,7 @@ inline ToshibaFeatureScope feature_scope(ToshibaFeature feature) {
     case FEATURE_POWER_SELECT:
     case FEATURE_OUTDOOR_SILENT:
     case FEATURE_START_DEFROST:
+    case FEATURE_STRONG_DEFROST:
       return ToshibaFeatureScope::SHARED_ODU;
 
     default:
