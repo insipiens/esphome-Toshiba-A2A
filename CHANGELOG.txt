@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 17th 2026
 
+* completed protocol/model separation checkpoint: common physical registers and wire values now live in `toshiba_registers.h`; J2FVG/P2KVSG capabilities and A3 encodings live in declarative family headers; the controller retains one resolved family profile; configured special-function controls use the profile-aware path; and obsolete self-modifying refactor tooling was removed
 * refactor branch hardware-test packages now point their external component source at `refactor/toshiba-protocol-model-separation` rather than `main`, ensuring J2/P2 test flashes actually build the refactored `toshiba_a2a` code
 
 Sep 16th 2026
