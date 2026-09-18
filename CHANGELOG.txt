@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 18th 2026
 
+* made family capabilities the single authority for whether a function exists; per-mode function lists now only restrict those family features by HVAC mode, with compile-time assertions that every mode feature is present in the family capability mask
 * replaced family-specific user packages with one universal `packages/toshiba-a2a.yaml`: users provide `device_name`, `friendly_name` and `toshiba_model`; the component resolves family/capabilities internally, while optional `disable_features` masks individual controls such as `fixed_position` for older/reduced IDU controllers
 * upgraded Focused Monitor to loitering transaction-aware diagnostics: it observes normal board TX and IDU RX, correlates request/response traffic, logs unsolicited/passive publications and highlights changed unsolicited registers as remote/control-origin candidates without injecting exploratory reads
 * removed the obsolete `special_mode:` schema and the remaining legacy unvalidated special-mode/power-select entity classes; all exposed dedicated controls now use the validated profile-aware path
