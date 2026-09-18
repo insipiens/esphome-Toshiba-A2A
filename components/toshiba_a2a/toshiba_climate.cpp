@@ -897,15 +897,6 @@ ClimateTraits ToshibaClimateUart::traits() {
   return traits;
 }
 
-void ToshibaClimateUart::on_set_pwr_level(const std::string &value) {
-  ESP_LOGD(TAG, "Setting power level to %s", value.c_str());
-  auto pwr_level = StringToPwrLevel(value);
-  this->sendCmd(ToshibaRegister::POWER_SELECT, static_cast<uint8_t>(pwr_level.value()));
-  pwr_select_->publish_state(value);
-}
-
-void ToshibaPwrModeSelect::control(const std::string &value) { parent_->on_set_pwr_level(value); }
-
 /**
  * Start a paced scan of all request registers from 0x80 to 0xFE.
  * Normal periodic polling is paused until the scan completes.
