@@ -76,14 +76,7 @@ ToshibaEquipmentIdentification decode_equipment_identification(const std::vector
   if (!is_identity_field_available(result.odu_identity_2)) result.odu_identity_2.clear();
   if (!is_identity_field_available(result.odu_identity_3)) result.odu_identity_3.clear();
 
-  if (result.idu_model_available) {
-    result.idu_family = indoor_unit_family_from_model(result.idu_model);
-    result.capabilities = capability_profile_from_model(result.idu_model);
-  } else {
-    result.idu_model.clear();
-    result.capabilities.features = FEATURE_COMMON_HVAC;
-  }
-
+  if (!result.idu_model_available) result.idu_model.clear();
   if (!result.odu_model_available) result.odu_model.clear();
 
   return result;
