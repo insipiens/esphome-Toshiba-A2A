@@ -20,7 +20,7 @@ packages:
 # feature exposed for your model/family does not work correctly on your IDU.
 #
 # climate:
-#   - id: room_id
+#   - id: !extend room_id
 #     disable_features:
 #       - fixed_position
 
