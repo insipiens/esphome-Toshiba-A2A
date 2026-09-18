@@ -1,8 +1,8 @@
-# Development/research example: passive Toshiba UART capture.
+# Development/research example: active-controller Focused Monitor.
 #
-# This is not required for normal climate control. While enabled, the component
-# captures checksum-valid Toshiba-originated traffic without issuing register
-# scan requests. Use it when collecting evidence for protocol/model behaviour.
+# This is not a two-channel passive sniffer. The component is the active
+# controller and records its normal TX plus IDU RX traffic without exploratory
+# scan requests. For genuine-adaptor capture use passive-uart-sniffer.yaml.
 
 substitutions:
   device_name: toshiba-a2a-diagnostic
@@ -13,7 +13,7 @@ esphome:
 esp32:
   board: esp32-c3-devkitm-1
   framework:
-    type: arduino
+    type: esp-idf
 
 external_components:
   - source:
@@ -28,15 +28,15 @@ logger:
 
 uart:
   id: uart_bus
-  tx_pin: GPIO4   # example only: use your adapter wiring
-  rx_pin: GPIO5   # example only: use your adapter wiring
+  tx_pin: GPIO21
+  rx_pin: GPIO20
   parity: EVEN
   baud_rate: 9600
 
 climate:
   - platform: toshiba_a2a
     name: "Toshiba A2A"
-    id: toshiba_a2a
+    id: room_id
     uart_id: uart_bus
     idu_model:
       name: "IDU Model"
@@ -45,17 +45,17 @@ climate:
 
 switch:
   - platform: template
-    name: "Toshiba Passive UART Capture"
+    name: "Toshiba Focused Monitor"
     icon: "mdi:chart-timeline-variant"
     optimistic: true
     restore_mode: ALWAYS_OFF
     turn_on_action:
       - lambda: |-
-          auto* controller = static_cast<toshiba_a2a::ToshibaClimateUart*>(id(toshiba_a2a));
+          auto* controller = static_cast<toshiba_a2a::ToshibaClimateUart*>(id(room_id));
           controller->set_scan_enabled(true);
     turn_off_action:
       - lambda: |-
-          auto* controller = static_cast<toshiba_a2a::ToshibaClimateUart*>(id(toshiba_a2a));
+          auto* controller = static_cast<toshiba_a2a::ToshibaClimateUart*>(id(room_id));
           controller->set_scan_enabled(false);
 
 api:

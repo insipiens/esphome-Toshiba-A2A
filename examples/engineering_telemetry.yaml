@@ -11,7 +11,7 @@ esphome:
 esp32:
   board: esp32-c3-devkitm-1
   framework:
-    type: arduino
+    type: esp-idf
 
 external_components:
   - source:
@@ -26,15 +26,15 @@ logger:
 
 uart:
   id: uart_bus
-  tx_pin: GPIO4   # example only
-  rx_pin: GPIO5   # example only
+  tx_pin: GPIO21
+  rx_pin: GPIO20
   parity: EVEN
   baud_rate: 9600
 
 climate:
   - platform: toshiba_a2a
     name: "Toshiba A2A"
-    id: toshiba_a2a
+    id: room_id
     uart_id: uart_bus
 
     idu_model:
@@ -54,7 +54,7 @@ climate:
     idu_fan_speed:
       # E4+2 is live IDU fan-speed feedback. On the tested units one count is
       # approximately 10 rpm (for example 61 ~= 610 rpm).
-      name: "IDU Fan Speed (RPM/10)"
+      name: "IDU Fan Speed (RPM per 10)"
 
     odu_discharge_temp:
       name: "ODU Discharge Temperature"

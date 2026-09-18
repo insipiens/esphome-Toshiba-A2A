@@ -12,7 +12,11 @@ This project is under active development and is based on testing real Toshiba un
 - `RAS-5M34G3AVG-E1` multi-split outdoor unit
 - ESP32-C3 / ESPHome
 
-## Installation
+## Quick start
+
+Build or obtain a suitable level-shifted interface, then copy the universal
+installation template and set the exact indoor-unit model. Detailed electrical,
+flashing and verification steps are in [the installation guide](docs/INSTALLATION.md).
 
 Use the single universal package for all supported Toshiba IDU families. The
 consumer supplies only a coherent set of installation substitutions:
@@ -51,7 +55,8 @@ climate:
       - fixed_position
 ```
 
-See [examples/toshiba-a2a-template.yaml](examples/toshiba-a2a-template.yaml).
+See [examples/toshiba-a2a-template.yaml](examples/toshiba-a2a-template.yaml)
+and [Usage and options](docs/USAGE.md).
 
 ## What it provides
 
@@ -61,7 +66,17 @@ Not every function is available on every model or in every HVAC mode.
 
 ## Documentation
 
-For the current implementation, tested behaviour, known limitations and active investigations, see [current_status.md](current_status.md).
+Start here:
+
+- [Installation](docs/INSTALLATION.md) — flash, connect and verify a controller
+- [Usage and options](docs/USAGE.md) — substitutions, entities, feature overrides and output calibration
+- [Controller hardware](docs/HARDWARE.md) — tested BOM, populated-board photograph and corrected Gerbers
+- [Passive UART sniffer](docs/SNIFFER.md) — receive-only capture of a genuine adaptor
+- [Adding support for a model](docs/ADDING_A_MODEL.md) — evidence and implementation workflow
+- [Examples](examples/README.md) — which configuration to use and why
+
+For the current implementation, tested behaviour, known limitations and active
+investigations, see [current_status.md](current_status.md).
 
 Detailed protocol material is kept separately:
 
@@ -72,7 +87,10 @@ Detailed protocol material is kept separately:
 
 ## Hardware caution
 
-The Toshiba accessory connector carries power and UART signals. Do not assume connector pin order or logic levels from this README. Verify the unit and interface before wiring, and disconnect mains power before connecting or disconnecting the ESP interface.
+The Toshiba accessory connector carries power and UART signals. Do not assume
+connector pin order or logic levels from a photograph. Verify the unit and
+interface before wiring, and disconnect mains power before connecting or
+disconnecting the ESP interface. See [Controller hardware](docs/HARDWARE.md).
 
 ## Origin and licence
 

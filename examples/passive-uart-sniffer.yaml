@@ -1,0 +1,67 @@
+# Passive dual-channel Toshiba UART sniffer.
+#
+# Both monitored signals are connected to ESP32 RX inputs only. This example
+# does not instantiate the Toshiba climate controller and must not transmit on
+# either signal line. See docs/SNIFFER.md before connecting hardware.
+
+substitutions:
+  device_name: "toshiba-uart-sniffer"
+
+esphome:
+  name: ${device_name}
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+uart:
+  - id: idu_to_adapter
+    rx_pin: GPIO20
+    baud_rate: 9600
+    data_bits: 8
+    parity: EVEN
+    stop_bits: 1
+    rx_buffer_size: 512
+    debug:
+      direction: RX
+      dummy_receiver: true
+      after:
+        timeout: 20ms
+      sequence:
+        - lambda: |-
+            ESP_LOGD("sniffer", "IDU -> adapter: %s",
+                     format_hex_pretty(bytes, ' ', false).c_str());
+
+  - id: adapter_to_idu
+    rx_pin: GPIO21
+    baud_rate: 9600
+    data_bits: 8
+    parity: EVEN
+    stop_bits: 1
+    rx_buffer_size: 512
+    debug:
+      direction: RX
+      dummy_receiver: true
+      after:
+        timeout: 20ms
+      sequence:
+        - lambda: |-
+            ESP_LOGD("sniffer", "Adapter -> IDU: %s",
+                     format_hex_pretty(bytes, ' ', false).c_str());
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password

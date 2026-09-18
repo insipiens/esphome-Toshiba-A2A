@@ -3,7 +3,9 @@
 # Set the installation identity/model substitutions below. climate_entity_name controls
 # the climate entity name and may be left blank ("") if you prefer Home
 # Assistant's composed naming. The component resolves the Toshiba protocol
-# family and default capabilities from toshiba_model.
+# family and default capabilities from toshiba_model. It also provides a
+# restored 0.00-1.00 output multiplier and model-specific airflow/output
+# estimates where exact-model calibration data exists.
 
 substitutions:
   device_name: "toshiba-a2a"
