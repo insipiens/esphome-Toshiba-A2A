@@ -281,8 +281,6 @@ class ToshibaDiagnosticMonitorUart : public ToshibaClimateUart {
   void parseResponse(std::vector<uint8_t> raw_data) override;
   void process_scan_() override;
   void log_scan_packet_(const std::vector<uint8_t> &raw_data) override;
-
- protected:
   void on_uart_tx_(const ToshibaCommand &command) override;
 
  private:
@@ -301,7 +299,6 @@ class ToshibaDiagnosticMonitorUart : public ToshibaClimateUart {
   bool extract_monitor_payload_(const std::vector<uint8_t> &raw_data, int16_t response_register,
                                 std::vector<uint8_t> &payload) const;
   void remember_monitor_payload_(uint8_t response_register, const std::vector<uint8_t> &payload);
-  void log_timer_bank_snapshot_() const;
 };
 
 class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
