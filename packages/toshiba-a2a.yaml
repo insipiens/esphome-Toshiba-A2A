@@ -1,0 +1,173 @@
+# Universal ESPHome package for Toshiba residential A2A IDUs.
+#
+# Consumers provide only device_name, friendly_name and the exact Toshiba IDU
+# model. The component resolves the protocol family and capability defaults
+# internally from toshiba_model.
+#
+# Optional per-installation feature disables belong in the consuming YAML,
+# normally only after testing reveals an older/reduced IDU controller.
+
+substitutions:
+  device_name: "toshiba-a2a"
+  friendly_name: "Toshiba Air Conditioner"
+  toshiba_model: "REPLACE_WITH_EXACT_IDU_MODEL"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+  platformio_options:
+    board_build.f_cpu: 80000000L
+
+preferences:
+  flash_write_interval: 10min
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/insipiens/esphome-Toshiba-A2A
+      ref: refactor/toshiba-protocol-model-separation
+    components:
+      - toshiba_a2a
+    refresh: 0s
+
+uart:
+  id: uart_bus
+  tx_pin: 21
+  rx_pin: 20
+  parity: EVEN
+  baud_rate: 9600
+
+time:
+  - platform: homeassistant
+    id: hass_time
+
+climate:
+  - platform: toshiba_a2a
+    name: ${friendly_name}
+    id: room_id
+    uart_id: uart_bus
+    model_override: ${toshiba_model}
+    time_id: hass_time
+    time_sync_interval: 24h
+
+    power_select:
+      name: "Power level"
+    outdoor_silent:
+      name: "Outdoor Silent"
+    eco:
+      name: "ECO"
+    hi_power:
+      name: "Hi POWER"
+    fireplace:
+      name: "Fireplace"
+    eight_degree_heat:
+      name: "8 Degree Heat"
+    sleep:
+      name: "Sleep"
+    floor:
+      name: "Floor"
+    comfort:
+      name: "Comfort"
+    pure:
+      name: "PURE"
+
+    vertical_air_direction:
+      name: "Vertical Fixed Position"
+    horizontal_air_direction:
+      name: "Horizontal Fixed Position"
+
+    start_defrost:
+      name: "Start Defrost"
+      entity_category: diagnostic
+    strong_defrost:
+      name: "Strong Defrost"
+      entity_category: diagnostic
+    defrost_active:
+      name: "Defrost Active"
+      entity_category: diagnostic
+    self_clean:
+      name: "IDU Self Clean Active"
+      entity_category: diagnostic
+
+    energy:
+      name: "IDU Daily Energy"
+      entity_category: diagnostic
+    indoor_temp:
+      name: "Indoor Temp"
+    outdoor_temp:
+      name: "Outdoor Temp"
+      entity_category: diagnostic
+    compressor_load:
+      name: "IDU Load"
+      entity_category: diagnostic
+    compressor_current:
+      name: "IDU Current"
+      entity_category: diagnostic
+    odu_discharge_temp:
+      name: "ODU Discharge Temp"
+      entity_category: diagnostic
+    odu_suction_temp:
+      name: "ODU Suction Temp"
+      entity_category: diagnostic
+    odu_heat_exchanger_temp:
+      name: "ODU Heat Exchanger Temp"
+      entity_category: diagnostic
+    idu_heat_exchanger_temp:
+      name: "IDU Heat Exchanger Temp"
+      entity_category: diagnostic
+    idu_junction_temp:
+      name: "IDU Junction Temp"
+      entity_category: diagnostic
+    idu_fan_speed:
+      name: "IDU Fan RPM"
+      entity_category: diagnostic
+
+    idu_model:
+      name: "IDU Model"
+      entity_category: diagnostic
+    idu_identity_1:
+      name: "IDU Identity 1"
+      entity_category: diagnostic
+    idu_identity_2:
+      name: "IDU Identity 2"
+      entity_category: diagnostic
+    idu_identity_3:
+      name: "IDU Identity 3"
+      entity_category: diagnostic
+    odu_model:
+      name: "ODU Model"
+      entity_category: diagnostic
+    odu_identity_1:
+      name: "ODU Identity 1"
+      entity_category: diagnostic
+    odu_identity_2:
+      name: "ODU Identity 2"
+      entity_category: diagnostic
+    odu_identity_3:
+      name: "ODU Identity 3"
+      entity_category: diagnostic
+
+switch:
+  - platform: template
+    name: "Toshiba focused monitor"
+    id: toshiba_focused_monitor
+    icon: "mdi:chart-timeline-variant"
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    entity_category: diagnostic
+    turn_on_action:
+      - lambda: |-
+          auto *controller =
+              static_cast<toshiba_a2a::ToshibaClimateUart *>(id(room_id));
+          controller->set_scan_enabled(true);
+    turn_off_action:
+      - lambda: |-
+          auto *controller =
+              static_cast<toshiba_a2a::ToshibaClimateUart *>(id(room_id));
+          controller->set_scan_enabled(false);
