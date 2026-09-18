@@ -67,8 +67,6 @@ CONF_START_DEFROST = "start_defrost"
 CONF_STRONG_DEFROST = "strong_defrost"
 CONF_DEFROST_ACTIVE = "defrost_active"
 
-CONF_SPECIAL_MODE = "special_mode"
-CONF_SPECIAL_MODE_MODES = "modes"
 CONF_SUPPORTED_PRESETS = "supported_presets"
 
 FEATURE_HORIZONTAL_SWING = "horizontal_swing"
@@ -78,8 +76,7 @@ DISABLE_WIFI_LED = "disable_wifi_led"
 
 toshiba_ns = cg.esphome_ns.namespace("toshiba_a2a")
 ToshibaClimateUart = toshiba_ns.class_("ToshibaValidatedControlUart", cg.PollingComponent, climate.Climate, uart.UARTDevice)
-ToshibaPwrModeSelect = toshiba_ns.class_("ToshibaValidatedPowerSelect", select.Select)
-ToshibaSpecialModeSelect = toshiba_ns.class_("ToshibaSpecialModeSelect", select.Select)
+ToshibaValidatedPowerSelect = toshiba_ns.class_("ToshibaValidatedPowerSelect", select.Select)
 ToshibaVerticalAirDirectionSelect = toshiba_ns.class_("ToshibaValidatedVerticalAirDirectionSelect", select.Select)
 ToshibaHorizontalAirDirectionSelect = toshiba_ns.class_("ToshibaHorizontalAirDirectionSelect", select.Select)
 ToshibaValidatedFunctionSwitch = toshiba_ns.class_("ToshibaValidatedFunctionSwitch", switch.Switch)
@@ -87,8 +84,6 @@ ToshibaValidatedSilentSelect = toshiba_ns.class_("ToshibaValidatedSilentSelect",
 ToshibaValidatedSpecialModeLevelSelect = toshiba_ns.class_("ToshibaValidatedSpecialModeLevelSelect", select.Select)
 ToshibaPureSwitch = toshiba_ns.class_("ToshibaPureSwitch", switch.Switch)
 ToshibaDefrostButton = toshiba_ns.class_("ToshibaDefrostButton", button.Button)
-ToshibaSpecialModeSwitch = toshiba_ns.class_("ToshibaSpecialModeSwitch", switch.Switch)
-ToshibaSpecialModeLevelSelect = toshiba_ns.class_("ToshibaSpecialModeLevelSelect", select.Select)
 
 SPECIAL_MODE_VALUES = {
     CONF_HI_POWER: 1,
@@ -124,7 +119,7 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
         cv.Optional(CONF_ODU_IDENTITY_1): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_ODU_IDENTITY_2): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_ODU_IDENTITY_3): text_sensor.text_sensor_schema(),
-        cv.Optional(CONF_PWR_SELECT): select.select_schema(ToshibaPwrModeSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaPwrModeSelect)}),
+        cv.Optional(CONF_PWR_SELECT): select.select_schema(ToshibaValidatedPowerSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedPowerSelect)}),
         cv.Optional(CONF_VERTICAL_AIR_DIRECTION): select.select_schema(ToshibaVerticalAirDirectionSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaVerticalAirDirectionSelect)}),
         cv.Optional(CONF_HORIZONTAL_AIR_DIRECTION): select.select_schema(ToshibaHorizontalAirDirectionSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaHorizontalAirDirectionSelect)}),
         cv.Optional(CONF_SELF_CLEAN): binary_sensor.binary_sensor_schema(device_class=DEVICE_CLASS_RUNNING),
@@ -143,10 +138,6 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
         cv.Optional(FEATURE_HORIZONTAL_SWING): cv.boolean,
         cv.Optional(DISABLE_WIFI_LED): cv.boolean,
         cv.Optional(DISABLE_HEAT_MODE): cv.boolean,
-        cv.Optional(CONF_SPECIAL_MODE): select.select_schema(ToshibaSpecialModeSelect).extend({
-            cv.GenerateID(): cv.declare_id(ToshibaSpecialModeSelect),
-            cv.Required(CONF_SPECIAL_MODE_MODES): cv.ensure_list(cv.one_of("Standard", "Hi POWER", "ECO", "Fireplace 1", "Fireplace 2", "8 degrees", "Silent#1", "Silent#2", "Sleep", "Floor", "Comfort"))
-        }),
         cv.Optional(CONF_SUPPORTED_PRESETS): cv.ensure_list(cv.one_of("Standard", "Hi POWER", "ECO", "Fireplace 1", "Fireplace 2", "8 degrees", "Silent#1", "Silent#2", "Sleep", "Floor", "Comfort")),
         cv.Optional(MIN_TEMP): cv.int_,
         cv.Optional(CONF_TIME_ID): cv.use_id(cg.esphome_ns.namespace("time").class_("RealTimeClock")),
@@ -267,11 +258,6 @@ async def to_code(config):
 
     if CONF_SUPPORTED_PRESETS in config:
         presets = config[CONF_SUPPORTED_PRESETS]
-        cg.add(var.set_supported_presets(presets))
-        if "8 degrees" in presets:
-            cg.add(var.set_min_temp(5))
-    if CONF_SPECIAL_MODE in config:
-        presets = config[CONF_SPECIAL_MODE][CONF_SPECIAL_MODE_MODES]
         cg.add(var.set_supported_presets(presets))
         if "8 degrees" in presets:
             cg.add(var.set_min_temp(5))
