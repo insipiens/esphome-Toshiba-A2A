@@ -2,7 +2,7 @@
 substitutions:
   device_name: "toshiba-a2a-02"
   friendly_name: "Toshiba A2A Kitchen"
-  room_name: "Kitchen"
+  climate_entity_name: "Kitchen"
   toshiba_model: "RAS-B10P2KVSGB-E"
 
 packages:
