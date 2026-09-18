@@ -14,7 +14,7 @@ substitutions:
 packages:
   toshiba_a2a:
     url: https://github.com/insipiens/esphome-Toshiba-A2A
-    ref: refactor/toshiba-protocol-model-separation
+    ref: main
     files:
       - packages/toshiba-a2a.yaml
     refresh: 0s
