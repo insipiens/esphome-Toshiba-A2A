@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 18th 2026
 
+* restored `room_name` as a separate optional installation substitution for the climate entity name, while retaining `device_name` for ESPHome/network identity, `friendly_name` for the Home Assistant device name and `toshiba_model` for family/profile selection; `room_name: ""` is supported for users who prefer composed naming
 * simplified Focused Monitor into a raw UART recorder: logs TX/RX direction, hexadecimal register address when structurally identifiable, frame length and raw bytes; retains simple request/response correlation but removes payload/state interpretation and speculative remote-origin labelling; timeout, checksum-failed and invalid-header RX traffic is now logged instead of silently discarded
 * corrected family capability evidence: J2 does not advertise PURE, retains Comfort Sleep as a distinct non-timer function, and exposes Start/Strong Defrost independently in Heat; P2 no longer advertises unproven Fireplace/Sleep/Comfort capabilities; the `defrost` installation override masks both defrost actions
 * made family capabilities the single authority for whether a function exists; per-mode function lists now only restrict those family features by HVAC mode, with compile-time assertions that every mode feature is present in the family capability mask
