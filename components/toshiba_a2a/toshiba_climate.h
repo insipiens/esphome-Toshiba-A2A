@@ -242,6 +242,7 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
 
   void enqueue_command_(const ToshibaCommand &command);
   void send_to_uart(const ToshibaCommand command);
+  virtual void on_uart_tx_(const ToshibaCommand &command) {}
   void start_handshake();
   virtual void parseResponse(std::vector<uint8_t> rawData);
   void requestData(ToshibaRegister cmd);
@@ -281,24 +282,22 @@ class ToshibaDiagnosticMonitorUart : public ToshibaClimateUart {
   void process_scan_() override;
   void log_scan_packet_(const std::vector<uint8_t> &raw_data) override;
 
+ protected:
+  void on_uart_tx_(const ToshibaCommand &command) override;
+
  private:
   bool monitor_stop_requested_ = false;
-  bool monitor_waiting_for_cycle_ = false;
-  uint8_t monitor_register_index_ = 0;
-  uint32_t monitor_cycle_started_ = 0;
-  uint32_t monitor_requests_ = 0;
-  uint32_t monitor_matched_ = 0;
-  uint32_t monitor_timeouts_ = 0;
-  uint32_t monitor_unrelated_ = 0;
-  uint32_t monitor_cycles_completed_ = 0;
+  int16_t monitor_pending_register_{-1};
+  uint32_t monitor_pending_since_{0};
+  bool monitor_pending_write_{false};
+  bool monitor_pending_has_value_{false};
+  uint8_t monitor_pending_value_{0};
   std::array<std::vector<uint8_t>, 128> monitor_last_payload_{};
   std::array<bool, 128> monitor_payload_seen_{};
 
-  void send_monitor_request_();
-  void complete_monitor_request_();
-  void finish_monitor_();
   void log_monitor_bytes_(const std::vector<uint8_t> &raw_data, int16_t response_register) const;
-  void log_monitor_decoded_(const std::vector<uint8_t> &raw_data, int16_t response_register);
+  void log_monitor_decoded_(const std::vector<uint8_t> &raw_data, int16_t response_register,
+                            bool correlated);
   bool extract_monitor_payload_(const std::vector<uint8_t> &raw_data, int16_t response_register,
                                 std::vector<uint8_t> &payload) const;
   void remember_monitor_payload_(uint8_t response_register, const std::vector<uint8_t> &payload);
@@ -319,6 +318,9 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   void set_comfort_switch(ToshibaValidatedFunctionSwitch *entity) { validated_comfort_switch_ = entity; }
   void set_fireplace_select(ToshibaValidatedSpecialModeLevelSelect *entity) { validated_fireplace_select_ = entity; }
   void set_outdoor_silent_select(ToshibaValidatedSilentSelect *entity) { validated_outdoor_silent_select_ = entity; }
+  void set_start_defrost_button(ToshibaDefrostButton *entity) { start_defrost_button_ = entity; }
+  void set_strong_defrost_button(ToshibaDefrostButton *entity) { strong_defrost_button_ = entity; }
+  void set_disabled_features(uint32_t features) { disabled_features_ = features; }
 
  protected:
   climate::ClimateTraits traits() override;
@@ -327,6 +329,10 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   ToshibaHvacMode current_hvac_mode_() const;
   bool validated_function_allowed_(ToshibaFeature feature, ToshibaHvacMode mode) const;
   bool validated_fan_allowed_(uint8_t fan_option, ToshibaHvacMode mode) const;
+  bool family_supports_feature_(ToshibaFeature feature) const;
+  bool feature_disabled_(ToshibaFeature feature) const;
+  bool effective_feature_available_(ToshibaFeature feature) const;
+  void apply_effective_capabilities_();
   void clear_validated_f7_entities_();
   void publish_validated_f7_mode_(SPECIAL_MODE mode);
   void on_set_validated_special_mode_(SPECIAL_MODE mode, bool enabled);
@@ -350,6 +356,9 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   ToshibaValidatedFunctionSwitch *validated_comfort_switch_ = nullptr;
   ToshibaValidatedSpecialModeLevelSelect *validated_fireplace_select_ = nullptr;
   ToshibaValidatedSilentSelect *validated_outdoor_silent_select_ = nullptr;
+  ToshibaDefrostButton *start_defrost_button_ = nullptr;
+  ToshibaDefrostButton *strong_defrost_button_ = nullptr;
+  uint32_t disabled_features_{FEATURE_NONE};
 
   uint8_t fix_horizontal_index_{1};
   uint8_t fix_vertical_index_{1};
