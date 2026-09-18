@@ -126,12 +126,12 @@ void ToshibaValidatedControlUart::apply_effective_capabilities_() {
       fixed_available && this->family_profile_->capabilities.has(FEATURE_HORIZONTAL_AIRFLOW);
   set_internal_if(this->horizontal_air_direction_select_, !horizontal_fixed_available);
 
-  const bool defrost_available = this->effective_feature_available_(FEATURE_START_DEFROST);
-  set_internal_if(this->start_defrost_button_, !defrost_available);
-  set_internal_if(this->strong_defrost_button_,
-                  !defrost_available ||
-                      this->family_profile_->family != ToshibaIndoorUnitFamily::P2KVSG);
-  set_internal_if(this->defrost_active_sensor_, !defrost_available);
+  const bool start_defrost_available = this->effective_feature_available_(FEATURE_START_DEFROST);
+  const bool strong_defrost_available = this->effective_feature_available_(FEATURE_STRONG_DEFROST);
+  set_internal_if(this->start_defrost_button_, !start_defrost_available);
+  set_internal_if(this->strong_defrost_button_, !strong_defrost_available);
+  set_internal_if(this->defrost_active_sensor_,
+                  !start_defrost_available && !strong_defrost_available);
 
   ESP_LOGI(TAG, "Effective Toshiba capabilities: family=%s disabled_mask=0x%08lX",
            indoor_unit_family_to_string(this->family_profile_->family),
@@ -270,20 +270,18 @@ void ToshibaValidatedControlUart::on_set_pure_(bool enabled) {
 
 void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
   const ToshibaHvacMode mode = this->current_hvac_mode_();
-  if (strong) {
-    if (!validated_strong_defrost_allowed(*this->family_profile_, mode)) {
-      ESP_LOGW(TAG, "Strong Defrost is only exposed in Heat on the validated P2 path");
-      return;
-    }
-    this->sendCmd(ToshibaRegister::MAINTENANCE, static_cast<uint8_t>(reg_cb::Command::STRONG_DEFROST));
+  const ToshibaFeature feature = strong ? FEATURE_STRONG_DEFROST : FEATURE_START_DEFROST;
+
+  if (!this->validated_function_allowed_(feature, mode)) {
+    ESP_LOGW(TAG, "%s Defrost is not available in the current HVAC mode",
+             strong ? "Strong" : "Start");
     return;
   }
 
-  if (!this->validated_function_allowed_(FEATURE_START_DEFROST, mode)) {
-    ESP_LOGW(TAG, "Start Defrost is not available in the current HVAC mode");
-    return;
-  }
-  this->sendCmd(ToshibaRegister::MAINTENANCE, static_cast<uint8_t>(reg_cb::Command::NORMAL_DEFROST));
+  this->sendCmd(
+      ToshibaRegister::MAINTENANCE,
+      static_cast<uint8_t>(strong ? reg_cb::Command::STRONG_DEFROST
+                                  : reg_cb::Command::NORMAL_DEFROST));
 }
 
 void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::string &value) {
