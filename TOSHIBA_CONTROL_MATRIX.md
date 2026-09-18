@@ -39,18 +39,24 @@ The consuming YAML must declare the exact IDU model. That model selects the runt
 
 Fan command values are common to the tested J2/P2 units: Quiet `31`, levels 1-5 `32..36`, Auto `41`.
 
-### J2FVG compatibility/dependency rules
+### Shared control interactions
 
-| Control A | Control B | Behaviour |
+The IDU-reported state is authoritative. Home Assistant entities are views onto
+that state and must not preserve combinations that the IDU has cancelled or
+replaced.
+
+| Control A | Control B | Observed behaviour |
 | --- | --- | --- |
-| Power Select | ECO | cancels ECO in Auto/Cool/Heat |
-| Power Select | Hi POWER | cancels Hi POWER in Auto/Cool/Heat |
-| Power Select | Silent Operation | returns Silent to Standard in Auto/Cool/Heat |
+| Power Select | ECO | selecting a Power Select level cancels ECO in Auto/Cool/Heat |
+| Power Select | Hi POWER | selecting a Power Select level cancels Hi POWER in Auto/Cool/Heat |
+| Power Select | Silent Operation | selecting a Power Select level returns Silent to Standard in Auto/Cool/Heat |
 | Power Select | PURE | PURE remains unchanged |
 | Fireplace | 8 °C Heat | mutually exclusive user state |
 | Floor | Fan | Floor forces fan to Auto |
 
-`Normal / Fireplace 1 / Fireplace 2 / 8 °C Heat` are presented as one mutually-exclusive user state on the J2 remote. `PURE` remains independent.
+Ordinary special functions must be represented according to the IDU readback
+rather than as independent optimistic states. `PURE` remains independent on
+families that provide it.
 
 ## P2KVSG mode matrix
 
@@ -76,15 +82,10 @@ This matrix is directly observed on the genuine Toshiba app connected to `RAS-B1
 | Quiet | yes | yes | yes | no | yes |
 | Levels 1-5 | yes | yes | yes | no | yes |
 
-### P2KVSG compatibility rules
+### P2KVSG mode dependency
 
-| Control A | Control B | Behaviour |
-| --- | --- | --- |
-| Power Select | ECO | cancels ECO in Auto/Cool/Heat |
-| Power Select | Hi POWER | cancels Hi POWER in Auto/Cool/Heat |
-| Power Select | Silent Operation | returns Silent to Standard in Auto/Cool/Heat |
-| Power Select | PURE | PURE remains unchanged |
-| Dry mode | Fan | forces Auto |
+Dry mode forces the fan to Auto. Shared Power Select/special-function
+interactions are documented above.
 
 ## Home Assistant entity model
 
