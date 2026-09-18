@@ -1,6 +1,6 @@
 # Universal Toshiba A2A installation template.
 #
-# Set the installation identity/model substitutions below. room_name controls
+# Set the installation identity/model substitutions below. climate_entity_name controls
 # the climate entity name and may be left blank ("") if you prefer Home
 # Assistant's composed naming. The component resolves the Toshiba protocol
 # family and default capabilities from toshiba_model.
@@ -8,7 +8,7 @@
 substitutions:
   device_name: "toshiba-a2a"
   friendly_name: "Toshiba Air Conditioner"
-  room_name: "Room"
+  climate_entity_name: "Room"
   toshiba_model: "RAS-B10J2FVG-E"
 
 packages:
