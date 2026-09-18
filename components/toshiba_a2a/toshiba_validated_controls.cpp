@@ -95,16 +95,7 @@ bool ToshibaValidatedControlUart::feature_disabled_(ToshibaFeature feature) cons
 }
 
 bool ToshibaValidatedControlUart::family_supports_feature_(ToshibaFeature feature) const {
-  if (feature == FEATURE_FIXED_POSITION)
-    return this->family_profile_->capabilities.has(FEATURE_FIXED_POSITION);
-
-  if (!has_validated_mode_profile(*this->family_profile_))
-    return this->family_profile_->capabilities.has(feature);
-
-  for (size_t i = 0; i < this->family_profile_->mode_profile_count; i++) {
-    if (this->family_profile_->mode_profiles[i].functions.has(feature)) return true;
-  }
-  return false;
+  return this->family_profile_->capabilities.has(feature);
 }
 
 bool ToshibaValidatedControlUart::effective_feature_available_(ToshibaFeature feature) const {
@@ -148,9 +139,9 @@ void ToshibaValidatedControlUart::apply_effective_capabilities_() {
 }
 
 bool ToshibaValidatedControlUart::validated_function_allowed_(ToshibaFeature feature, ToshibaHvacMode mode) const {
-  if (this->feature_disabled_(feature)) return false;
+  if (this->feature_disabled_(feature) || !this->family_supports_feature_(feature)) return false;
   if (!has_validated_mode_profile(*this->family_profile_) || mode == ToshibaHvacMode::UNKNOWN)
-    return this->family_supports_feature_(feature);
+    return true;
   return validated_function_profile_for_mode(*this->family_profile_, mode).has(feature);
 }
 
