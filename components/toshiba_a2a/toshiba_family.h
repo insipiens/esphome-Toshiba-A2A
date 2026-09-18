@@ -105,6 +105,15 @@ inline bool has_validated_mode_profile(const ToshibaFamilyProfile &profile) {
   return profile.mode_profiles != nullptr && profile.mode_profile_count != 0;
 }
 
+template<size_t N>
+constexpr bool mode_profiles_within_family_capabilities(
+    uint32_t family_features, const ToshibaModeProfile (&profiles)[N]) {
+  for (size_t i = 0; i < N; i++) {
+    if ((profiles[i].functions.features & ~family_features) != 0) return false;
+  }
+  return true;
+}
+
 inline ToshibaCapabilityProfile validated_function_profile_for_mode(
     const ToshibaFamilyProfile &profile, ToshibaHvacMode mode) {
   const auto *entry = mode_profile_for(profile, mode);
