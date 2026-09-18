@@ -8,7 +8,7 @@ It is intentionally more detailed than the README. Protocol-level detail belongs
 
 The repository controls Toshiba residential air-to-air indoor units over the internal UART connection used by Toshiba Wi-Fi accessories. The component currently targets ESP32, primarily ESP32-C3 boards, under ESPHome.
 
-The current codebase is a substantial rewrite and extension of `pedobry/esphome_toshiba_suzumi`. The component directory still uses the historical `toshiba_suzumi` name to avoid an unnecessary breaking rename while development is active.
+The current codebase is a substantial rewrite and extension of `pedobry/esphome_toshiba_suzumi`; the active ESPHome component is `toshiba_a2a`.
 
 ## Hardware directly tested
 
@@ -120,7 +120,7 @@ Direct B13J2 testing confirmed passive readback of all five positions after the 
 
 ### Older B10J2 firmware
 
-One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. The installed Office example therefore explicitly disables `fixed_position`, which hides the FIX selector without changing the J2 family definition. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
+One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. A known older B10J2 installation therefore uses `disable_features: [fixed_position]`, which hides the FIX selector without changing the J2 family definition. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
 
 ### P2KVSG
 
@@ -192,11 +192,9 @@ diagnostic use: invalid-header bytes, checksum failures and timeout-terminated
 bursts are logged as unparsed raw RX traffic instead of being silently
 discarded by the monitor.
 
-Separate research examples remain available for deeper protocol work:
-
-- `examples/diagnostic_capture.yaml`;
-- `examples/engineering_telemetry.yaml`;
-- `examples/output_estimation.yaml`.
+For passive protocol work, use
+`examples/passive-uart-sniffer.yaml`; it reconstructs complete Toshiba frames
+from both genuine-adaptor wire directions without transmitting.
 
 ## Current known limitations
 
@@ -221,7 +219,6 @@ Unknown values should remain unknown until repeatable evidence justifies promoti
 ## Detailed references
 
 - `TOSHIBA_CONTROL_MATRIX.md` — current family and HVAC-mode control matrix;
-- `TOSHIBA_CONTROL_INTERACTION_RULES.md` — shared control interaction/override policy;
 - `TOSHIBA_REGISTER_MAP.md` — protocol/register findings and evidence grades;
 - `CHANGELOG.txt` — chronological development history;
 - `PROVENANCE.md` — upstream attribution and project lineage.
