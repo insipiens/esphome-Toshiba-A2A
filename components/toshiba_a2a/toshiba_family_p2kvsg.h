@@ -85,6 +85,9 @@ inline constexpr ToshibaModeProfile MODE_PROFILES[] = {
     },
 };
 
+static_assert(mode_profiles_within_family_capabilities(FEATURES, MODE_PROFILES),
+              "P2KVSG mode features must be a subset of family capabilities");
+
 inline constexpr ToshibaFamilyProfile PROFILE{
     ToshibaIndoorUnitFamily::P2KVSG,
     ToshibaLouvreEncoding::P2_PACKED,
