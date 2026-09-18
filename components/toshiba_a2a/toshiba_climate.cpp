@@ -2,6 +2,7 @@
 #include "toshiba_climate_mode.h"
 #include "toshiba_family_j2fvg.h"
 #include "toshiba_family_p2kvsg.h"
+#include "toshiba_frame.h"
 #include "esphome/core/log.h"
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -23,7 +24,7 @@ static const uint32_t SCAN_QUIET_PERIOD = 250;
  * Checksum is calculated from all bytes excluding start byte.
  * It's (256 - (sum % 256)).
  */
-uint8_t checksum(std::vector<uint8_t> data, uint8_t length) {
+uint8_t checksum(const std::vector<uint8_t> &data, size_t length) {
   uint8_t sum = 0;
   for (size_t i = 1; i < length; i++) {
     sum += data[i];
@@ -73,9 +74,9 @@ void ToshibaClimateUart::start_handshake() {
  * are ended via RECIEVE timeout.
  */
 bool ToshibaClimateUart::validate_message_() {
-  uint8_t at = this->rx_message_.size() - 1;
+  const size_t at = this->rx_message_.size() - 1;
   auto *data = &this->rx_message_[0];
-  uint8_t new_byte = data[at];
+  const uint8_t new_byte = data[at];
 
   // Byte 0: HEADER (always 0x02)
   if (at == 0) {
@@ -83,56 +84,66 @@ bool ToshibaClimateUart::validate_message_() {
     return new_byte == 0x02;
   }
 
-  // always get first three bytes
+  // Always get the first three bytes.
   if (at < 2) {
     return true;
   }
 
-  // Byte 3
   if (data[2] != 0x03) {
-    // Normal commands starts with 0x02 0x00 0x03 and have length between 15-17 bytes.
-    // however there are some special unknown handshake commands which has non-standard replies.
-    // Since we don't know their format, we can't validate them.
+    // Some handshake replies do not use the normal 02 00 03 framing. Their
+    // length remains timeout-delimited.
     return true;
   }
 
-  if (at <= 5) {
-    // no validation for these fields
+  // The Toshiba protocol length is a 16-bit big-endian field in bytes 5-6.
+  // Seven bytes are required before the complete frame length is known.
+  if (this->rx_message_.size() < TOSHIBA_FRAME_LENGTH_FIELD_SIZE) {
     return true;
   }
 
-  // Byte 7: LENGTH
-  uint8_t length = 6 + data[6] + 1;  // prefix + data + checksum
+  const size_t frame_length =
+      toshiba_declared_frame_length(data, this->rx_message_.size());
 
-  // wait until all data is read
-  if (at < length)
+  if (frame_length > TOSHIBA_MAX_FRAME_LENGTH) {
+    this->on_uart_rx_unparsed_(this->rx_message_, "invalid-length");
+    ESP_LOGW(TAG, "Received invalid Toshiba frame length %u DATA=[%s]",
+             static_cast<unsigned>(frame_length),
+             format_hex_pretty(this->rx_message_).c_str());
+    return false;
+  }
+
+  // Wait until the complete frame, including its checksum byte, has arrived.
+  if (this->rx_message_.size() < frame_length) {
     return true;
+  }
 
-  // last byte: CHECKSUM
-  uint8_t rx_checksum = new_byte;
-  uint8_t calc_checksum = checksum(this->rx_message_, at);
+  const uint8_t rx_checksum = new_byte;
+  const uint8_t calc_checksum =
+      checksum(this->rx_message_, frame_length - 1);
 
   if (rx_checksum != calc_checksum) {
     if (this->scan_active_ && this->scan_request_sent_) {
       ESP_LOGW(TAG, "SCAN request=0x%02X length=%u checksum=FAIL DATA=[%s]",
                static_cast<unsigned>(this->scan_register_),
-               static_cast<unsigned>(this->rx_message_.size()), format_hex_pretty(data, length).c_str());
+               static_cast<unsigned>(this->rx_message_.size()),
+               format_hex_pretty(this->rx_message_).c_str());
     }
     this->on_uart_rx_unparsed_(this->rx_message_, "checksum-fail");
-    ESP_LOGW(TAG, "Received invalid message checksum %02X!=%02X DATA=[%s]", rx_checksum, calc_checksum,
-             format_hex_pretty(data, length).c_str());
+    ESP_LOGW(TAG, "Received invalid message checksum %02X!=%02X DATA=[%s]",
+             rx_checksum, calc_checksum,
+             format_hex_pretty(this->rx_message_).c_str());
     return false;
   }
 
-  // valid message
-  ESP_LOGV(TAG, "Received: DATA=[%s]", format_hex_pretty(data, length).c_str());
+  ESP_LOGV(TAG, "Received: DATA=[%s]",
+           format_hex_pretty(this->rx_message_).c_str());
   if (this->scan_active_ && this->scan_request_sent_) {
     this->log_scan_packet_(this->rx_message_);
   } else {
     this->parseResponse(this->rx_message_);
   }
 
-  // return false to reset rx buffer
+  // Returning false tells the byte handler that this frame is complete.
   return false;
 }
 
@@ -298,7 +309,7 @@ void ToshibaClimateUart::loop() {
 }
 
 void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
-  uint8_t length = rawData.size();
+  const size_t length = rawData.size();
   ToshibaRegister sensor;
   uint8_t value;
 
@@ -313,7 +324,8 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
           ESP_LOGD(TAG, "AC unit acknowledged time synchronization.");
           this->time_synced_ = true;
       }
-      ESP_LOGD(TAG, "Received message with length: %d and value %s", length, format_hex_pretty(rawData).c_str());
+      ESP_LOGD(TAG, "Received message with length: %u and value %s",
+               static_cast<unsigned>(length), format_hex_pretty(rawData).c_str());
       return;
     case 17:  // response to requestData with the actual value of sensor/setting
       sensor = static_cast<ToshibaRegister>(rawData[14]);
@@ -333,8 +345,8 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       value = 0;
       break;
     default:
-      ESP_LOGW(TAG, "Received unknown message with length: %d and value %s", length,
-               format_hex_pretty(rawData).c_str());
+      ESP_LOGW(TAG, "Received unknown message with length: %u and value %s",
+               static_cast<unsigned>(length), format_hex_pretty(rawData).c_str());
       return;
   }
   switch (sensor) {
