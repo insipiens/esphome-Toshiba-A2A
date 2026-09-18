@@ -30,6 +30,11 @@ jobs:
           ota_password: test-ota
           EOF
 
+      - name: Test Toshiba frame lengths
+        run: |
+          g++ -std=c++17 -I. .github/tests/toshiba_frame_test.cpp -o /tmp/toshiba-frame-test
+          /tmp/toshiba-frame-test
+
       - name: Compile examples
         run: |
           for example in examples/*.yaml; do
