@@ -21,7 +21,7 @@ consumer supplies only a coherent set of installation substitutions:
 substitutions:
   device_name: "toshiba-a2a-01"
   friendly_name: "toshiba-A2A-MR"
-  room_name: "Music Room"
+  climate_entity_name: "Music Room"
   toshiba_model: "RAS-B13J2FVG-E"
 
 packages:
@@ -35,8 +35,8 @@ packages:
 
 The component resolves the protocol family and default capabilities internally
 from `toshiba_model`. `device_name` is the ESPHome/network identity,
-`friendly_name` is the Home Assistant device name, and `room_name` is the
-climate entity name. `room_name` may be left blank (`""`) if you prefer
+`friendly_name` is the Home Assistant device name, and `climate_entity_name` is the
+climate entity name. `climate_entity_name` may be left blank (`""`) if you prefer
 Home Assistant's composed naming. There are no family-specific installation
 templates.
 
