@@ -16,7 +16,7 @@ packages:
 # expected physical FIX behaviour/readback, so the user-level override disables
 # only that feature.
 climate:
-  - id: room_id
+  - id: !extend room_id
     disable_features:
       - fixed_position
 
