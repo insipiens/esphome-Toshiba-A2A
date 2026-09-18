@@ -252,6 +252,11 @@ void ToshibaValidatedControlUart::on_set_validated_silent_(const std::string &va
 }
 
 void ToshibaValidatedControlUart::on_set_validated_power_level_(const std::string &value) {
+  if (!this->validated_function_allowed_(FEATURE_POWER_SELECT, this->current_hvac_mode_())) {
+    ESP_LOGW(TAG, "Power Select is not available for this installation/current HVAC mode");
+    return;
+  }
+
   auto pwr_level = StringToPwrLevel(value);
   if (!pwr_level.has_value()) {
     ESP_LOGW(TAG, "Unknown Power Select value: %s", value.c_str());
@@ -291,6 +296,11 @@ void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
 }
 
 void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::string &value) {
+  if (!this->effective_feature_available_(FEATURE_FIXED_POSITION)) {
+    ESP_LOGW(TAG, "Fixed-position control is disabled or unavailable for this installation");
+    return;
+  }
+
   auto index = FixedPositionIndexFromName(value);
   if (!index.has_value()) {
     ESP_LOGW(TAG, "Unknown vertical FIX index: %s", value.c_str());
@@ -321,6 +331,11 @@ void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::str
 }
 
 void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::string &value) {
+  if (!this->effective_feature_available_(FEATURE_FIXED_POSITION)) {
+    ESP_LOGW(TAG, "Fixed-position control is disabled or unavailable for this installation");
+    return;
+  }
+
   if (this->family_profile_->louvre_encoding != ToshibaLouvreEncoding::P2_PACKED) {
     ESP_LOGW(TAG, "Horizontal FIX is unavailable for this louvre encoding");
     return;
