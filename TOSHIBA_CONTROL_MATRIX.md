@@ -19,8 +19,7 @@ The consuming YAML must declare the exact IDU model. That model selects the runt
 | ECO | yes | yes | yes | no | no | IDU demand | `F7/F8` |
 | Hi POWER | yes | yes | yes | no | no | IDU demand | `F7/F8` |
 | Silent Operation | yes | yes | yes | no | no | shared ODU | `F7/F8` |
-| PURE | yes | yes | yes | yes | yes | IDU local | `C7` |
-| Comfort Sleep | yes | yes | yes | no | no | IDU demand | mapping still under test |
+| Comfort Sleep | yes | yes | yes | no | no | IDU demand | distinct Toshiba function; mapping still under test |
 | Fireplace | no | no | yes | no | no | IDU local | `F7/F8` |
 | 8 °C Heat | no | no | yes | no | no | IDU demand | `F7/F8` |
 | Floor | no | no | yes | no | no | IDU local | `F7/F8` |
@@ -111,13 +110,22 @@ The exact IDU model is mandatory in the consuming YAML and is the configuration 
 
 `0xE0` remains the Toshiba-reported identity source when available. A declared model therefore continues to select the correct family protocol even on older firmware whose `0xE0` IDU-model field is blank/`NULL`.
 
-The reusable J2 and P2 packages also accept an optional `capability_profile` substitution. It defaults to `full`, so existing consumers need no extra line. `full` exposes the fixed-position controls expected for the declared family: vertical FIX on J2 and vertical plus horizontal FIX on P2. `limited` hides these firmware-variable FIX controls while leaving the normal climate, fan and other family controls available. Use `limited` when the physical unit or firmware does not implement the expected FIX behaviour.
+The universal package derives family capabilities from the configured `toshiba_model`.
+Firmware/model-specific exceptions are applied only with the optional
+`disable_features` list in the consuming YAML; they do not create a second
+family or package.
 
-For example:
+For example, the older B10J2 controller that does not implement expected FIX
+behaviour uses:
 
 ```yaml
-substitutions:
-  capability_profile: "limited"
+climate:
+  - id: !extend room_id
+    disable_features:
+      - fixed_position
 ```
 
-The profile is an installation-time capability mask, not a different protocol implementation. J2 FIX state remains driven only by received `A3 50..54`; ordinary J2 swing states remain separate. P2 fixed-position state continues to use the packed horizontal/vertical `A3` representation. E0 identity remains diagnostic evidence and no longer determines whether the package exposes the public FIX controls.
+J2 FIX state remains driven only by received `A3 50..54`; ordinary J2 swing
+states remain separate. P2 fixed-position state continues to use the packed
+horizontal/vertical `A3` representation. E0 identity remains diagnostic
+evidence and does not determine public control exposure.
