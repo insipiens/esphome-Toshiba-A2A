@@ -48,8 +48,6 @@ struct ToshibaCommand {
   int delay{0};
 };
 
-class ToshibaSpecialModeSwitch;
-class ToshibaSpecialModeLevelSelect;
 class ToshibaValidatedFunctionSwitch;
 class ToshibaValidatedSilentSelect;
 class ToshibaValidatedSpecialModeLevelSelect;
@@ -168,15 +166,6 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void set_min_temp(uint8_t min_temp) { min_temp_ = min_temp; }
   void set_time_sync_interval(uint32_t interval) { time_sync_interval_ = interval; }
 
-  void set_eco_switch(ToshibaSpecialModeSwitch *entity) { eco_switch_ = entity; }
-  void set_hi_power_switch(ToshibaSpecialModeSwitch *entity) { hi_power_switch_ = entity; }
-  void set_eight_degree_heat_switch(ToshibaSpecialModeSwitch *entity) { eight_degree_heat_switch_ = entity; }
-  void set_sleep_switch(ToshibaSpecialModeSwitch *entity) { sleep_switch_ = entity; }
-  void set_floor_switch(ToshibaSpecialModeSwitch *entity) { floor_switch_ = entity; }
-  void set_comfort_switch(ToshibaSpecialModeSwitch *entity) { comfort_switch_ = entity; }
-  void set_fireplace_select(ToshibaSpecialModeLevelSelect *entity) { fireplace_select_ = entity; }
-  void set_outdoor_silent_select(ToshibaSpecialModeLevelSelect *entity) { outdoor_silent_select_ = entity; }
-
  protected:
   void control(const climate::ClimateCall &call) override;
   climate::ClimateTraits traits() override;
@@ -227,15 +216,6 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   std::string odu_identity_2_;
   std::string odu_identity_3_;
 
-  ToshibaSpecialModeSwitch *eco_switch_ = nullptr;
-  ToshibaSpecialModeSwitch *hi_power_switch_ = nullptr;
-  ToshibaSpecialModeSwitch *eight_degree_heat_switch_ = nullptr;
-  ToshibaSpecialModeSwitch *sleep_switch_ = nullptr;
-  ToshibaSpecialModeSwitch *floor_switch_ = nullptr;
-  ToshibaSpecialModeSwitch *comfort_switch_ = nullptr;
-  ToshibaSpecialModeLevelSelect *fireplace_select_ = nullptr;
-  ToshibaSpecialModeLevelSelect *outdoor_silent_select_ = nullptr;
-
   bool horizontal_swing_ = false;
   uint8_t min_temp_ = 17;
   bool heat_mode_disabled_ = false;
@@ -271,13 +251,7 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void handle_rx_byte_(uint8_t c);
   bool validate_message_();
   void set_self_clean_running_(bool running);
-  void on_set_pwr_level(const std::string &value);
   void configure_supported_custom_modes_();
-  void on_set_special_mode_switch(SPECIAL_MODE mode, bool enabled);
-  void on_set_special_mode_level(SPECIAL_MODE level_one, SPECIAL_MODE level_two,
-                                 const std::string &option_one, const std::string &option_two,
-                                 const std::string &value);
-  void publish_special_mode_entities_(SPECIAL_MODE mode);
   void set_detected_equipment_(const ToshibaEquipmentIdentification &equipment);
   virtual void process_scan_();
   void send_scan_request_();
@@ -293,9 +267,6 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void sync_energy_();
   void estimate_wattage_(uint32_t current_energy);
 
-  friend class ToshibaPwrModeSelect;
-  friend class ToshibaSpecialModeSwitch;
-  friend class ToshibaSpecialModeLevelSelect;
 };
 
 class ToshibaDiagnosticMonitorUart : public ToshibaClimateUart {
@@ -394,42 +365,10 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   friend class ToshibaValidatedVerticalAirDirectionSelect;
 };
 
-class ToshibaPwrModeSelect : public select::Select, public esphome::Parented<ToshibaClimateUart> {
- protected:
-  void control(const std::string &value) override;
-};
-
 class ToshibaValidatedVerticalAirDirectionSelect : public select::Select,
                                                     public esphome::Parented<ToshibaValidatedControlUart> {
  protected:
   void control(const std::string &value) override;
-};
-
-class ToshibaSpecialModeSwitch : public switch_::Switch, public esphome::Parented<ToshibaClimateUart> {
- public:
-  void set_special_mode(uint8_t mode) { mode_ = static_cast<SPECIAL_MODE>(mode); }
-  SPECIAL_MODE special_mode() const { return mode_; }
- protected:
-  void write_state(bool state) override;
-  SPECIAL_MODE mode_{SPECIAL_MODE::STANDARD};
-};
-
-class ToshibaSpecialModeLevelSelect : public select::Select, public esphome::Parented<ToshibaClimateUart> {
- public:
-  void set_special_modes(uint8_t level_one, uint8_t level_two) {
-    level_one_ = static_cast<SPECIAL_MODE>(level_one);
-    level_two_ = static_cast<SPECIAL_MODE>(level_two);
-  }
-  void set_option_names(const std::string &option_one, const std::string &option_two) {
-    option_one_ = option_one;
-    option_two_ = option_two;
-  }
- protected:
-  void control(const std::string &value) override;
-  SPECIAL_MODE level_one_{SPECIAL_MODE::STANDARD};
-  SPECIAL_MODE level_two_{SPECIAL_MODE::STANDARD};
-  std::string option_one_;
-  std::string option_two_;
 };
 
 class ToshibaValidatedFunctionSwitch : public switch_::Switch,
