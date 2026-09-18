@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  compile-package-templates:
+  compile-examples:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -26,17 +26,11 @@ jobs:
           cat > examples/secrets.yaml <<'EOF'
           wifi_ssid: test-wifi
           wifi_password: test-password
-          iot_wifi_ssid: test-iot
-          iot_wifi_password: test-password
-          iot2_wifi_ssid: test-iot2
-          iot2_wifi_password: test-password
-          fallback_password: test-fallback
           key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-          ha_enc_key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
           ota_password: test-ota
           EOF
 
-      - name: Compile all examples
+      - name: Compile examples
         run: |
           for example in examples/*.yaml; do
             [ "$(basename "$example")" = "secrets.yaml" ] && continue
