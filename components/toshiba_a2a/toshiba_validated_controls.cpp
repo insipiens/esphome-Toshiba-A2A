@@ -98,6 +98,10 @@ void ToshibaValidatedControlUart::clear_validated_f7_entities_() {
   if (this->validated_eco_switch_ != nullptr) this->validated_eco_switch_->publish_state(false);
   if (this->validated_hi_power_switch_ != nullptr) this->validated_hi_power_switch_->publish_state(false);
   if (this->validated_eight_degree_heat_switch_ != nullptr) this->validated_eight_degree_heat_switch_->publish_state(false);
+  if (this->validated_sleep_switch_ != nullptr) this->validated_sleep_switch_->publish_state(false);
+  if (this->validated_floor_switch_ != nullptr) this->validated_floor_switch_->publish_state(false);
+  if (this->validated_comfort_switch_ != nullptr) this->validated_comfort_switch_->publish_state(false);
+  if (this->validated_fireplace_select_ != nullptr) this->validated_fireplace_select_->publish_state("Off");
   if (this->validated_outdoor_silent_select_ != nullptr) this->validated_outdoor_silent_select_->publish_state("Standard");
 }
 
@@ -113,6 +117,21 @@ void ToshibaValidatedControlUart::publish_validated_f7_mode_(SPECIAL_MODE mode) 
     case SPECIAL_MODE::EIGHT_DEG:
       if (this->validated_eight_degree_heat_switch_ != nullptr)
         this->validated_eight_degree_heat_switch_->publish_state(true);
+      break;
+    case SPECIAL_MODE::SLEEP:
+      if (this->validated_sleep_switch_ != nullptr) this->validated_sleep_switch_->publish_state(true);
+      break;
+    case SPECIAL_MODE::FLOOR:
+      if (this->validated_floor_switch_ != nullptr) this->validated_floor_switch_->publish_state(true);
+      break;
+    case SPECIAL_MODE::COMFORT:
+      if (this->validated_comfort_switch_ != nullptr) this->validated_comfort_switch_->publish_state(true);
+      break;
+    case SPECIAL_MODE::FIREPLACE_1:
+      if (this->validated_fireplace_select_ != nullptr) this->validated_fireplace_select_->publish_state("Fireplace 1");
+      break;
+    case SPECIAL_MODE::FIREPLACE_2:
+      if (this->validated_fireplace_select_ != nullptr) this->validated_fireplace_select_->publish_state("Fireplace 2");
       break;
     case SPECIAL_MODE::SILENT_1:
       if (this->validated_outdoor_silent_select_ != nullptr)
@@ -288,6 +307,27 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value() && *call.get_mode() != climate::CLIMATE_MODE_OFF)
     requested_mode = climate_to_toshiba_mode(*call.get_mode());
 
+  if (call.get_preset().has_value()) {
+    const auto requested_special = ClimatePresetToSpecialMode(*call.get_preset());
+    if (requested_special.has_value()) {
+      const auto feature = feature_for_special_mode(requested_special.value());
+      if (feature != FEATURE_NONE && !this->validated_function_allowed_(feature, requested_mode)) {
+        ESP_LOGW(TAG, "Requested preset is not available in the current HVAC mode");
+        return;
+      }
+    }
+  }
+  if (call.has_custom_preset()) {
+    const auto requested_special = PresetToSpecialMode(call.get_custom_preset().c_str());
+    if (requested_special.has_value()) {
+      const auto feature = feature_for_special_mode(requested_special.value());
+      if (feature != FEATURE_NONE && !this->validated_function_allowed_(feature, requested_mode)) {
+        ESP_LOGW(TAG, "Requested custom preset is not available in the current HVAC mode");
+        return;
+      }
+    }
+  }
+
   if (call.get_fan_mode().has_value()) {
     uint8_t option = FAN_OPTION_MANUAL;
     if (*call.get_fan_mode() == climate::CLIMATE_FAN_AUTO) option = FAN_OPTION_AUTO;
@@ -461,10 +501,19 @@ void ToshibaValidatedSilentSelect::control(const std::string &value) {
   this->parent_->on_set_validated_silent_(value);
 }
 void ToshibaValidatedSpecialModeLevelSelect::control(const std::string &value) {
-  SPECIAL_MODE mode=SPECIAL_MODE::STANDARD;
-  if(value==this->option_one_) mode=this->level_one_; else if(value==this->option_two_) mode=this->level_two_;
-  else if(value!="Off"){ESP_LOGW(TAG,"Unknown Toshiba level option: %s",value.c_str());return;}
-  this->parent_->on_set_validated_special_mode_(mode,mode!=SPECIAL_MODE::STANDARD);
+  if (value == "Off") {
+    const auto current = this->parent_->get_special_mode();
+    if (current.has_value() && (current.value() == this->level_one_ || current.value() == this->level_two_))
+      this->parent_->on_set_validated_special_mode_(current.value(), false);
+    else
+      this->publish_state("Off");
+    return;
+  }
+  SPECIAL_MODE mode = SPECIAL_MODE::STANDARD;
+  if (value == this->option_one_) mode = this->level_one_;
+  else if (value == this->option_two_) mode = this->level_two_;
+  else { ESP_LOGW(TAG, "Unknown Toshiba level option: %s", value.c_str()); return; }
+  this->parent_->on_set_validated_special_mode_(mode, true);
 }
 
 void ToshibaValidatedPowerSelect::control(const std::string &value) {
