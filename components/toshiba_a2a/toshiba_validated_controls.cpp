@@ -63,6 +63,13 @@ bool climate_call_is_swing_only(const climate::ClimateCall &call) {
 
 void ToshibaValidatedControlUart::setup() {
   ToshibaDiagnosticMonitorUart::setup();
+
+  // Family selection comes from the configured model before setup(). Apply the
+  // family defaults first, then the optional user capability mask.
+  this->horizontal_swing_ =
+      this->family_profile_->capabilities.has(FEATURE_HORIZONTAL_AIRFLOW);
+  this->apply_effective_capabilities_();
+
   // ESPHome already has native Auto / Quiet / Low / Medium / High fan modes.
   // Only Toshiba's two intermediate levels need to be exposed as custom modes.
   this->set_supported_custom_fan_modes({
@@ -83,8 +90,67 @@ ToshibaHvacMode ToshibaValidatedControlUart::current_hvac_mode_() const {
   return climate_to_toshiba_mode(this->mode);
 }
 
+bool ToshibaValidatedControlUart::feature_disabled_(ToshibaFeature feature) const {
+  return (this->disabled_features_ & static_cast<uint32_t>(feature)) != 0;
+}
+
+bool ToshibaValidatedControlUart::family_supports_feature_(ToshibaFeature feature) const {
+  if (feature == FEATURE_FIXED_POSITION)
+    return this->family_profile_->capabilities.has(FEATURE_FIXED_POSITION);
+
+  if (!has_validated_mode_profile(*this->family_profile_))
+    return this->family_profile_->capabilities.has(feature);
+
+  for (size_t i = 0; i < this->family_profile_->mode_profile_count; i++) {
+    if (this->family_profile_->mode_profiles[i].functions.has(feature)) return true;
+  }
+  return false;
+}
+
+bool ToshibaValidatedControlUart::effective_feature_available_(ToshibaFeature feature) const {
+  return !this->feature_disabled_(feature) && this->family_supports_feature_(feature);
+}
+
+void ToshibaValidatedControlUart::apply_effective_capabilities_() {
+  auto set_internal_if = [](auto *entity, bool internal) {
+    if (entity != nullptr) entity->set_internal(internal);
+  };
+
+  set_internal_if(this->pwr_select_, !this->effective_feature_available_(FEATURE_POWER_SELECT));
+  set_internal_if(this->validated_eco_switch_, !this->effective_feature_available_(FEATURE_ECO));
+  set_internal_if(this->validated_hi_power_switch_, !this->effective_feature_available_(FEATURE_HI_POWER));
+  set_internal_if(this->validated_outdoor_silent_select_,
+                  !this->effective_feature_available_(FEATURE_OUTDOOR_SILENT));
+  set_internal_if(this->validated_fireplace_select_, !this->effective_feature_available_(FEATURE_FIREPLACE));
+  set_internal_if(this->validated_eight_degree_heat_switch_,
+                  !this->effective_feature_available_(FEATURE_EIGHT_DEG_HEAT));
+  set_internal_if(this->validated_sleep_switch_, !this->effective_feature_available_(FEATURE_SLEEP));
+  set_internal_if(this->validated_floor_switch_, !this->effective_feature_available_(FEATURE_FLOOR));
+  set_internal_if(this->validated_comfort_switch_, !this->effective_feature_available_(FEATURE_COMFORT));
+  set_internal_if(this->pure_switch_, !this->effective_feature_available_(FEATURE_PURE));
+
+  const bool fixed_available = this->effective_feature_available_(FEATURE_FIXED_POSITION);
+  set_internal_if(this->vertical_air_direction_select_, !fixed_available);
+  const bool horizontal_fixed_available =
+      fixed_available && this->family_profile_->capabilities.has(FEATURE_HORIZONTAL_AIRFLOW);
+  set_internal_if(this->horizontal_air_direction_select_, !horizontal_fixed_available);
+
+  const bool defrost_available = this->effective_feature_available_(FEATURE_START_DEFROST);
+  set_internal_if(this->start_defrost_button_, !defrost_available);
+  set_internal_if(this->strong_defrost_button_,
+                  !defrost_available ||
+                      this->family_profile_->family != ToshibaIndoorUnitFamily::P2KVSG);
+  set_internal_if(this->defrost_active_sensor_, !defrost_available);
+
+  ESP_LOGI(TAG, "Effective Toshiba capabilities: family=%s disabled_mask=0x%08lX",
+           indoor_unit_family_to_string(this->family_profile_->family),
+           static_cast<unsigned long>(this->disabled_features_));
+}
+
 bool ToshibaValidatedControlUart::validated_function_allowed_(ToshibaFeature feature, ToshibaHvacMode mode) const {
-  if (!has_validated_mode_profile(*this->family_profile_) || mode == ToshibaHvacMode::UNKNOWN) return true;
+  if (this->feature_disabled_(feature)) return false;
+  if (!has_validated_mode_profile(*this->family_profile_) || mode == ToshibaHvacMode::UNKNOWN)
+    return this->family_supports_feature_(feature);
   return validated_function_profile_for_mode(*this->family_profile_, mode).has(feature);
 }
 
