@@ -40,9 +40,14 @@ been deliberately designed for that condition.
 ## ESPHome configuration
 
 [`examples/passive-uart-sniffer.yaml`](../examples/passive-uart-sniffer.yaml)
-configures two RX-only UARTs at Toshiba's observed `9600-8-E-1` format and
-labels every logged byte burst by direction. The logger uses the ESP32-C3 USB
-serial/JTAG interface so neither monitored GPIO is consumed by logging.
+configures two RX-only UARTs at Toshiba's observed `9600-8-E-1` format. The
+UART debugger may deliver a long Toshiba message as several bursts, so the
+example uses [`toshiba_uart_sniffer.h`](../examples/toshiba_uart_sniffer.h) to
+buffer each direction independently, resynchronise on the `02 00 03` frame
+prefix, use the protocol length field, and log only complete frames. Long
+frames are displayed in readable chunks without losing their logical frame
+boundary. The logger uses the ESP32-C3 USB serial/JTAG interface so neither
+monitored GPIO is consumed by logging.
 
 Set the local Wi-Fi/API/OTA secrets, compile the example for the specified
 ESP32-C3 board and verify logging before attaching the test-pad wires.
@@ -52,7 +57,8 @@ ESP32-C3 board and verify logging before attaching the test-pad wires.
 1. Start a log and allow the adaptor/IDU exchange to settle.
 2. Perform exactly one named action from the genuine remote or application.
 3. Wait long enough to capture the command, acknowledgement and any delayed
-   state publication.
+   state publication. Use the `FRAME` line as the logical message boundary;
+   numbered lines below it are display chunks of that same frame.
 4. Record the wall-clock time, starting state, selected HVAC mode and the exact
    button/action.
 5. Repeat the action from the original starting state when checking whether a
