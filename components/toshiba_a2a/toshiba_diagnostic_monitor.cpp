@@ -73,88 +73,6 @@ void ToshibaClimateUart::set_detected_equipment_(const ToshibaEquipmentIdentific
   }
 }
 
-void ToshibaClimateUart::publish_special_mode_entities_(SPECIAL_MODE mode) {
-  if (mode == SPECIAL_MODE::STANDARD) {
-    if (this->eco_switch_ != nullptr) this->eco_switch_->publish_state(false);
-    if (this->hi_power_switch_ != nullptr) this->hi_power_switch_->publish_state(false);
-    if (this->eight_degree_heat_switch_ != nullptr) this->eight_degree_heat_switch_->publish_state(false);
-    if (this->sleep_switch_ != nullptr) this->sleep_switch_->publish_state(false);
-    if (this->floor_switch_ != nullptr) this->floor_switch_->publish_state(false);
-    if (this->comfort_switch_ != nullptr) this->comfort_switch_->publish_state(false);
-    if (this->fireplace_select_ != nullptr) this->fireplace_select_->publish_state("Off");
-    if (this->outdoor_silent_select_ != nullptr) this->outdoor_silent_select_->publish_state("Off");
-    return;
-  }
-
-  switch (mode) {
-    case SPECIAL_MODE::HI_POWER:
-      if (this->hi_power_switch_ != nullptr) this->hi_power_switch_->publish_state(true);
-      break;
-    case SPECIAL_MODE::ECO:
-      if (this->eco_switch_ != nullptr) this->eco_switch_->publish_state(true);
-      break;
-    case SPECIAL_MODE::EIGHT_DEG:
-      if (this->eight_degree_heat_switch_ != nullptr) this->eight_degree_heat_switch_->publish_state(true);
-      break;
-    case SPECIAL_MODE::SLEEP:
-      if (this->sleep_switch_ != nullptr) this->sleep_switch_->publish_state(true);
-      break;
-    case SPECIAL_MODE::FLOOR:
-      if (this->floor_switch_ != nullptr) this->floor_switch_->publish_state(true);
-      break;
-    case SPECIAL_MODE::COMFORT:
-      if (this->comfort_switch_ != nullptr) this->comfort_switch_->publish_state(true);
-      break;
-    case SPECIAL_MODE::FIREPLACE_1:
-      if (this->fireplace_select_ != nullptr) this->fireplace_select_->publish_state("Fireplace 1");
-      break;
-    case SPECIAL_MODE::FIREPLACE_2:
-      if (this->fireplace_select_ != nullptr) this->fireplace_select_->publish_state("Fireplace 2");
-      break;
-    case SPECIAL_MODE::SILENT_1:
-      if (this->outdoor_silent_select_ != nullptr) this->outdoor_silent_select_->publish_state("Silent 1");
-      break;
-    case SPECIAL_MODE::SILENT_2:
-      if (this->outdoor_silent_select_ != nullptr) this->outdoor_silent_select_->publish_state("Silent 2");
-      break;
-    default:
-      break;
-  }
-}
-
-void ToshibaClimateUart::on_set_special_mode_switch(SPECIAL_MODE mode, bool enabled) {
-  ESP_LOGD(TAG, "Setting divided Toshiba function %s to %s", SpecialModeToPreset(mode), enabled ? "ON" : "OFF");
-  this->sendCmd(ToshibaRegister::SPECIAL_MODE,
-                static_cast<uint8_t>(enabled ? mode : SPECIAL_MODE::STANDARD));
-}
-
-void ToshibaClimateUart::on_set_special_mode_level(SPECIAL_MODE level_one, SPECIAL_MODE level_two,
-                                                    const std::string &option_one,
-                                                    const std::string &option_two,
-                                                    const std::string &value) {
-  SPECIAL_MODE mode = SPECIAL_MODE::STANDARD;
-  if (value == option_one) {
-    mode = level_one;
-  } else if (value == option_two) {
-    mode = level_two;
-  } else if (value != "Off") {
-    ESP_LOGW(TAG, "Unknown divided Toshiba level option: %s", value.c_str());
-    return;
-  }
-  ESP_LOGD(TAG, "Setting divided Toshiba level function to %s", value.c_str());
-  this->sendCmd(ToshibaRegister::SPECIAL_MODE, static_cast<uint8_t>(mode));
-}
-
-void ToshibaSpecialModeSwitch::write_state(bool state) {
-  this->parent_->on_set_special_mode_switch(this->mode_, state);
-  this->publish_state(state);
-}
-
-void ToshibaSpecialModeLevelSelect::control(const std::string &value) {
-  this->parent_->on_set_special_mode_level(this->level_one_, this->level_two_,
-                                           this->option_one_, this->option_two_, value);
-}
-
 void ToshibaDiagnosticMonitorUart::update() {
   // Normal component polling must continue while the passive focused monitor
   // is enabled. Temporarily hide the monitor flag only from the base update()
@@ -238,17 +156,6 @@ void ToshibaDiagnosticMonitorUart::parseResponse(std::vector<uint8_t> raw) {
     }
     return;
   }
-
-  SPECIAL_MODE received_mode;
-  bool have_special_mode = false;
-  if (raw.size() == 15 && raw[12] == static_cast<uint8_t>(ToshibaRegister::SPECIAL_MODE)) {
-    received_mode = static_cast<SPECIAL_MODE>(raw[13]);
-    have_special_mode = true;
-  } else if (raw.size() == 17 && raw[14] == static_cast<uint8_t>(ToshibaRegister::SPECIAL_MODE)) {
-    received_mode = static_cast<SPECIAL_MODE>(raw[15]);
-    have_special_mode = true;
-  }
-  if (have_special_mode) this->publish_special_mode_entities_(received_mode);
 
   ToshibaClimateUart::parseResponse(std::move(raw));
 }
