@@ -1,5 +1,7 @@
 #include "toshiba_climate.h"
 #include "toshiba_climate_mode.h"
+#include "toshiba_family_j2fvg.h"
+#include "toshiba_family_p2kvsg.h"
 #include "esphome/core/log.h"
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -53,15 +55,15 @@ void ToshibaClimateUart::send_to_uart(ToshibaCommand command) {
  */
 void ToshibaClimateUart::start_handshake() {
   ESP_LOGCONFIG(TAG, "Sending handshake...");
-  enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::HANDSHAKE, .payload = HANDSHAKE[0]});
-  enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::HANDSHAKE, .payload = HANDSHAKE[1]});
-  enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::HANDSHAKE, .payload = HANDSHAKE[2]});
-  enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::HANDSHAKE, .payload = HANDSHAKE[3]});
-  enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::HANDSHAKE, .payload = HANDSHAKE[4]});
-  enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::HANDSHAKE, .payload = HANDSHAKE[5]});
-  enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::DELAY, .delay = 2000});
-  enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::HANDSHAKE, .payload = AFTER_HANDSHAKE[0]});
-  enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::HANDSHAKE, .payload = AFTER_HANDSHAKE[1]});
+  enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::HANDSHAKE, .payload = HANDSHAKE[0]});
+  enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::HANDSHAKE, .payload = HANDSHAKE[1]});
+  enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::HANDSHAKE, .payload = HANDSHAKE[2]});
+  enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::HANDSHAKE, .payload = HANDSHAKE[3]});
+  enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::HANDSHAKE, .payload = HANDSHAKE[4]});
+  enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::HANDSHAKE, .payload = HANDSHAKE[5]});
+  enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::DELAY, .delay = 2000});
+  enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::HANDSHAKE, .payload = AFTER_HANDSHAKE[0]});
+  enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::HANDSHAKE, .payload = AFTER_HANDSHAKE[1]});
 }
 
 /**
@@ -135,16 +137,16 @@ void ToshibaClimateUart::enqueue_command_(const ToshibaCommand &command) {
   this->process_command_queue_();
 }
 
-void ToshibaClimateUart::sendCmd(ToshibaCommandType cmd, uint8_t value) {
+void ToshibaClimateUart::sendCmd(ToshibaRegister cmd, uint8_t value) {
   std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 7, 1, 48, 1, 0, 2};
   payload.push_back(static_cast<uint8_t>(cmd));
   payload.push_back(value);
   payload.push_back(checksum(payload, payload.size()));
   ESP_LOGD(TAG, "Sending ToshibaCommand: %d, value: %d, checksum: %d", cmd, value, payload[14]);
-  this->enqueue_command_(ToshibaCommand{.cmd = cmd, .payload = std::vector<uint8_t>{payload}});
+  this->enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::REGISTER, .register_id = cmd, .payload = std::vector<uint8_t>{payload}});
 }
 
-void ToshibaClimateUart::requestData(ToshibaCommandType cmd) {
+void ToshibaClimateUart::requestData(ToshibaRegister cmd) {
   std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 6, 1, 48, 1, 0, 1};
   payload.push_back(static_cast<uint8_t>(cmd));
   payload.push_back(checksum(payload, payload.size()));
@@ -155,34 +157,34 @@ void ToshibaClimateUart::requestData(ToshibaCommandType cmd) {
     ESP_LOGI(TAG, "Requesting data from register 0x%02X, checksum: %d", static_cast<unsigned>(payload[12]),
              payload[13]);
   }
-  this->enqueue_command_(ToshibaCommand{.cmd = cmd, .payload = std::vector<uint8_t>{payload}});
+  this->enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::REGISTER, .register_id = cmd, .payload = std::vector<uint8_t>{payload}});
 }
 
 void ToshibaClimateUart::getInitData() {
   ESP_LOGD(TAG, "Requesting initial data from AC unit");
-  this->requestData(ToshibaCommandType::POWER_STATE);
+  this->requestData(ToshibaRegister::POWER_STATE);
   if (this->self_clean_sensor_ != nullptr) {
-    this->requestData(ToshibaCommandType::SELF_CLEAN);
+    this->requestData(ToshibaRegister::MAINTENANCE);
   }
-  this->requestData(ToshibaCommandType::MODE);
-  this->requestData(ToshibaCommandType::TARGET_TEMP);
-  this->requestData(ToshibaCommandType::FAN);
-  this->requestData(ToshibaCommandType::POWER_SEL);
-  this->requestData(ToshibaCommandType::SWING);
-  this->requestData(ToshibaCommandType::ROOM_TEMP);
-  this->requestData(ToshibaCommandType::OUTDOOR_TEMP);
-  this->requestData(ToshibaCommandType::SPECIAL_MODE);
+  this->requestData(ToshibaRegister::MODE);
+  this->requestData(ToshibaRegister::TARGET_TEMP);
+  this->requestData(ToshibaRegister::FAN);
+  this->requestData(ToshibaRegister::POWER_SELECT);
+  this->requestData(ToshibaRegister::LOUVRE);
+  this->requestData(ToshibaRegister::ROOM_TEMP);
+  this->requestData(ToshibaRegister::OUTDOOR_TEMP);
+  this->requestData(ToshibaRegister::SPECIAL_MODE);
   if (this->energy_sensor_ != nullptr || this->power_sensor_ != nullptr) {
-    this->requestData(ToshibaCommandType::ENERGY_DAILY);
+    this->requestData(ToshibaRegister::ENERGY_DAILY);
   }
   if (this->odu_discharge_temp_sensor_ != nullptr || this->odu_suction_temp_sensor_ != nullptr ||
       this->odu_heat_exchanger_temp_sensor_ != nullptr || this->compressor_load_sensor_ != nullptr ||
       this->compressor_current_sensor_ != nullptr) {
-    this->requestData(ToshibaCommandType::ODU_STATUS);
+    this->requestData(ToshibaRegister::ODU_STATUS);
   }
   if (this->idu_heat_exchanger_temp_sensor_ != nullptr || this->idu_junction_temp_sensor_ != nullptr ||
       this->idu_fan_speed_sensor_ != nullptr) {
-    this->requestData(ToshibaCommandType::IDU_STATUS);
+    this->requestData(ToshibaRegister::IDU_STATUS);
   }
 }
 
@@ -253,12 +255,12 @@ void ToshibaClimateUart::process_command_queue_() {
   // when there is no RX message and there is a command to send
   if (cmdDelay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty()) {
     auto newCommand = this->command_queue_.front();
-    if (newCommand.cmd == ToshibaCommandType::DELAY && cmdDelay < newCommand.delay) {
+    if (newCommand.operation == ToshibaQueueOperation::DELAY && cmdDelay < newCommand.delay) {
       // delay command did not finished yet
       return;
     }
     // DELAY commands don't send data over UART, just remove them from queue
-    if (newCommand.cmd == ToshibaCommandType::DELAY) {
+    if (newCommand.operation == ToshibaQueueOperation::DELAY) {
       this->command_queue_.erase(this->command_queue_.begin());
       return;
     }
@@ -291,12 +293,12 @@ void ToshibaClimateUart::loop() {
 
 void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
   uint8_t length = rawData.size();
-  ToshibaCommandType sensor;
+  ToshibaRegister sensor;
   uint8_t value;
 
   switch (length) {
     case 15:  // response to requestData with the actual value of sensor/setting
-      sensor = static_cast<ToshibaCommandType>(rawData[12]);
+      sensor = static_cast<ToshibaRegister>(rawData[12]);
       value = rawData[13];
       break;
     case 16:  // probably ACK for issued command
@@ -308,20 +310,20 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       ESP_LOGD(TAG, "Received message with length: %d and value %s", length, format_hex_pretty(rawData).c_str());
       return;
     case 17:  // response to requestData with the actual value of sensor/setting
-      sensor = static_cast<ToshibaCommandType>(rawData[14]);
+      sensor = static_cast<ToshibaRegister>(rawData[14]);
       value = rawData[15];
       break;
     case 69:
     case 70:  // energy daily response
-      sensor = static_cast<ToshibaCommandType>(rawData[14]);
+      sensor = static_cast<ToshibaRegister>(rawData[14]);
       value = 0;
       break;
     case 22:  // extended status message (e.g., ODU_STATUS / IDU_STATUS)
-      sensor = static_cast<ToshibaCommandType>(rawData[12]);
+      sensor = static_cast<ToshibaRegister>(rawData[12]);
       value = 0;
       break;
     case 24:  // extended status message (e.g., ODU_STATUS / IDU_STATUS)
-      sensor = static_cast<ToshibaCommandType>(rawData[14]);
+      sensor = static_cast<ToshibaRegister>(rawData[14]);
       value = 0;
       break;
     default:
@@ -330,7 +332,7 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       return;
   }
   switch (sensor) {
-    case ToshibaCommandType::ENERGY_DAILY: {
+    case ToshibaRegister::ENERGY_DAILY: {
       ESP_LOGI(TAG, "Received daily energy update");
       uint32_t total_energy = 0;
 #ifdef USE_TIME
@@ -352,7 +354,7 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       this->estimate_wattage_(total_energy);
       break;
     }
-    case ToshibaCommandType::TARGET_TEMP:
+    case ToshibaRegister::TARGET_TEMP:
       ESP_LOGI(TAG, "Received target temp: %d", value);
       if (this->special_mode_ == SPECIAL_MODE::EIGHT_DEG) {
         // if special mode is EIGHT_DEG, shift the target temperature by SPECIAL_TEMP_OFFSET
@@ -362,7 +364,7 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       }
       this->target_temperature = value;
       break;
-    case ToshibaCommandType::FAN: {
+    case ToshibaRegister::FAN: {
       if (static_cast<FAN>(value) == FAN::FAN_AUTO) {
         ESP_LOGI(TAG, "Received fan mode: AUTO");
         this->set_fan_mode_(CLIMATE_FAN_AUTO);
@@ -385,24 +387,29 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       }
       break;
     }
-    case ToshibaCommandType::SWING: {
-      auto swing = static_cast<SWING>(value);
-      auto air_direction = SwingToVerticalAirDirection(swing);
-      if (air_direction != nullptr) {
-        ESP_LOGI(TAG, "Received vertical air direction: %s", air_direction);
-        this->publish_vertical_air_direction_(swing);
-      }
-
-      if (IsFixedVerticalAirDirection(swing)) {
-        this->swing_mode = climate::CLIMATE_SWING_OFF;
-      } else {
-        auto swingMode = IntToClimateSwingMode(swing);
-        ESP_LOGI(TAG, "Received swing mode: %s", climate_swing_mode_to_string(swingMode));
-        this->swing_mode = swingMode;
+    case ToshibaRegister::LOUVRE: {
+      if (this->family_profile_->louvre_encoding == ToshibaLouvreEncoding::J2_VERTICAL) {
+        uint8_t vertical=0;
+        if (j2fvg::a3::decode_fixed(value,vertical)) {
+          const char *name=VerticalFixedPositionName(vertical);
+          if(name!=nullptr&&this->vertical_air_direction_select_!=nullptr)this->vertical_air_direction_select_->publish_state(name);
+          this->swing_mode=climate::CLIMATE_SWING_OFF;
+        } else if(value==j2fvg::a3::VERTICAL_SWING) this->swing_mode=climate::CLIMATE_SWING_VERTICAL;
+        else if(value==j2fvg::a3::OFF) this->swing_mode=climate::CLIMATE_SWING_OFF;
+      } else if(this->family_profile_->louvre_encoding == ToshibaLouvreEncoding::P2_PACKED) {
+        uint8_t horizontal=0,vertical=0;
+        if(p2kvsg::a3::decode_packed_fix(value,horizontal,vertical)){
+          const char *name=VerticalFixedPositionName(vertical);
+          if(name!=nullptr&&this->vertical_air_direction_select_!=nullptr)this->vertical_air_direction_select_->publish_state(name);
+          this->swing_mode=climate::CLIMATE_SWING_OFF;
+        } else if(value==p2kvsg::a3::STATE_VERTICAL)this->swing_mode=climate::CLIMATE_SWING_VERTICAL;
+        else if(value==p2kvsg::a3::STATE_HORIZONTAL)this->swing_mode=climate::CLIMATE_SWING_HORIZONTAL;
+        else if(value==p2kvsg::a3::STATE_BOTH)this->swing_mode=climate::CLIMATE_SWING_BOTH;
+        else this->swing_mode=climate::CLIMATE_SWING_OFF;
       }
       break;
     }
-    case ToshibaCommandType::MODE: {
+    case ToshibaRegister::MODE: {
       auto mode = IntToClimateMode(static_cast<MODE>(value));
       ESP_LOGI(TAG, "Received AC mode: %s", climate_mode_to_string(mode));
       if (this->power_state_ == STATE::ON && !this->self_clean_running_) {
@@ -410,7 +417,7 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       }
       break;
     }
-    case ToshibaCommandType::ROOM_TEMP:
+    case ToshibaRegister::ROOM_TEMP:
       if (value != 127) {
         ESP_LOGI(TAG, "Received room temp: %d °C", value);
         this->current_temperature = value;
@@ -419,7 +426,7 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
         }
       }
       break;
-    case ToshibaCommandType::OUTDOOR_TEMP:
+    case ToshibaRegister::OUTDOOR_TEMP:
       if (value != 127) {
         if (outdoor_temp_sensor_ != nullptr) {
           ESP_LOGI(TAG, "Received outdoor temp: %d °C", (int8_t) value);
@@ -427,7 +434,7 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
         }
       }
       break;
-    case ToshibaCommandType::POWER_SEL: {
+    case ToshibaRegister::POWER_SELECT: {
       auto pwr_level = IntToPowerLevel(static_cast<PWR_LEVEL>(value));
       ESP_LOGI(TAG, "Received power select: %d", value);
       if (pwr_select_ != nullptr) {
@@ -435,7 +442,7 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       }
       break;
     }
-    case ToshibaCommandType::POWER_STATE: {
+    case ToshibaRegister::POWER_STATE: {
       auto climateState = static_cast<STATE>(value);
       ESP_LOGI(TAG, "Received AC unit power state: %s", climate_state_to_string(climateState));
       if (climateState == STATE::OFF) {
@@ -445,7 +452,7 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       } else if (this->self_clean_running_) {
         if (this->self_clean_sensor_ != nullptr) {
           ESP_LOGD(TAG, "Refreshing self-clean status after receiving AC ON state");
-          this->requestData(ToshibaCommandType::SELF_CLEAN);
+          this->requestData(ToshibaRegister::MAINTENANCE);
         }
       } else if (this->mode == climate::CLIMATE_MODE_OFF && climateState == STATE::ON) {
         // Unit reports ON while we believe it is off, e.g. powered on via IR
@@ -455,14 +462,14 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
         // cycle keeps the entity OFF (the MODE response is ignored while
         // self-clean is running).
         if (this->self_clean_sensor_ != nullptr) {
-          this->requestData(ToshibaCommandType::SELF_CLEAN);
+          this->requestData(ToshibaRegister::MAINTENANCE);
         }
-        this->requestData(ToshibaCommandType::MODE);
+        this->requestData(ToshibaRegister::MODE);
       }
       this->power_state_ = climateState;
       break;
     }
-    case ToshibaCommandType::SELF_CLEAN: {
+    case ToshibaRegister::MAINTENANCE: {
       auto self_clean_state = static_cast<SELF_CLEAN_STATE>(value);
       bool was_running = this->self_clean_running_;
       if (self_clean_state == SELF_CLEAN_STATE::RUNNING) {
@@ -479,14 +486,14 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
           // change/query (not continuously), so the cached value may be stale.
           // Query the power state to resync; the POWER_STATE handler refreshes
           // the mode when the unit turns out to be on.
-          this->requestData(ToshibaCommandType::POWER_STATE);
+          this->requestData(ToshibaRegister::POWER_STATE);
         }
       } else {
         ESP_LOGW(TAG, "Received unknown self-clean state: %d", value);
       }
       break;
     }
-    case ToshibaCommandType::SPECIAL_MODE: {
+    case ToshibaRegister::SPECIAL_MODE: {
       this->special_mode_ = static_cast<SPECIAL_MODE>(value);
       auto preset_string = SpecialModeToPreset(this->special_mode_.value());
       ESP_LOGI(TAG, "Received special mode: %s", preset_string);
@@ -504,7 +511,7 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       }
       break;
     }
-    case ToshibaCommandType::ODU_STATUS: {
+    case ToshibaRegister::ODU_STATUS: {
       // Outdoor unit status - data offset depends on message length
       uint8_t odu_offset = (length == 22) ? 13 : 15;
       ESP_LOGI(TAG, "Received ODU status");
@@ -551,7 +558,7 @@ void ToshibaClimateUart::parseResponse(std::vector<uint8_t> rawData) {
       }
       break;
     }
-    case ToshibaCommandType::IDU_STATUS: {
+    case ToshibaRegister::IDU_STATUS: {
       // Indoor unit status - data offset depends on message length
       uint8_t idu_offset = (length == 22) ? 13 : 15;
       ESP_LOGI(TAG, "Received IDU status");
@@ -655,21 +662,21 @@ void ToshibaClimateUart::update() {
     return;
   }
 
-  this->requestData(ToshibaCommandType::ROOM_TEMP);
+  this->requestData(ToshibaRegister::ROOM_TEMP);
   if (this->outdoor_temp_sensor_ != nullptr) {
-    this->requestData(ToshibaCommandType::OUTDOOR_TEMP);
+    this->requestData(ToshibaRegister::OUTDOOR_TEMP);
   }
   if (this->self_clean_running_) {
-    this->requestData(ToshibaCommandType::SELF_CLEAN);
+    this->requestData(ToshibaRegister::MAINTENANCE);
   }
   if (this->odu_discharge_temp_sensor_ != nullptr || this->odu_suction_temp_sensor_ != nullptr ||
       this->odu_heat_exchanger_temp_sensor_ != nullptr || this->compressor_load_sensor_ != nullptr ||
       this->compressor_current_sensor_ != nullptr) {
-    this->requestData(ToshibaCommandType::ODU_STATUS);
+    this->requestData(ToshibaRegister::ODU_STATUS);
   }
   if (this->idu_heat_exchanger_temp_sensor_ != nullptr || this->idu_junction_temp_sensor_ != nullptr ||
       this->idu_fan_speed_sensor_ != nullptr) {
-    this->requestData(ToshibaCommandType::IDU_STATUS);
+    this->requestData(ToshibaRegister::IDU_STATUS);
   }
 
   uint32_t now = millis();
@@ -696,14 +703,14 @@ void ToshibaClimateUart::control(const climate::ClimateCall &call) {
     }
     if (this->mode == CLIMATE_MODE_OFF && mode != CLIMATE_MODE_OFF) {
       ESP_LOGD(TAG, "Setting AC unit power state to ON.");
-      this->sendCmd(ToshibaCommandType::POWER_STATE, static_cast<uint8_t>(STATE::ON));
+      this->sendCmd(ToshibaRegister::POWER_STATE, static_cast<uint8_t>(STATE::ON));
     }
     if (mode == CLIMATE_MODE_OFF) {
       ESP_LOGD(TAG, "Setting AC unit power state to OFF.");
-      this->sendCmd(ToshibaCommandType::POWER_STATE, static_cast<uint8_t>(STATE::OFF));
+      this->sendCmd(ToshibaRegister::POWER_STATE, static_cast<uint8_t>(STATE::OFF));
     } else {
       auto requestedMode = ClimateModeToInt(mode);
-      this->sendCmd(ToshibaCommandType::MODE, static_cast<uint8_t>(requestedMode));
+      this->sendCmd(ToshibaRegister::MODE, static_cast<uint8_t>(requestedMode));
     }
     this->mode = mode;
   }
@@ -725,7 +732,7 @@ void ToshibaClimateUart::control(const climate::ClimateCall &call) {
     }
     if (special_mode_changed) {
       // send command to change special mode
-      this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(this->special_mode_.value()));
+      this->sendCmd(ToshibaRegister::SPECIAL_MODE, static_cast<uint8_t>(this->special_mode_.value()));
     }
 
     ESP_LOGD(TAG, "Setting target temp to %d", newTargetTemp);
@@ -738,7 +745,7 @@ void ToshibaClimateUart::control(const climate::ClimateCall &call) {
     this->target_temperature = target_temp;
     // send command to set the target temperature to the unit
     // (which will be shifted by SPECIAL_TEMP_OFFSET if special mode is active)
-    this->sendCmd(ToshibaCommandType::TARGET_TEMP, newTargetTemp);
+    this->sendCmd(ToshibaRegister::TARGET_TEMP, newTargetTemp);
   }
 
   if (call.get_fan_mode().has_value()) {
@@ -747,7 +754,7 @@ void ToshibaClimateUart::control(const climate::ClimateCall &call) {
     this->set_fan_mode_(fan_mode);
     auto fan_value = ClimateFanModeToInt(fan_mode);
     if (fan_value.has_value()) {
-      this->sendCmd(ToshibaCommandType::FAN, static_cast<uint8_t>(fan_value.value()));
+      this->sendCmd(ToshibaRegister::FAN, static_cast<uint8_t>(fan_value.value()));
     }
   }
 
@@ -757,17 +764,19 @@ void ToshibaClimateUart::control(const climate::ClimateCall &call) {
     if (payload.has_value()) {
       ESP_LOGD(TAG, "Setting fan mode to custom: %s", fan_mode.c_str());
       this->set_custom_fan_mode_(fan_mode);
-      this->sendCmd(ToshibaCommandType::FAN, static_cast<uint8_t>(payload.value()));
+      this->sendCmd(ToshibaRegister::FAN, static_cast<uint8_t>(payload.value()));
     }
   }
 
   if (call.get_swing_mode().has_value()) {
-    auto swing_mode = *call.get_swing_mode();
-    auto function_value = ClimateSwingModeToInt(swing_mode);
-    ESP_LOGD(TAG, "Setting swing mode to %s", climate_swing_mode_to_string(swing_mode));
-    this->swing_mode = swing_mode;
-    this->sendCmd(ToshibaCommandType::SWING, static_cast<uint8_t>(function_value));
-    this->publish_vertical_air_direction_(function_value);
+    const auto swing_mode=*call.get_swing_mode(); uint8_t command=0;
+    if(this->family_profile_->louvre_encoding==ToshibaLouvreEncoding::J2_VERTICAL){
+      if(swing_mode==climate::CLIMATE_SWING_VERTICAL)command=j2fvg::a3::VERTICAL_SWING;
+      else if(swing_mode==climate::CLIMATE_SWING_OFF)command=j2fvg::a3::OFF; else return;
+    } else {
+      switch(swing_mode){case climate::CLIMATE_SWING_VERTICAL:command=p2kvsg::a3::CMD_VERTICAL_SWING;break;case climate::CLIMATE_SWING_HORIZONTAL:command=p2kvsg::a3::CMD_HORIZONTAL_SWING;break;case climate::CLIMATE_SWING_BOTH:command=p2kvsg::a3::CMD_BOTH_SWING;break;default:command=p2kvsg::a3::CMD_OFF_TRANSITION;break;}
+    }
+    ESP_LOGD(TAG,"Setting swing mode to %s",climate_swing_mode_to_string(swing_mode));this->swing_mode=swing_mode;this->sendCmd(ToshibaRegister::LOUVRE,command);
   }
 
   if (call.get_preset().has_value()) {
@@ -776,7 +785,7 @@ void ToshibaClimateUart::control(const climate::ClimateCall &call) {
     ESP_LOGD(TAG, "Setting preset to %s", preset_string);
     auto special_mode = PresetToSpecialMode(preset_string);
     if (special_mode.has_value()) {
-      this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(special_mode.value()));
+      this->sendCmd(ToshibaRegister::SPECIAL_MODE, static_cast<uint8_t>(special_mode.value()));
       // Set standard preset
       this->set_preset_(preset);
 
@@ -804,7 +813,7 @@ void ToshibaClimateUart::control(const climate::ClimateCall &call) {
     ESP_LOGD(TAG, "Setting custom preset to %s", custom_preset.c_str());
     auto special_mode = PresetToSpecialMode(custom_preset.c_str());
     if (special_mode.has_value()) {
-      this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(special_mode.value()));
+      this->sendCmd(ToshibaRegister::SPECIAL_MODE, static_cast<uint8_t>(special_mode.value()));
       // Set custom preset
       this->set_custom_preset_(custom_preset);
 
@@ -891,41 +900,11 @@ ClimateTraits ToshibaClimateUart::traits() {
 void ToshibaClimateUart::on_set_pwr_level(const std::string &value) {
   ESP_LOGD(TAG, "Setting power level to %s", value.c_str());
   auto pwr_level = StringToPwrLevel(value);
-  this->sendCmd(ToshibaCommandType::POWER_SEL, static_cast<uint8_t>(pwr_level.value()));
+  this->sendCmd(ToshibaRegister::POWER_SELECT, static_cast<uint8_t>(pwr_level.value()));
   pwr_select_->publish_state(value);
 }
 
 void ToshibaPwrModeSelect::control(const std::string &value) { parent_->on_set_pwr_level(value); }
-
-void ToshibaClimateUart::on_set_vertical_air_direction(const std::string &value) {
-  auto position = StringToVerticalAirDirection(value);
-  if (!position.has_value()) {
-    ESP_LOGW(TAG, "Unknown vertical air direction: %s", value.c_str());
-    return;
-  }
-
-  ESP_LOGD(TAG, "Setting vertical air direction to %s", value.c_str());
-  this->sendCmd(ToshibaCommandType::SWING, static_cast<uint8_t>(position.value()));
-  this->publish_vertical_air_direction_(position.value());
-  if (position.value() == SWING::VERTICAL || position.value() == SWING::BOTH) {
-    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-  } else {
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
-  }
-  this->publish_state();
-}
-
-void ToshibaClimateUart::publish_vertical_air_direction_(SWING swing_mode) {
-  if (vertical_air_direction_select_ == nullptr) {
-    return;
-  }
-  auto position = SwingToVerticalAirDirection(swing_mode);
-  if (position != nullptr) {
-    vertical_air_direction_select_->publish_state(position);
-  }
-}
-
-void ToshibaVerticalAirDirectionSelect::control(const std::string &value) { parent_->on_set_vertical_air_direction(value); }
 
 /**
  * Start a paced scan of all request registers from 0x80 to 0xFE.
@@ -996,7 +975,7 @@ void ToshibaClimateUart::send_scan_request_() {
   std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 6, 1, 48, 1, 0, 1};
   payload.push_back(this->scan_register_);
   payload.push_back(checksum(payload, payload.size()));
-  this->send_to_uart(ToshibaCommand{.cmd = static_cast<ToshibaCommandType>(this->scan_register_), .payload = payload});
+  this->send_to_uart(ToshibaCommand{.operation = ToshibaQueueOperation::REGISTER, .register_id = static_cast<ToshibaRegister>(this->scan_register_), .payload = payload});
 }
 
 void ToshibaClimateUart::complete_scan_register_() {
@@ -1043,11 +1022,11 @@ void ToshibaClimateUart::log_scan_packet_(const std::vector<uint8_t> &raw_data) 
 
   if (length == 15 || length == 17) {
     packet_type = "scalar";
-  } else if (response_register == static_cast<int16_t>(ToshibaCommandType::ODU_STATUS)) {
+  } else if (response_register == static_cast<int16_t>(ToshibaRegister::ODU_STATUS)) {
     packet_type = "ODU status";
-  } else if (response_register == static_cast<int16_t>(ToshibaCommandType::IDU_STATUS)) {
+  } else if (response_register == static_cast<int16_t>(ToshibaRegister::IDU_STATUS)) {
     packet_type = "IDU status";
-  } else if (response_register == static_cast<int16_t>(ToshibaCommandType::ENERGY_DAILY)) {
+  } else if (response_register == static_cast<int16_t>(ToshibaRegister::ENERGY_DAILY)) {
     packet_type = "daily energy";
   } else if (response_register >= 0) {
     packet_type = "structured";
@@ -1132,12 +1111,12 @@ void ToshibaClimateUart::log_scan_ascii_(const std::vector<uint8_t> &raw_data) c
 void ToshibaClimateUart::set_wifi_led(bool enabled) {
   if (enabled) {
     ESP_LOGI(TAG, "Turning ON Wi-Fi LED");
-    this->sendCmd(ToshibaCommandType::WIFI_LED_1, 0x05);
-    this->sendCmd(ToshibaCommandType::WIFI_LED_2, 0x00);
+    this->sendCmd(ToshibaRegister::WIFI_LED_1, 0x05);
+    this->sendCmd(ToshibaRegister::WIFI_LED_2, 0x00);
   } else {
     ESP_LOGI(TAG, "Turning OFF Wi-Fi LED");
-    this->sendCmd(ToshibaCommandType::WIFI_LED_1, 0x00);
-    this->sendCmd(ToshibaCommandType::WIFI_LED_2, 0x80);
+    this->sendCmd(ToshibaRegister::WIFI_LED_1, 0x00);
+    this->sendCmd(ToshibaRegister::WIFI_LED_2, 0x80);
   }
 }
 
@@ -1191,15 +1170,15 @@ void ToshibaClimateUart::sync_time_() {
   payload.push_back(checksum(payload, payload.size()));
 
   // Enqueue the time sync packet and a 5-second delay to prevent collisions
-  this->enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::SET_DATE_TIME, .payload = payload});
-  this->enqueue_command_(ToshibaCommand{.cmd = ToshibaCommandType::DELAY, .delay = 5000});
+  this->enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::REGISTER, .register_id = ToshibaRegister::SET_DATE_TIME, .payload = payload});
+  this->enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::DELAY, .delay = 5000});
   this->last_time_sync_ = millis();
 }
 #endif
 
 void ToshibaClimateUart::sync_energy_() {
   ESP_LOGV(TAG, "Syncing energy data");
-  this->requestData(ToshibaCommandType::ENERGY_DAILY);
+  this->requestData(ToshibaRegister::ENERGY_DAILY);
   this->last_energy_sync_ = millis();
 }
 
