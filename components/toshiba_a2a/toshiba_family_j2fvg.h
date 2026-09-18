@@ -70,6 +70,9 @@ inline constexpr ToshibaModeProfile MODE_PROFILES[] = {
     },
 };
 
+static_assert(mode_profiles_within_family_capabilities(FEATURES, MODE_PROFILES),
+              "J2FVG mode features must be a subset of family capabilities");
+
 inline constexpr ToshibaFamilyProfile PROFILE{
     ToshibaIndoorUnitFamily::J2FVG,
     ToshibaLouvreEncoding::J2_VERTICAL,
