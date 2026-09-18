@@ -84,6 +84,7 @@ ToshibaVerticalAirDirectionSelect = toshiba_ns.class_("ToshibaValidatedVerticalA
 ToshibaHorizontalAirDirectionSelect = toshiba_ns.class_("ToshibaHorizontalAirDirectionSelect", select.Select)
 ToshibaValidatedFunctionSwitch = toshiba_ns.class_("ToshibaValidatedFunctionSwitch", switch.Switch)
 ToshibaValidatedSilentSelect = toshiba_ns.class_("ToshibaValidatedSilentSelect", select.Select)
+ToshibaValidatedSpecialModeLevelSelect = toshiba_ns.class_("ToshibaValidatedSpecialModeLevelSelect", select.Select)
 ToshibaPureSwitch = toshiba_ns.class_("ToshibaPureSwitch", switch.Switch)
 ToshibaDefrostButton = toshiba_ns.class_("ToshibaDefrostButton", button.Button)
 ToshibaSpecialModeSwitch = toshiba_ns.class_("ToshibaSpecialModeSwitch", switch.Switch)
@@ -135,10 +136,10 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
         cv.Optional(CONF_PURE): switch.switch_schema(ToshibaPureSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaPureSwitch)}),
         cv.Optional(CONF_START_DEFROST): button.button_schema(ToshibaDefrostButton).extend({cv.GenerateID(): cv.declare_id(ToshibaDefrostButton)}),
         cv.Optional(CONF_STRONG_DEFROST): button.button_schema(ToshibaDefrostButton).extend({cv.GenerateID(): cv.declare_id(ToshibaDefrostButton)}),
-        cv.Optional(CONF_SLEEP): switch.switch_schema(ToshibaSpecialModeSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaSpecialModeSwitch)}),
-        cv.Optional(CONF_FLOOR): switch.switch_schema(ToshibaSpecialModeSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaSpecialModeSwitch)}),
-        cv.Optional(CONF_COMFORT): switch.switch_schema(ToshibaSpecialModeSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaSpecialModeSwitch)}),
-        cv.Optional(CONF_FIREPLACE): select.select_schema(ToshibaSpecialModeLevelSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaSpecialModeLevelSelect)}),
+        cv.Optional(CONF_SLEEP): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
+        cv.Optional(CONF_FLOOR): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
+        cv.Optional(CONF_COMFORT): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
+        cv.Optional(CONF_FIREPLACE): select.select_schema(ToshibaValidatedSpecialModeLevelSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedSpecialModeLevelSelect)}),
         cv.Optional(FEATURE_HORIZONTAL_SWING): cv.boolean,
         cv.Optional(DISABLE_WIFI_LED): cv.boolean,
         cv.Optional(DISABLE_HEAT_MODE): cv.boolean,
