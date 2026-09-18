@@ -1,0 +1,40 @@
+# Universal Toshiba A2A installation template.
+#
+# Set these three substitutions for your installation. The component resolves
+# the Toshiba protocol family and default capabilities from toshiba_model.
+
+substitutions:
+  device_name: "toshiba-a2a"
+  friendly_name: "Toshiba Air Conditioner"
+  toshiba_model: "RAS-B10J2FVG-E"
+
+packages:
+  toshiba_a2a:
+    url: https://github.com/insipiens/esphome-Toshiba-A2A
+    ref: refactor/toshiba-protocol-model-separation
+    files:
+      - packages/toshiba-a2a.yaml
+    refresh: 0s
+
+# Optional compatibility override. Add this only if testing shows that a
+# feature exposed for your model/family does not work correctly on your IDU.
+#
+# climate:
+#   - id: room_id
+#     disable_features:
+#       - fixed_position
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+  level: debug
+
+api:
+  encryption:
+    key: !secret key
+
+ota:
+  platform: esphome
+  password: !secret ota_password
