@@ -48,10 +48,10 @@ The repository now maintains one user-facing package:
 `packages/toshiba-a2a.yaml`.
 
 A normal installation supplies `device_name`, `friendly_name`,
-`room_name` and the exact `toshiba_model`. `device_name` is the
+`climate_entity_name` and the exact `toshiba_model`. `device_name` is the
 ESPHome/network identity, `friendly_name` is the Home Assistant device name,
-and `room_name` is the climate entity name used to keep multiple Toshiba
-climate entities distinguishable in entity pickers. `room_name` may be left
+and `climate_entity_name` is the climate entity name used to keep multiple Toshiba
+climate entities distinguishable in entity pickers. `climate_entity_name` may be left
 blank (`""`) to rely on Home Assistant's composed naming. The model is
 resolved internally to the appropriate family profile, capability matrix and
 family-specific command encoding. Users do not select a family in the normal
