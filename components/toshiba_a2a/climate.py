@@ -87,7 +87,7 @@ DISABLE_FEATURE_VALUES = {
     "sleep": 1 << 13,
     "comfort": 1 << 14,
     "pure": 1 << 15,
-    "defrost": 1 << 16,
+    "defrost": (1 << 16) | (1 << 18),
 }
 
 toshiba_ns = cg.esphome_ns.namespace("toshiba_a2a")
