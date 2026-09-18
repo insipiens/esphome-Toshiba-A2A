@@ -3,12 +3,18 @@
 # Both monitored signals are connected to ESP32 RX inputs only. This example
 # does not instantiate the Toshiba climate controller and must not transmit on
 # either signal line. See docs/SNIFFER.md before connecting hardware.
+#
+# Toshiba frames may be split across several ESPHome UART-debug callbacks.
+# toshiba_uart_sniffer.h buffers each direction and logs complete frames using
+# the protocol length field.
 
 substitutions:
   device_name: "toshiba-uart-sniffer"
 
 esphome:
   name: ${device_name}
+  includes:
+    - toshiba_uart_sniffer.h
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -16,17 +22,22 @@ esp32:
     type: esp-idf
 
 logger:
-  level: DEBUG
+  level: INFO
   hardware_uart: USB_SERIAL_JTAG
+  tx_buffer_size: 2048
 
 uart:
   - id: idu_to_adapter
-    rx_pin: GPIO20
+    rx_pin:
+      number: GPIO20
+      mode:
+        input: true
+        pullup: false
     baud_rate: 9600
     data_bits: 8
     parity: EVEN
     stop_bits: 1
-    rx_buffer_size: 512
+    rx_buffer_size: 2048
     debug:
       direction: RX
       dummy_receiver: true
@@ -34,16 +45,20 @@ uart:
         timeout: 20ms
       sequence:
         - lambda: |-
-            ESP_LOGD("sniffer", "IDU -> adapter: %s",
-                     format_hex_pretty(bytes, ' ', false).c_str());
+            static toshiba_uart_sniffer::StreamState state;
+            toshiba_uart_sniffer::process(state, bytes, "IDU->WIFI");
 
   - id: adapter_to_idu
-    rx_pin: GPIO21
+    rx_pin:
+      number: GPIO21
+      mode:
+        input: true
+        pullup: false
     baud_rate: 9600
     data_bits: 8
     parity: EVEN
     stop_bits: 1
-    rx_buffer_size: 512
+    rx_buffer_size: 2048
     debug:
       direction: RX
       dummy_receiver: true
@@ -51,8 +66,8 @@ uart:
         timeout: 20ms
       sequence:
         - lambda: |-
-            ESP_LOGD("sniffer", "Adapter -> IDU: %s",
-                     format_hex_pretty(bytes, ' ', false).c_str());
+            static toshiba_uart_sniffer::StreamState state;
+            toshiba_uart_sniffer::process(state, bytes, "WIFI->IDU");
 
 wifi:
   ssid: !secret wifi_ssid
