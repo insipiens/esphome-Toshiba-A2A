@@ -1,4 +1,6 @@
 #include "toshiba_climate.h"
+#include "toshiba_family_j2fvg.h"
+#include "toshiba_family_p2kvsg.h"
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -82,13 +84,13 @@ ToshibaHvacMode ToshibaValidatedControlUart::current_hvac_mode_() const {
 }
 
 bool ToshibaValidatedControlUart::validated_function_allowed_(ToshibaFeature feature, ToshibaHvacMode mode) const {
-  if (!has_validated_mode_profile(this->idu_family_) || mode == ToshibaHvacMode::UNKNOWN) return true;
-  return validated_function_profile_for_mode(this->idu_family_, mode).has(feature);
+  if (!has_validated_mode_profile(*this->family_profile_) || mode == ToshibaHvacMode::UNKNOWN) return true;
+  return validated_function_profile_for_mode(*this->family_profile_, mode).has(feature);
 }
 
 bool ToshibaValidatedControlUart::validated_fan_allowed_(uint8_t fan_option, ToshibaHvacMode mode) const {
-  if (!has_validated_mode_profile(this->idu_family_) || mode == ToshibaHvacMode::UNKNOWN) return true;
-  const uint8_t options = validated_fan_options_for_mode(this->idu_family_, mode);
+  if (!has_validated_mode_profile(*this->family_profile_) || mode == ToshibaHvacMode::UNKNOWN) return true;
+  const uint8_t options = validated_fan_options_for_mode(*this->family_profile_, mode);
   return (options & fan_option) != 0;
 }
 
@@ -140,8 +142,8 @@ void ToshibaValidatedControlUart::on_set_validated_special_mode_(SPECIAL_MODE mo
   }
 
   const SPECIAL_MODE requested = enabled ? mode : SPECIAL_MODE::STANDARD;
-  this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(requested));
-  this->requestData(ToshibaCommandType::SPECIAL_MODE);
+  this->sendCmd(ToshibaRegister::SPECIAL_MODE, static_cast<uint8_t>(requested));
+  this->requestData(ToshibaRegister::SPECIAL_MODE);
 }
 
 void ToshibaValidatedControlUart::on_set_validated_silent_(const std::string &value) {
@@ -160,8 +162,8 @@ void ToshibaValidatedControlUart::on_set_validated_silent_(const std::string &va
     return;
   }
 
-  this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(requested));
-  this->requestData(ToshibaCommandType::SPECIAL_MODE);
+  this->sendCmd(ToshibaRegister::SPECIAL_MODE, static_cast<uint8_t>(requested));
+  this->requestData(ToshibaRegister::SPECIAL_MODE);
 }
 
 void ToshibaValidatedControlUart::on_set_validated_power_level_(const std::string &value) {
@@ -171,8 +173,8 @@ void ToshibaValidatedControlUart::on_set_validated_power_level_(const std::strin
     return;
   }
 
-  this->sendCmd(ToshibaCommandType::POWER_SEL, static_cast<uint8_t>(pwr_level.value()));
-  this->requestData(ToshibaCommandType::POWER_SEL);
+  this->sendCmd(ToshibaRegister::POWER_SELECT, static_cast<uint8_t>(pwr_level.value()));
+  this->requestData(ToshibaRegister::POWER_SELECT);
 }
 
 void ToshibaValidatedControlUart::on_set_pure_(bool enabled) {
@@ -181,18 +183,18 @@ void ToshibaValidatedControlUart::on_set_pure_(bool enabled) {
     if (this->pure_switch_ != nullptr) this->pure_switch_->publish_state(!enabled);
     return;
   }
-  this->sendCmd(ToshibaCommandType::PURE, enabled ? 0x18 : 0x10);
-  this->requestData(ToshibaCommandType::PURE);
+  this->sendCmd(ToshibaRegister::PURE, enabled ? static_cast<uint8_t>(reg_c7::PureState::ON) : static_cast<uint8_t>(reg_c7::PureState::OFF));
+  this->requestData(ToshibaRegister::PURE);
 }
 
 void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
   const ToshibaHvacMode mode = this->current_hvac_mode_();
   if (strong) {
-    if (!validated_strong_defrost_allowed(this->idu_family_, mode)) {
+    if (!validated_strong_defrost_allowed(*this->family_profile_, mode)) {
       ESP_LOGW(TAG, "Strong Defrost is only exposed in Heat on the validated P2 path");
       return;
     }
-    this->sendCmd(ToshibaCommandType::DEFROST, 0x01);
+    this->sendCmd(ToshibaRegister::MAINTENANCE, static_cast<uint8_t>(reg_cb::Command::STRONG_DEFROST));
     return;
   }
 
@@ -200,7 +202,7 @@ void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
     ESP_LOGW(TAG, "Start Defrost is not available in the current HVAC mode");
     return;
   }
-  this->sendCmd(ToshibaCommandType::DEFROST, 0x02);
+  this->sendCmd(ToshibaRegister::MAINTENANCE, static_cast<uint8_t>(reg_cb::Command::NORMAL_DEFROST));
 }
 
 void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::string &value) {
@@ -212,29 +214,29 @@ void ToshibaValidatedControlUart::on_set_vertical_fixed_position_(const std::str
 
   const uint8_t requested_vertical = index.value();
 
-  if (louvre_encoding_for_family(this->idu_family_) == ToshibaLouvreEncoding::J2_VERTICAL) {
-    const uint8_t raw = static_cast<uint8_t>(0x4F + requested_vertical);  // 50..54
+  if (this->family_profile_->louvre_encoding == ToshibaLouvreEncoding::J2_VERTICAL) {
+    const uint8_t raw = j2fvg::a3::encode_fixed(requested_vertical);  // 50..54
     ESP_LOGD(TAG, "Requesting J2 vertical FIX %s -> A3=%02X", value.c_str(), raw);
-    this->sendCmd(ToshibaCommandType::SWING, raw);
-    this->requestData(ToshibaCommandType::SWING);
+    this->sendCmd(ToshibaRegister::LOUVRE, raw);
+    this->requestData(ToshibaRegister::LOUVRE);
     return;
   }
 
-  if (louvre_encoding_for_family(this->idu_family_) != ToshibaLouvreEncoding::P2_PACKED) {
+  if (this->family_profile_->louvre_encoding != ToshibaLouvreEncoding::P2_PACKED) {
     ESP_LOGW(TAG, "Vertical FIX requested with unknown/unsupported louvre encoding");
     return;
   }
 
-  const uint8_t raw = EncodePackedFixPosition(this->fix_horizontal_index_, requested_vertical);
+  const uint8_t raw = p2kvsg::a3::encode_packed_fix(this->fix_horizontal_index_, requested_vertical);
   ESP_LOGD(TAG, "Requesting P2 vertical FIX %s -> A3=%02X (retained H=%u, requested V=%u)%s", value.c_str(), raw,
            this->fix_horizontal_index_, requested_vertical,
            this->have_packed_fix_state_ ? "" : " using provisional retained H");
-  this->sendCmd(ToshibaCommandType::SWING, raw);
-  this->requestData(ToshibaCommandType::SWING);
+  this->sendCmd(ToshibaRegister::LOUVRE, raw);
+  this->requestData(ToshibaRegister::LOUVRE);
 }
 
 void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::string &value) {
-  if (louvre_encoding_for_family(this->idu_family_) != ToshibaLouvreEncoding::P2_PACKED) {
+  if (this->family_profile_->louvre_encoding != ToshibaLouvreEncoding::P2_PACKED) {
     ESP_LOGW(TAG, "Horizontal FIX is unavailable for this louvre encoding");
     return;
   }
@@ -246,18 +248,18 @@ void ToshibaValidatedControlUart::on_set_horizontal_air_direction_(const std::st
   }
 
   const uint8_t requested_horizontal = index.value();
-  const uint8_t raw = EncodePackedFixPosition(requested_horizontal, this->fix_vertical_index_);
+  const uint8_t raw = p2kvsg::a3::encode_packed_fix(requested_horizontal, this->fix_vertical_index_);
   ESP_LOGD(TAG, "Requesting P2 horizontal FIX %s -> A3=%02X (requested H=%u, retained V=%u)%s", value.c_str(), raw,
            requested_horizontal, this->fix_vertical_index_,
            this->have_packed_fix_state_ ? "" : " using provisional retained V");
-  this->sendCmd(ToshibaCommandType::SWING, raw);
-  this->requestData(ToshibaCommandType::SWING);
+  this->sendCmd(ToshibaRegister::LOUVRE, raw);
+  this->requestData(ToshibaRegister::LOUVRE);
 }
 
 void ToshibaValidatedControlUart::publish_packed_fix_state_(uint8_t raw) {
   uint8_t horizontal = 0;
   uint8_t vertical = 0;
-  if (!DecodePackedFixPosition(raw, horizontal, vertical)) return;
+  if (!p2kvsg::a3::decode_packed_fix(raw, horizontal, vertical)) return;
 
   this->fix_horizontal_index_ = horizontal;
   this->fix_vertical_index_ = vertical;
@@ -311,25 +313,25 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (call.get_target_temperature().has_value() && has_validated_mode_profile(this->idu_family_) &&
+  if (call.get_target_temperature().has_value() && has_validated_mode_profile(*this->family_profile_) &&
       *call.get_target_temperature() < MIN_TEMP_STANDARD && requested_mode != ToshibaHvacMode::HEAT) {
     ESP_LOGW(TAG, "8 °C heat setpoints are only valid in Heat on the validated J2/P2 path");
     return;
   }
 
-  if (louvre_encoding_for_family(this->idu_family_) == ToshibaLouvreEncoding::J2_VERTICAL &&
+  if (this->family_profile_->louvre_encoding == ToshibaLouvreEncoding::J2_VERTICAL &&
       call.get_swing_mode().has_value()) {
     const auto requested_swing = *call.get_swing_mode();
-    uint8_t raw = 0x31;
-    if (requested_swing == climate::CLIMATE_SWING_VERTICAL) raw = 0x41;
+    uint8_t raw = j2fvg::a3::OFF;
+    if (requested_swing == climate::CLIMATE_SWING_VERTICAL) raw = j2fvg::a3::VERTICAL_SWING;
     else if (requested_swing != climate::CLIMATE_SWING_OFF) {
       ESP_LOGW(TAG, "J2 supports vertical swing only");
       return;
     }
 
     ESP_LOGD(TAG, "Requesting J2 swing %s -> A3=%02X", climate_swing_mode_to_string(requested_swing), raw);
-    this->sendCmd(ToshibaCommandType::SWING, raw);
-    this->requestData(ToshibaCommandType::SWING);
+    this->sendCmd(ToshibaRegister::LOUVRE, raw);
+    this->requestData(ToshibaRegister::LOUVRE);
 
     if (climate_call_is_swing_only(call)) return;
 
@@ -342,17 +344,17 @@ void ToshibaValidatedControlUart::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value() && *call.get_mode() != climate::CLIMATE_MODE_OFF && this->special_mode_.has_value()) {
     const ToshibaFeature active_feature = feature_for_special_mode(this->special_mode_.value());
     if (active_feature != FEATURE_NONE && !this->validated_function_allowed_(active_feature, requested_mode)) {
-      this->sendCmd(ToshibaCommandType::SPECIAL_MODE, static_cast<uint8_t>(SPECIAL_MODE::STANDARD));
-      this->requestData(ToshibaCommandType::SPECIAL_MODE);
+      this->sendCmd(ToshibaRegister::SPECIAL_MODE, static_cast<uint8_t>(SPECIAL_MODE::STANDARD));
+      this->requestData(ToshibaRegister::SPECIAL_MODE);
     }
   }
 
   ToshibaClimateUart::control(call);
 
   if (call.get_mode().has_value() && *call.get_mode() == climate::CLIMATE_MODE_DRY &&
-      has_validated_mode_profile(this->idu_family_)) {
-    this->sendCmd(ToshibaCommandType::FAN, static_cast<uint8_t>(FAN::FAN_AUTO));
-    this->requestData(ToshibaCommandType::FAN);
+      has_validated_mode_profile(*this->family_profile_)) {
+    this->sendCmd(ToshibaRegister::FAN, static_cast<uint8_t>(FAN::FAN_AUTO));
+    this->requestData(ToshibaRegister::FAN);
   }
 }
 
@@ -365,18 +367,18 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
   // to native ESPHome fan modes and only Toshiba levels 2 and 4 to custom fan
   // modes, matching the traits exposed to Home Assistant.
 
-  if (response_register == static_cast<uint8_t>(ToshibaCommandType::PURE) &&
-      extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::PURE), value)) {
+  if (response_register == static_cast<uint8_t>(ToshibaRegister::PURE) &&
+      extract_scalar(raw, static_cast<uint8_t>(ToshibaRegister::PURE), value)) {
     if (this->register_c7_raw_sensor_ != nullptr) this->register_c7_raw_sensor_->publish_state(value);
     if (this->pure_switch_ != nullptr) {
-      if (value == 0x18) this->pure_switch_->publish_state(true);
-      else if (value == 0x10) this->pure_switch_->publish_state(false);
+      if (value == static_cast<uint8_t>(reg_c7::PureState::ON)) this->pure_switch_->publish_state(true);
+      else if (value == static_cast<uint8_t>(reg_c7::PureState::OFF)) this->pure_switch_->publish_state(false);
     }
     return;
   }
 
-  if (response_register == static_cast<uint8_t>(ToshibaCommandType::MAINTENANCE) &&
-      extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::MAINTENANCE), value)) {
+  if (response_register == static_cast<uint8_t>(ToshibaRegister::MAINTENANCE) &&
+      extract_scalar(raw, static_cast<uint8_t>(ToshibaRegister::MAINTENANCE), value)) {
     const auto state = static_cast<MAINTENANCE_STATE>(value);
     switch (state) {
       case MAINTENANCE_STATE::IDLE:
@@ -406,11 +408,11 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
     return;
   }
 
-  if (response_register == static_cast<uint8_t>(ToshibaCommandType::SWING) &&
-      extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::SWING), value)) {
-    if (louvre_encoding_for_family(this->idu_family_) == ToshibaLouvreEncoding::J2_VERTICAL) {
-      if (value >= 0x50 && value <= 0x54) {
-        const uint8_t vertical = static_cast<uint8_t>(value - 0x4F);
+  if (response_register == static_cast<uint8_t>(ToshibaRegister::LOUVRE) &&
+      extract_scalar(raw, static_cast<uint8_t>(ToshibaRegister::LOUVRE), value)) {
+    if (this->family_profile_->louvre_encoding == ToshibaLouvreEncoding::J2_VERTICAL) {
+      uint8_t vertical = 0;
+      if (j2fvg::a3::decode_fixed(value, vertical)) {
         const char *vertical_name = VerticalFixedPositionName(vertical);
         if (vertical_name != nullptr && this->vertical_air_direction_select_ != nullptr)
           this->vertical_air_direction_select_->publish_state(vertical_name);
@@ -420,13 +422,13 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
         return;
       }
 
-      if (value == 0x31) {
+      if (value == j2fvg::a3::OFF) {
         this->swing_mode = climate::CLIMATE_SWING_OFF;
         this->publish_state();
         ESP_LOGI(TAG, "Received J2 swing mode: OFF");
         return;
       }
-      if (value == 0x41) {
+      if (value == j2fvg::a3::VERTICAL_SWING) {
         this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
         this->publish_state();
         ESP_LOGI(TAG, "Received J2 swing mode: VERTICAL");
@@ -437,12 +439,12 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
       return;
     }
 
-    if (louvre_encoding_for_family(this->idu_family_) == ToshibaLouvreEncoding::P2_PACKED)
+    if (this->family_profile_->louvre_encoding == ToshibaLouvreEncoding::P2_PACKED)
       this->publish_horizontal_air_direction_(value);
   }
 
-  if (response_register == static_cast<uint8_t>(ToshibaCommandType::SPECIAL_MODE) &&
-      extract_scalar(raw, static_cast<uint8_t>(ToshibaCommandType::SPECIAL_MODE), value)) {
+  if (response_register == static_cast<uint8_t>(ToshibaRegister::SPECIAL_MODE) &&
+      extract_scalar(raw, static_cast<uint8_t>(ToshibaRegister::SPECIAL_MODE), value)) {
     const auto mode = static_cast<SPECIAL_MODE>(value);
     this->special_mode_ = mode;
     this->publish_validated_f7_mode_(mode);
@@ -457,6 +459,12 @@ void ToshibaValidatedFunctionSwitch::write_state(bool state) {
 
 void ToshibaValidatedSilentSelect::control(const std::string &value) {
   this->parent_->on_set_validated_silent_(value);
+}
+void ToshibaValidatedSpecialModeLevelSelect::control(const std::string &value) {
+  SPECIAL_MODE mode=SPECIAL_MODE::STANDARD;
+  if(value==this->option_one_) mode=this->level_one_; else if(value==this->option_two_) mode=this->level_two_;
+  else if(value!="Off"){ESP_LOGW(TAG,"Unknown Toshiba level option: %s",value.c_str());return;}
+  this->parent_->on_set_validated_special_mode_(mode,mode!=SPECIAL_MODE::STANDARD);
 }
 
 void ToshibaValidatedPowerSelect::control(const std::string &value) {
