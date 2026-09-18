@@ -81,11 +81,13 @@ Examples include:
 - Fireplace as a select;
 - 8 °C heat as a switch;
 - Floor mode as a switch;
-- PURE as a switch;
+- PURE as a switch on families that support it;
 - FIX/louvre position as select entities where implemented;
 - defrost as explicit actions/state rather than a climate preset.
 
 Availability by HVAC mode and family is documented in `TOSHIBA_CONTROL_MATRIX.md`.
+
+J2 Comfort Sleep is treated as its own Toshiba operating function. It is not the ON/OFF timer facility; timer registers and scheduling remain separate protocol functions.
 
 ## FIX / louvre control
 
