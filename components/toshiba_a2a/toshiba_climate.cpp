@@ -78,8 +78,10 @@ bool ToshibaClimateUart::validate_message_() {
   uint8_t new_byte = data[at];
 
   // Byte 0: HEADER (always 0x02)
-  if (at == 0)
+  if (at == 0) {
+    if (new_byte != 0x02) this->on_uart_rx_unparsed_(this->rx_message_, "invalid-header");
     return new_byte == 0x02;
+  }
 
   // always get first three bytes
   if (at < 2) {
@@ -116,6 +118,7 @@ bool ToshibaClimateUart::validate_message_() {
                static_cast<unsigned>(this->scan_register_),
                static_cast<unsigned>(this->rx_message_.size()), format_hex_pretty(data, length).c_str());
     }
+    this->on_uart_rx_unparsed_(this->rx_message_, "checksum-fail");
     ESP_LOGW(TAG, "Received invalid message checksum %02X!=%02X DATA=[%s]", rx_checksum, calc_checksum,
              format_hex_pretty(data, length).c_str());
     return false;
@@ -243,7 +246,9 @@ void ToshibaClimateUart::process_command_queue_() {
   // we likely won't receive any more data and there is nothing we can do with the message as it's
   // format is was not recognized by validate_message_ function.
   // Nothing to do - drop the message to free up communication and allow to send next command.
-  if (now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT) {
+  if (!this->rx_message_.empty() &&
+      now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT) {
+    this->on_uart_rx_unparsed_(this->rx_message_, "timeout");
     this->rx_message_.clear();
   }
 
