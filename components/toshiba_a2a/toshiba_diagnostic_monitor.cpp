@@ -235,19 +235,19 @@ void ToshibaDiagnosticMonitorUart::on_uart_rx_unparsed_(
 void ToshibaDiagnosticMonitorUart::log_monitor_rx_(
     const std::vector<uint8_t> &raw, int16_t reg, const char *relation) const {
   constexpr size_t CHUNK_SIZE = 100;
-  const char *reg_text =
-      reg >= 0 ? str_sprintf("0x%02X", static_cast<unsigned>(reg)).c_str() : "unknown";
+  const std::string reg_text =
+      reg >= 0 ? str_sprintf("0x%02X", static_cast<unsigned>(reg)) : "unknown";
 
   if (raw.size() <= CHUNK_SIZE) {
     ESP_LOGI(TAG, "UART MONITOR RX relation=%s reg=%s len=%u bytes=[%s]",
-             relation, reg_text, static_cast<unsigned>(raw.size()),
+             relation, reg_text.c_str(), static_cast<unsigned>(raw.size()),
              format_hex_pretty(raw).c_str());
     return;
   }
 
   const size_t chunks = (raw.size() + CHUNK_SIZE - 1) / CHUNK_SIZE;
   ESP_LOGI(TAG, "UART MONITOR RX relation=%s reg=%s len=%u chunks=%u",
-           relation, reg_text, static_cast<unsigned>(raw.size()),
+           relation, reg_text.c_str(), static_cast<unsigned>(raw.size()),
            static_cast<unsigned>(chunks));
 
   for (size_t i = 0; i < chunks; ++i) {
