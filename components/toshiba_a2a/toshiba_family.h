@@ -46,6 +46,7 @@ enum ToshibaFeature : uint32_t {
   FEATURE_COMFORT = 1UL << 14,
   FEATURE_PURE = 1UL << 15,
   FEATURE_START_DEFROST = 1UL << 16,
+  FEATURE_FIXED_POSITION = 1UL << 17,
 };
 
 enum class ToshibaFeatureScope : uint8_t {
