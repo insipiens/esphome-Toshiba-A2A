@@ -1,6 +1,10 @@
 ESPHome Toshiba A2A development
 ===============================
 
+Sep 18th 2026
+
+* removed the obsolete `special_mode:` schema and the remaining legacy unvalidated special-mode/power-select entity classes; all exposed dedicated controls now use the validated profile-aware path
+
 Sep 17th 2026
 
 * completed protocol/model separation checkpoint: common physical registers and wire values now live in `toshiba_registers.h`; J2FVG/P2KVSG capabilities and A3 encodings live in declarative family headers; the controller retains one resolved family profile; configured special-function controls use the profile-aware path; and obsolete self-modifying refactor tooling was removed
