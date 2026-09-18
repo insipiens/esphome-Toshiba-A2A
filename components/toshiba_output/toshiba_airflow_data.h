@@ -23,11 +23,10 @@ namespace toshiba_output {
 // model-specific airflow mapping. A zero value remains the stopped-fan state.
 //
 // Sources:
-//   J2FVG console: Toshiba Service Manual SVM-20012-1, indoor fan air-flow-rate
-//                  tables (cooling/heating).
+//   J2FVG console: published Toshiba airflow data (cooling/heating).
 //   P2KVSGB: provisional airflow endpoints. The observed E4+2 fan-speed envelope
 //            is direct P2 evidence; the airflow endpoints remain provisional
-//            until exact P2 service data or direct airflow calibration is available.
+//            until published P2 data or direct airflow calibration is available.
 
 enum class AirflowMode : uint8_t { COOLING, HEATING };
 
@@ -61,10 +60,10 @@ static constexpr ToshibaAirflowRange TOSHIBA_AIRFLOW_RANGES[] = {
     // P2KVSGB provisional airflow range. Direct telemetry on the installed
     // RAS-B10P2KVSGB-E establishes an observed live E4+2 envelope of 51..103
     // (~510..1030 rpm). 103 has been reproduced at Fan-Only level 5 and under
-    // the documented maximum-heating-fan condition. 51/52 has been sustained
+    // the maximum-heating-fan condition. 51/52 has been sustained
     // during low-demand heating. Treat E4+2 as authoritative rather than
     // inferring fan speed from the requested fan/function setting. Airflow
-    // endpoints remain provisional until exact P2 service data is available.
+    // endpoints remain provisional until published P2 data is available.
     AFR("RAS-B10P2KVSGB-E", COOLING, 51.0f, 103.0f, 312, 660),
     AFR("RAS-B10P2KVSGB-E", HEATING, 51.0f, 103.0f, 328, 660),
 };
@@ -76,7 +75,7 @@ inline bool airflow_model_matches(const char *reported, const char *table_model)
   if (std::strcmp(reported, table_model) == 0) return true;
 
   // Some E0 payloads report the hardware revision as a trailing "1"
-  // (e.g. RAS-B13J2FVG-E1) while Toshiba service data names RAS-B13J2FVG-E.
+  // (e.g. RAS-B13J2FVG-E1) while published data names RAS-B13J2FVG-E.
   const size_t n = std::strlen(table_model);
   return std::strncmp(reported, table_model, n) == 0 && reported[n] == '1' && reported[n + 1] == '\0';
 }

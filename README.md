@@ -82,7 +82,6 @@ Detailed protocol material is kept separately:
 
 - [TOSHIBA_CONTROL_MATRIX.md](TOSHIBA_CONTROL_MATRIX.md) — controls by family and HVAC mode
 - [TOSHIBA_REGISTER_MAP.md](TOSHIBA_REGISTER_MAP.md) — UART register/protocol findings
-- [J2_MANUAL_CONTROL_NOTES.md](J2_MANUAL_CONTROL_NOTES.md) — J2 manual-derived notes
 - [CHANGELOG.txt](CHANGELOG.txt) — development history
 
 ## Hardware caution

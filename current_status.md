@@ -213,7 +213,7 @@ Separate research examples remain available for deeper protocol work:
 The project tries to keep three levels separate:
 
 - directly observed on the physical unit;
-- supported by Toshiba documentation or strong repeatable protocol evidence;
+- derived from published datasheets or strong repeatable protocol evidence;
 - unresolved/inferred.
 
 Unknown values should remain unknown until repeatable evidence justifies promoting them.
@@ -223,6 +223,5 @@ Unknown values should remain unknown until repeatable evidence justifies promoti
 - `TOSHIBA_CONTROL_MATRIX.md` — current family and HVAC-mode control matrix;
 - `TOSHIBA_CONTROL_INTERACTION_RULES.md` — shared control interaction/override policy;
 - `TOSHIBA_REGISTER_MAP.md` — protocol/register findings and evidence grades;
-- `J2_MANUAL_CONTROL_NOTES.md` — notes derived from J2 Toshiba documentation;
 - `CHANGELOG.txt` — chronological development history;
 - `PROVENANCE.md` — upstream attribution and project lineage.

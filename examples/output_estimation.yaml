@@ -2,7 +2,7 @@
 #
 # Normal installations receive this estimator from packages/toshiba-a2a.yaml.
 # This file exists for isolated component development. The P2 airflow endpoints
-# are provisional pending exact service data or direct airflow calibration.
+# are provisional pending published data or direct airflow calibration.
 
 esphome:
   name: toshiba-a2a-output-test

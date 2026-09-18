@@ -1,8 +1,10 @@
 # Toshiba control matrix
 
-This file is the user-facing control matrix for the directly tested Toshiba IDU families. Protocol detail belongs in `TOSHIBA_REGISTER_MAP.md`; manual notes belong in `J2_MANUAL_CONTROL_NOTES.md`.
+This file is the user-facing control matrix for the directly tested Toshiba IDU
+families. Protocol detail belongs in `TOSHIBA_REGISTER_MAP.md`.
 
-Legend: `yes` = observed/documented for this family and mode, `no` = unavailable, `?` = not yet established.
+Legend: `yes` = established for this family and mode, `no` = unavailable,
+`?` = not yet established.
 
 ## Tested families
 

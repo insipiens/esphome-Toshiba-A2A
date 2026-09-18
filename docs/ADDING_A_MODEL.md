@@ -15,8 +15,8 @@ Record at least:
 - whether a frame came from the ESP controller, a genuine Toshiba adaptor or
   an unsolicited IDU publication;
 - repeated before/after captures for every proposed command mapping; and
-- source documents, page/table references and measurement method for airflow
-  or other engineering data.
+- whether engineering values are derived from published datasheets or direct
+  measurement, including the measurement method where applicable.
 
 Preserve raw timestamped UART bytes. A decoded interpretation is useful, but it
 cannot replace the underlying capture. Follow [the sniffer guide](SNIFFER.md)
@@ -49,9 +49,9 @@ only when the exact capacity/model has defensible data for:
 - the live E4+2 fan-feedback range; and
 - the corresponding minimum and maximum air volume in m³/h.
 
-Document whether values come from a Toshiba service table, repeatable direct
-measurement or a provisional inference. Test stopped-fan, low/high fan and
-heating/cooling behaviour. Do not copy airflow endpoints from a different
+Document whether values are derived from published datasheets, repeatable
+direct measurement or a provisional inference. Test stopped-fan, low/high fan
+and heating/cooling behaviour. Do not copy airflow endpoints from a different
 capacity simply because the units share a protocol family.
 
 ## Case 3: a genuinely new control family
@@ -79,7 +79,7 @@ than local to one IDU.
 ## Contribution checklist
 
 - Keep raw capture data free of Wi-Fi credentials and Home Assistant keys.
-- Separate direct observation, manual-derived information and inference.
+- Separate direct observation, datasheet-derived values and inference.
 - State what remains untested.
 - Run the example compile checks.
 - Add a dated `CHANGELOG.txt` entry for significant behaviour or documentation
