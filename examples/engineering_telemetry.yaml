@@ -18,7 +18,7 @@ external_components:
       type: git
       url: https://github.com/insipiens/esphome-Toshiba-A2A
       ref: main
-    components: [toshiba_suzumi]
+    components: [toshiba_a2a]
     refresh: 1min
 
 logger:
@@ -32,7 +32,7 @@ uart:
   baud_rate: 9600
 
 climate:
-  - platform: toshiba_suzumi
+  - platform: toshiba_a2a
     name: "Toshiba A2A"
     id: toshiba_a2a
     uart_id: uart_bus

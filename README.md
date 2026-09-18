@@ -14,27 +14,44 @@ This project is under active development and is based on testing real Toshiba un
 
 ## Installation
 
-Current installations use the reusable package for the appropriate indoor-unit family:
+Use the single universal package for all supported Toshiba IDU families. The
+consumer supplies only a coherent set of installation substitutions:
 
 ```yaml
+substitutions:
+  device_name: "toshiba-a2a-01"
+  friendly_name: "toshiba-A2A-MR"
+  climate_entity_name: "Music Room"
+  toshiba_model: "RAS-B13J2FVG-E"
+
 packages:
   toshiba_a2a:
     url: https://github.com/insipiens/esphome-Toshiba-A2A
     ref: main
     files:
-      - packages/toshiba-a2a-j2.yaml
+      - packages/toshiba-a2a.yaml
     refresh: 0s
 ```
 
-The consuming YAML must provide the exact IDU model and the normal local Wi-Fi/API/OTA configuration. See the examples directory for complete minimal configurations.
+The component resolves the protocol family and default capabilities internally
+from `toshiba_model`. `device_name` is the ESPHome/network identity,
+`friendly_name` is the Home Assistant device name, and `climate_entity_name` is the
+climate entity name. `climate_entity_name` may be left blank (`""`) if you prefer
+Home Assistant's composed naming. There are no family-specific installation
+templates.
 
-J2 example:
+If testing shows that an older/reduced IDU controller exposes a feature that
+does not actually work, disable only that feature in the consuming YAML. For
+example:
 
-- [examples/office-j2-package-template.yaml](examples/office-j2-package-template.yaml)
+```yaml
+climate:
+  - id: !extend room_id
+    disable_features:
+      - fixed_position
+```
 
-P2 example:
-
-- [examples/kitchen-package-template.yaml](examples/kitchen-package-template.yaml)
+See [examples/toshiba-a2a-template.yaml](examples/toshiba-a2a-template.yaml).
 
 ## What it provides
 

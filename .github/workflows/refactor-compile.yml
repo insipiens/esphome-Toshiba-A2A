@@ -1,27 +1,21 @@
-name: Package template compile test
+name: Refactor Toshiba A2A compile test
 
 on:
   push:
     branches:
-      - main
-  workflow_dispatch:
+      - refactor/toshiba-protocol-model-separation
 
 jobs:
-  compile-package-templates:
+  compile:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install ESPHome
         run: python -m pip install --upgrade esphome
-
-      - name: Create dummy compile-time secrets
+      - name: Create test secrets
         run: |
           cat > examples/secrets.yaml <<'EOF'
           wifi_ssid: test-wifi
@@ -34,11 +28,9 @@ jobs:
           key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
           ota_password: test-ota
           EOF
-
-      - name: Compile Kitchen P2 package template
+      - name: Compile Kitchen P2
         run: esphome compile examples/kitchen-package-template.yaml
-
-      - name: Compile Office J2 package template
+      - name: Compile Office J2
         run: esphome compile examples/office-j2-package-template.yaml
 
       - name: Compile universal installation template

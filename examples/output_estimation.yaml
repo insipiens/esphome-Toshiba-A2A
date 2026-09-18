@@ -28,7 +28,7 @@ esphome:
     priority: -200
     then:
       - lambda: |-
-          auto *controller = static_cast<toshiba_suzumi::ToshibaClimateUart *>(id(toshiba_a2a));
+          auto *controller = static_cast<toshiba_a2a::ToshibaClimateUart *>(id(toshiba_a2a));
           if (!id(saved_idu_model).empty())
             controller->restore_idu_model(id(saved_idu_model));
           if (!id(saved_odu_model).empty())
@@ -60,7 +60,7 @@ external_components:
       type: git
       url: https://github.com/insipiens/esphome-Toshiba-A2A
       ref: main
-    components: [toshiba_suzumi, toshiba_output]
+    components: [toshiba_a2a, toshiba_output]
     refresh: 0s
 
 logger:
@@ -74,7 +74,7 @@ uart:
   baud_rate: 9600
 
 climate:
-  - platform: toshiba_suzumi
+  - platform: toshiba_a2a
     name: "Toshiba A2A"
     id: toshiba_a2a
     uart_id: uart_bus

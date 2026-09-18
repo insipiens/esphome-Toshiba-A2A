@@ -1,8 +1,26 @@
 ESPHome Toshiba A2A development
 ===============================
 
+Sep 18th 2026
+
+* prepared the tested protocol/model refactor for promotion to `main`: the universal package and reference examples now track `main` rather than the temporary refactor branch
+* restored `climate_entity_name` as a separate optional installation substitution for the climate entity name, while retaining `device_name` for ESPHome/network identity, `friendly_name` for the Home Assistant device name and `toshiba_model` for family/profile selection; `climate_entity_name: ""` is supported for users who prefer composed naming
+* simplified Focused Monitor into a raw UART recorder: logs TX/RX direction, hexadecimal register address when structurally identifiable, frame length and raw bytes; retains simple request/response correlation but removes payload/state interpretation and speculative remote-origin labelling; timeout, checksum-failed and invalid-header RX traffic is now logged instead of silently discarded
+* corrected family capability evidence: J2 does not advertise PURE, retains Comfort Sleep as a distinct non-timer function, and exposes Start/Strong Defrost independently in Heat; P2 no longer advertises unproven Fireplace/Sleep/Comfort capabilities; the `defrost` installation override masks both defrost actions
+* made family capabilities the single authority for whether a function exists; per-mode function lists now only restrict those family features by HVAC mode, with compile-time assertions that every mode feature is present in the family capability mask
+* replaced family-specific user packages with one universal `packages/toshiba-a2a.yaml`: users provide `device_name`, `friendly_name` and `toshiba_model`; the component resolves family/capabilities internally, while optional `disable_features` masks individual controls such as `fixed_position` for older/reduced IDU controllers
+* upgraded Focused Monitor to loitering transaction-aware diagnostics: it observes normal board TX and IDU RX, correlates request/response traffic, logs unsolicited/passive publications and highlights changed unsolicited registers as remote/control-origin candidates without injecting exploratory reads
+* removed the obsolete `special_mode:` schema and the remaining legacy unvalidated special-mode/power-select entity classes; all exposed dedicated controls now use the validated profile-aware path
+
+Sep 17th 2026
+
+* completed protocol/model separation checkpoint: common physical registers and wire values now live in `toshiba_registers.h`; J2FVG/P2KVSG capabilities and A3 encodings live in declarative family headers; the controller retains one resolved family profile; configured special-function controls use the profile-aware path; and obsolete self-modifying refactor tooling was removed
+* refactor branch hardware-test packages now point their external component source at `refactor/toshiba-protocol-model-separation` rather than `main`, ensuring J2/P2 test flashes actually build the refactored `toshiba_a2a` code
+
 Sep 16th 2026
 
+* refactor branch review cleanup: repaired generated profile/identity headers, removed E0-driven FIX registration/write gates, made FIX selects normal ESPHome entities governed by the explicit installation capability profile, and removed the obsolete Power Select cancellation path so functional code follows the current interaction policy
+* branch refactor: renamed the ESPHome component/namespace from inherited `toshiba_suzumi` to `toshiba_a2a`, separated E0 identity decoding from declarative device-profile data, and routed proven A3 family differences through a louvre-encoding profile rather than direct family checks in control code
 * separated ordinary A3 swing readback from FIX-selector readback on the validated path: ordinary Off/Vertical/Horizontal/Both states now remain climate swing state only, while packed P2 FIX values continue to update the fixed-position selectors; this removes invalid `Off`/`Swing` publications into FIX-only selects without adding any OFF-state write restriction yet
 * replaced E0-driven FIX exposure with an explicit optional package `capability_profile`: `full` is the default and exposes the expected family FIX controls, while `limited` hides firmware-variable FIX controls; the known older Office B10J2 example now opts into `limited`, and P2 vertical/horizontal FIX are restored to Home Assistant through stable package-level wrapper selects
 * added TOSHIBA_CONTROL_INTERACTION_RULES.md as the distinct shared control-policy resource: ordinary special functions are mutually exclusive, Power Select is normally independent, Silent 1/2 override both Power Select and the active special function, PURE remains independent, and heat-only functions in Auto are valid only while the unit is actually heating

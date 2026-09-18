@@ -20,7 +20,7 @@ external_components:
       type: git
       url: https://github.com/insipiens/esphome-Toshiba-A2A
       ref: main
-    components: [toshiba_suzumi]
+    components: [toshiba_a2a]
     refresh: 1min
 
 logger:
@@ -34,7 +34,7 @@ uart:
   baud_rate: 9600
 
 climate:
-  - platform: toshiba_suzumi
+  - platform: toshiba_a2a
     name: "Toshiba A2A"
     id: toshiba_a2a
     uart_id: uart_bus
@@ -51,11 +51,11 @@ switch:
     restore_mode: ALWAYS_OFF
     turn_on_action:
       - lambda: |-
-          auto* controller = static_cast<toshiba_suzumi::ToshibaClimateUart*>(id(toshiba_a2a));
+          auto* controller = static_cast<toshiba_a2a::ToshibaClimateUart*>(id(toshiba_a2a));
           controller->set_scan_enabled(true);
     turn_off_action:
       - lambda: |-
-          auto* controller = static_cast<toshiba_suzumi::ToshibaClimateUart*>(id(toshiba_a2a));
+          auto* controller = static_cast<toshiba_a2a::ToshibaClimateUart*>(id(toshiba_a2a));
           controller->set_scan_enabled(false);
 
 api:

@@ -1,19 +1,16 @@
-# Minimal consuming YAML for the installed Kitchen RAS-B10P2KVSGB-E.
-# The exact IDU model is mandatory; the package derives the family profile,
-# capabilities and family-specific command encoding from it.
-
+# CI/reference fixture: P2 model through the universal Toshiba package.
 substitutions:
   device_name: "toshiba-a2a-02"
-  friendly_name: "toshiba-A2A-Ki"
-  room_name: "Kitchen"
-  idu_model: "RAS-B10P2KVSGB-E"
+  friendly_name: "Toshiba A2A Kitchen"
+  climate_entity_name: "Kitchen"
+  toshiba_model: "RAS-B10P2KVSGB-E"
 
 packages:
   toshiba_a2a:
     url: https://github.com/insipiens/esphome-Toshiba-A2A
     ref: main
     files:
-      - packages/toshiba-a2a-p2.yaml
+      - packages/toshiba-a2a.yaml
     refresh: 0s
 
 wifi:
@@ -24,7 +21,6 @@ wifi:
       password: !secret iot_wifi_password
     - ssid: !secret iot2_wifi_ssid
       password: !secret iot2_wifi_password
-
   ap:
     ssid: kitchen Hotspot
     password: !secret fallback_password

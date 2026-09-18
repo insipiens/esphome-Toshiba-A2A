@@ -4,7 +4,7 @@
 #include "toshiba_climate.h"
 
 namespace esphome {
-namespace toshiba_suzumi {
+namespace toshiba_a2a {
 
 const MODE ClimateModeToInt(climate::ClimateMode mode) {
   switch (mode) {
@@ -72,27 +72,9 @@ const std::string IntToPowerLevel(PWR_LEVEL mode) {
   }
 }
 
-struct VerticalAirDirection {
-  SWING swing;
-  const char *name;
-};
-
-static const char *const LEGACY_FIXED_POSITION_NAMES[] = {
-    "Position 1", "Position 2", "Position 3", "Position 4", "Position 5"};
-static const char *const VERTICAL_FIXED_POSITION_NAMES[] = {
-    "Top", "Upper", "Centre", "Lower", "Bottom"};
-static const char *const HORIZONTAL_FIXED_POSITION_NAMES[] = {
-    "Left", "Left-Centre", "Centre", "Right-Centre", "Right"};
-
-static const VerticalAirDirection VERTICAL_AIR_DIRECTIONS[] = {
-    {SWING::OFF, "Off"},
-    {SWING::VERTICAL, "Swing"},
-    {SWING::VERTICAL_FIX_POSITION_1, "Top"},
-    {SWING::VERTICAL_FIX_POSITION_2, "Upper"},
-    {SWING::VERTICAL_FIX_POSITION_3, "Centre"},
-    {SWING::VERTICAL_FIX_POSITION_4, "Lower"},
-    {SWING::VERTICAL_FIX_POSITION_5, "Bottom"},
-};
+static const char *const LEGACY_FIXED_POSITION_NAMES[]={"Position 1","Position 2","Position 3","Position 4","Position 5"};
+static const char *const VERTICAL_FIXED_POSITION_NAMES[]={"Top","Upper","Centre","Lower","Bottom"};
+static const char *const HORIZONTAL_FIXED_POSITION_NAMES[]={"Left","Left-Centre","Centre","Right-Centre","Right"};
 
 const char *FixedPositionName(uint8_t position_index) {
   if (position_index < 1 || position_index > 5) return nullptr;
@@ -121,82 +103,6 @@ const optional<uint8_t> FixedPositionIndexFromName(const std::string &value) {
     }
   }
   return nullopt;
-}
-
-bool DecodePackedFixPosition(uint8_t raw, uint8_t &horizontal_index, uint8_t &vertical_index) {
-  // A3 FIX byte:
-  //   bit 7     = FIX flag
-  //   bits 5..3 = horizontal field
-  //   bits 2..0 = vertical field
-  // Controlled captures exercise field values 0..5. The HA controls expose
-  // five indexed user positions (1..5); raw field 0 remains observable but is
-  // not assigned a physical label.
-  if ((raw & 0xC0) != 0x80) return false;
-  horizontal_index = (raw >> 3) & 0x07;
-  vertical_index = raw & 0x07;
-  return horizontal_index <= 5 && vertical_index <= 5;
-}
-
-uint8_t EncodePackedFixPosition(uint8_t horizontal_index, uint8_t vertical_index) {
-  horizontal_index &= 0x07;
-  vertical_index &= 0x07;
-  return static_cast<uint8_t>(0x80 | (horizontal_index << 3) | vertical_index);
-}
-
-const optional<SWING> StringToVerticalAirDirection(const std::string &position) {
-  for (auto const &direction : VERTICAL_AIR_DIRECTIONS) {
-    if (str_equals_case_insensitive(position, direction.name)) return direction.swing;
-  }
-
-  // Preserve compatibility with configurations/entities created while the
-  // positions were exposed as generic numeric labels.
-  if (str_equals_case_insensitive(position, "Position 1")) return SWING::VERTICAL_FIX_POSITION_1;
-  if (str_equals_case_insensitive(position, "Position 2")) return SWING::VERTICAL_FIX_POSITION_2;
-  if (str_equals_case_insensitive(position, "Position 3")) return SWING::VERTICAL_FIX_POSITION_3;
-  if (str_equals_case_insensitive(position, "Position 4")) return SWING::VERTICAL_FIX_POSITION_4;
-  if (str_equals_case_insensitive(position, "Position 5")) return SWING::VERTICAL_FIX_POSITION_5;
-  return nullopt;
-}
-
-const char* SwingToVerticalAirDirection(SWING mode) {
-  // FIX position and ordinary swing are separate logical states. Only a packed
-  // P2 FIX value may update a FIX-position selector; ordinary A3 Off/Vertical/
-  // Horizontal/Both states belong exclusively to the climate swing state.
-  uint8_t horizontal_index = 0;
-  uint8_t vertical_index = 0;
-  if (DecodePackedFixPosition(static_cast<uint8_t>(mode), horizontal_index, vertical_index)) {
-    return VerticalFixedPositionName(vertical_index);
-  }
-  return nullptr;
-}
-
-bool IsFixedVerticalAirDirection(SWING mode) {
-  uint8_t horizontal_index = 0;
-  uint8_t vertical_index = 0;
-  return DecodePackedFixPosition(static_cast<uint8_t>(mode), horizontal_index, vertical_index);
-}
-
-const uint8_t ClimateSwingModeToCommand(climate::ClimateSwingMode mode) {
-  switch (mode) {
-    case climate::CLIMATE_SWING_OFF: return A3_CMD_OFF_TRANSITION;
-    case climate::CLIMATE_SWING_BOTH: return A3_CMD_BOTH_SWING;
-    case climate::CLIMATE_SWING_VERTICAL: return A3_CMD_VERTICAL_SWING;
-    case climate::CLIMATE_SWING_HORIZONTAL: return A3_CMD_HORIZONTAL_SWING;
-    default:
-      ESP_LOGE(TAG, "Invalid swing mode %d.", mode);
-      return A3_CMD_OFF_TRANSITION;
-  }
-}
-
-const climate::ClimateSwingMode IntToClimateSwingMode(SWING mode) {
-  switch (mode) {
-    case SWING::OFF: return climate::CLIMATE_SWING_OFF;
-    case SWING::VERTICAL: return climate::CLIMATE_SWING_VERTICAL;
-    case SWING::HORIZONTAL: return climate::CLIMATE_SWING_HORIZONTAL;
-    case SWING::BOTH: return climate::CLIMATE_SWING_BOTH;
-    case SWING::HADA: return climate::CLIMATE_SWING_OFF;
-    default: return climate::CLIMATE_SWING_OFF;
-  }
 }
 
 const optional<FAN> ClimateFanModeToInt(climate::ClimateFanMode mode) {
@@ -285,5 +191,5 @@ const optional<climate::ClimatePreset> SpecialModeToClimatePreset(SPECIAL_MODE m
   }
 }
 
-}  // namespace toshiba_suzumi
+}  // namespace toshiba_a2a
 }  // namespace esphome

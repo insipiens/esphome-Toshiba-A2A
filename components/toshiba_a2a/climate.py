@@ -67,27 +67,39 @@ CONF_START_DEFROST = "start_defrost"
 CONF_STRONG_DEFROST = "strong_defrost"
 CONF_DEFROST_ACTIVE = "defrost_active"
 
-CONF_SPECIAL_MODE = "special_mode"
-CONF_SPECIAL_MODE_MODES = "modes"
 CONF_SUPPORTED_PRESETS = "supported_presets"
+CONF_DISABLE_FEATURES = "disable_features"
 
 FEATURE_HORIZONTAL_SWING = "horizontal_swing"
 MIN_TEMP = "min_temp"
 DISABLE_HEAT_MODE = "disable_heat_mode"
 DISABLE_WIFI_LED = "disable_wifi_led"
 
-toshiba_ns = cg.esphome_ns.namespace("toshiba_suzumi")
+DISABLE_FEATURE_VALUES = {
+    "fixed_position": 1 << 17,
+    "eco": 1 << 1,
+    "hi_power": 1 << 2,
+    "power_select": 1 << 4,
+    "outdoor_silent": 1 << 5,
+    "fireplace": 1 << 6,
+    "eight_degree_heat": 1 << 7,
+    "floor": 1 << 10,
+    "sleep": 1 << 13,
+    "comfort": 1 << 14,
+    "pure": 1 << 15,
+    "defrost": (1 << 16) | (1 << 18),
+}
+
+toshiba_ns = cg.esphome_ns.namespace("toshiba_a2a")
 ToshibaClimateUart = toshiba_ns.class_("ToshibaValidatedControlUart", cg.PollingComponent, climate.Climate, uart.UARTDevice)
-ToshibaPwrModeSelect = toshiba_ns.class_("ToshibaValidatedPowerSelect", select.Select)
-ToshibaSpecialModeSelect = toshiba_ns.class_("ToshibaSpecialModeSelect", select.Select)
+ToshibaValidatedPowerSelect = toshiba_ns.class_("ToshibaValidatedPowerSelect", select.Select)
 ToshibaVerticalAirDirectionSelect = toshiba_ns.class_("ToshibaValidatedVerticalAirDirectionSelect", select.Select)
 ToshibaHorizontalAirDirectionSelect = toshiba_ns.class_("ToshibaHorizontalAirDirectionSelect", select.Select)
 ToshibaValidatedFunctionSwitch = toshiba_ns.class_("ToshibaValidatedFunctionSwitch", switch.Switch)
 ToshibaValidatedSilentSelect = toshiba_ns.class_("ToshibaValidatedSilentSelect", select.Select)
+ToshibaValidatedSpecialModeLevelSelect = toshiba_ns.class_("ToshibaValidatedSpecialModeLevelSelect", select.Select)
 ToshibaPureSwitch = toshiba_ns.class_("ToshibaPureSwitch", switch.Switch)
 ToshibaDefrostButton = toshiba_ns.class_("ToshibaDefrostButton", button.Button)
-ToshibaSpecialModeSwitch = toshiba_ns.class_("ToshibaSpecialModeSwitch", switch.Switch)
-ToshibaSpecialModeLevelSelect = toshiba_ns.class_("ToshibaSpecialModeLevelSelect", select.Select)
 
 SPECIAL_MODE_VALUES = {
     CONF_HI_POWER: 1,
@@ -123,7 +135,7 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
         cv.Optional(CONF_ODU_IDENTITY_1): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_ODU_IDENTITY_2): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_ODU_IDENTITY_3): text_sensor.text_sensor_schema(),
-        cv.Optional(CONF_PWR_SELECT): select.select_schema(ToshibaPwrModeSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaPwrModeSelect)}),
+        cv.Optional(CONF_PWR_SELECT): select.select_schema(ToshibaValidatedPowerSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedPowerSelect)}),
         cv.Optional(CONF_VERTICAL_AIR_DIRECTION): select.select_schema(ToshibaVerticalAirDirectionSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaVerticalAirDirectionSelect)}),
         cv.Optional(CONF_HORIZONTAL_AIR_DIRECTION): select.select_schema(ToshibaHorizontalAirDirectionSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaHorizontalAirDirectionSelect)}),
         cv.Optional(CONF_SELF_CLEAN): binary_sensor.binary_sensor_schema(device_class=DEVICE_CLASS_RUNNING),
@@ -135,18 +147,15 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
         cv.Optional(CONF_PURE): switch.switch_schema(ToshibaPureSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaPureSwitch)}),
         cv.Optional(CONF_START_DEFROST): button.button_schema(ToshibaDefrostButton).extend({cv.GenerateID(): cv.declare_id(ToshibaDefrostButton)}),
         cv.Optional(CONF_STRONG_DEFROST): button.button_schema(ToshibaDefrostButton).extend({cv.GenerateID(): cv.declare_id(ToshibaDefrostButton)}),
-        cv.Optional(CONF_SLEEP): switch.switch_schema(ToshibaSpecialModeSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaSpecialModeSwitch)}),
-        cv.Optional(CONF_FLOOR): switch.switch_schema(ToshibaSpecialModeSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaSpecialModeSwitch)}),
-        cv.Optional(CONF_COMFORT): switch.switch_schema(ToshibaSpecialModeSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaSpecialModeSwitch)}),
-        cv.Optional(CONF_FIREPLACE): select.select_schema(ToshibaSpecialModeLevelSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaSpecialModeLevelSelect)}),
+        cv.Optional(CONF_SLEEP): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
+        cv.Optional(CONF_FLOOR): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
+        cv.Optional(CONF_COMFORT): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
+        cv.Optional(CONF_FIREPLACE): select.select_schema(ToshibaValidatedSpecialModeLevelSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedSpecialModeLevelSelect)}),
         cv.Optional(FEATURE_HORIZONTAL_SWING): cv.boolean,
         cv.Optional(DISABLE_WIFI_LED): cv.boolean,
         cv.Optional(DISABLE_HEAT_MODE): cv.boolean,
-        cv.Optional(CONF_SPECIAL_MODE): select.select_schema(ToshibaSpecialModeSelect).extend({
-            cv.GenerateID(): cv.declare_id(ToshibaSpecialModeSelect),
-            cv.Required(CONF_SPECIAL_MODE_MODES): cv.ensure_list(cv.one_of("Standard", "Hi POWER", "ECO", "Fireplace 1", "Fireplace 2", "8 degrees", "Silent#1", "Silent#2", "Sleep", "Floor", "Comfort"))
-        }),
         cv.Optional(CONF_SUPPORTED_PRESETS): cv.ensure_list(cv.one_of("Standard", "Hi POWER", "ECO", "Fireplace 1", "Fireplace 2", "8 degrees", "Silent#1", "Silent#2", "Sleep", "Floor", "Comfort")),
+        cv.Optional(CONF_DISABLE_FEATURES, default=[]): cv.ensure_list(cv.one_of(*DISABLE_FEATURE_VALUES.keys())),
         cv.Optional(MIN_TEMP): cv.int_,
         cv.Optional(CONF_TIME_ID): cv.use_id(cg.esphome_ns.namespace("time").class_("RealTimeClock")),
         cv.Optional(CONF_TIME_SYNC_INTERVAL, default="24h"): cv.positive_time_period_milliseconds,
@@ -162,16 +171,6 @@ async def _register_special_switch(config, parent, key, mode_value, setter_name)
     cg.add(ent.set_special_mode(mode_value))
     cg.add(getattr(parent, setter_name)(ent))
 
-async def _new_deferred_select(config, parent_config, options):
-    """Configure a Select without adding it to App until the IDU reports a model."""
-    sel = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_parented(sel, parent_config[CONF_ID])
-    # setup_select_core_ configures name/object-id/traits but, unlike
-    # select.new_select(), does not queue App.register_select(). The C++ parent
-    # registers the entity only after a positive E0 IDU-model report.
-    await select.setup_select_core_(sel, config, options=options)
-    return sel
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -180,6 +179,11 @@ async def to_code(config):
 
     if CONF_MODEL_OVERRIDE in config:
         cg.add(var.set_model_override(config[CONF_MODEL_OVERRIDE]))
+
+    disabled_features = 0
+    for feature in config[CONF_DISABLE_FEATURES]:
+        disabled_features |= DISABLE_FEATURE_VALUES[feature]
+    cg.add(var.set_disabled_features(disabled_features))
 
     sensor_setters = {
         CONF_INDOOR_TEMP: "set_indoor_temp_sensor", CONF_OUTDOOR_TEMP: "set_outdoor_temp_sensor",
@@ -218,11 +222,13 @@ async def to_code(config):
     vertical_fixed_options = ["Top", "Upper", "Centre", "Lower", "Bottom"]
     horizontal_fixed_options = ["Left", "Left-Centre", "Centre", "Right-Centre", "Right"]
     if CONF_VERTICAL_AIR_DIRECTION in config:
-        sel = await _new_deferred_select(config[CONF_VERTICAL_AIR_DIRECTION], config, vertical_fixed_options)
-        cg.add(var.set_deferred_vertical_air_direction_select(sel))
+        sel = await select.new_select(config[CONF_VERTICAL_AIR_DIRECTION], options=vertical_fixed_options)
+        await cg.register_parented(sel, config[CONF_ID])
+        cg.add(var.set_vertical_air_direction_select(sel))
     if CONF_HORIZONTAL_AIR_DIRECTION in config:
-        sel = await _new_deferred_select(config[CONF_HORIZONTAL_AIR_DIRECTION], config, horizontal_fixed_options)
-        cg.add(var.set_deferred_horizontal_air_direction_select(sel))
+        sel = await select.new_select(config[CONF_HORIZONTAL_AIR_DIRECTION], options=horizontal_fixed_options)
+        await cg.register_parented(sel, config[CONF_ID])
+        cg.add(var.set_horizontal_air_direction_select(sel))
 
     if CONF_SELF_CLEAN in config:
         sens = await binary_sensor.new_binary_sensor(config[CONF_SELF_CLEAN])
@@ -256,10 +262,12 @@ async def to_code(config):
         ent = await button.new_button(config[CONF_START_DEFROST])
         await cg.register_parented(ent, config[CONF_ID])
         cg.add(ent.set_strong(False))
+        cg.add(var.set_start_defrost_button(ent))
     if CONF_STRONG_DEFROST in config:
         ent = await button.new_button(config[CONF_STRONG_DEFROST])
         await cg.register_parented(ent, config[CONF_ID])
         cg.add(ent.set_strong(True))
+        cg.add(var.set_strong_defrost_button(ent))
 
     if FEATURE_HORIZONTAL_SWING in config:
         cg.add(var.set_horizontal_swing(config[FEATURE_HORIZONTAL_SWING]))
@@ -274,11 +282,6 @@ async def to_code(config):
 
     if CONF_SUPPORTED_PRESETS in config:
         presets = config[CONF_SUPPORTED_PRESETS]
-        cg.add(var.set_supported_presets(presets))
-        if "8 degrees" in presets:
-            cg.add(var.set_min_temp(5))
-    if CONF_SPECIAL_MODE in config:
-        presets = config[CONF_SPECIAL_MODE][CONF_SPECIAL_MODE_MODES]
         cg.add(var.set_supported_presets(presets))
         if "8 degrees" in presets:
             cg.add(var.set_min_temp(5))

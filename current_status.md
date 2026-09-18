@@ -42,18 +42,36 @@ UART traffic
 
 A UART register is therefore treated as a transport detail rather than automatically as the correct Home Assistant user-interface abstraction.
 
-## Packages
+## Universal package
 
-Two reusable package profiles are currently maintained:
+The repository now maintains one user-facing package:
+`packages/toshiba-a2a.yaml`.
 
-- `packages/toshiba-a2a-j2.yaml` for J2FVG floor/console units;
-- `packages/toshiba-a2a-p2.yaml` for P2KVSG high-wall units.
+A normal installation supplies `device_name`, `friendly_name`,
+`climate_entity_name` and the exact `toshiba_model`. `device_name` is the
+ESPHome/network identity, `friendly_name` is the Home Assistant device name,
+and `climate_entity_name` is the climate entity name used to keep multiple Toshiba
+climate entities distinguishable in entity pickers. `climate_entity_name` may be left
+blank (`""`) to rely on Home Assistant's composed naming. The model is
+resolved internally to the appropriate family profile, capability matrix and
+family-specific command encoding. Users do not select a family in the normal
+installation template.
 
-The J2 package is shared by the tested B10J2 and B13J2 units. Firmware differences do not require separate package copies.
+Family defaults describe the expected full behaviour. If an older/reduced IDU
+controller does not implement one of those features correctly, the consuming
+YAML can apply a narrow `disable_features` mask after testing. The directly
+observed older B10J2 case uses `fixed_position`; this does not create a new
+family or package.
 
-Both packages accept an optional `capability_profile` substitution. It defaults to `full`, so normal consumers do not need to add anything. `full` exposes the FIX controls expected for the declared family. `limited` hides firmware-variable FIX controls for installations whose physical unit/firmware does not implement the expected FIX behaviour. The profile is an exposure/capability mask layered on top of the normal family protocol, not a separate implementation.
+The effective control exposure is therefore:
 
-The package owns the ESP32-C3 target, UART, Toshiba climate entities, engineering sensors, identity handling and output estimator. The consuming YAML supplies model/name substitutions and local Wi-Fi/API/OTA settings.
+```text
+configured Toshiba model
+   -> internal family profile
+   -> family default capabilities
+   -> optional user disable_features mask
+   -> ESPHome entities
+```
 
 ## Home Assistant control model
 
@@ -68,11 +86,13 @@ Examples include:
 - Fireplace as a select;
 - 8 °C heat as a switch;
 - Floor mode as a switch;
-- PURE as a switch;
+- PURE as a switch on families that support it;
 - FIX/louvre position as select entities where implemented;
 - defrost as explicit actions/state rather than a climate preset.
 
 Availability by HVAC mode and family is documented in `TOSHIBA_CONTROL_MATRIX.md`.
+
+J2 Comfort Sleep is treated as its own Toshiba operating function. It is not the ON/OFF timer facility; timer registers and scheduling remain separate protocol functions.
 
 ## FIX / louvre control
 
@@ -94,19 +114,17 @@ The Home Assistant FIX selector contains only `Top`, `Upper`, `Centre`, `Lower` 
 
 Ordinary J2 A3 swing states are handled by the climate swing state and are not published into the FIX selector. This prevents normal `Off`/swing readback from being treated as an invalid FIX choice.
 
-FIX entity exposure is now explicit at installation time rather than inferred from E0 identity. The package default is `capability_profile: "full"`, which exposes the public J2 vertical FIX selector. Setting `capability_profile: "limited"` marks the public selector internal before Home Assistant API discovery. This avoids using model-reporting behaviour as a proxy for physical louvre capability and avoids active capability probing during startup.
+FIX entity exposure now follows the family default capability set. If an older controller does not implement the expected FIX behaviour, the installation can add `disable_features: [fixed_position]`; the component then keeps the FIX entity internal before Home Assistant API discovery. This avoids using model-reporting behaviour as a proxy for physical louvre capability and avoids active capability probing during startup.
 
 Direct B13J2 testing confirmed passive readback of all five positions after the unit was running: `50` Top, `51` Upper, `52` Centre, `53` Lower and `54` Bottom. A FIX write while the IDU was off was ACKed but the IDU continued to report ordinary A3 Off state until operation resumed, so ACK alone is not treated as authoritative position state.
 
 ### Older B10J2 firmware
 
-One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. The installed Office example therefore explicitly selects `capability_profile: "limited"`, which hides the public FIX selector. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
+One older B10J2 unit reports `NULL` for the IDU model in `0xE0`. Direct `A3 50..54` commands on that unit have been ACKed without producing the expected physical FIX movement. The installed Office example therefore explicitly disables `fixed_position`, which hides the FIX selector without changing the J2 family definition. This is treated as firmware-specific evidence and does not remove FIX capability from the J2 family as a whole.
 
 ### P2KVSG
 
-P2 FIX uses a packed horizontal/vertical `A3` representation. Vertical and horizontal state are therefore handled differently from J2 and remain in the P2 package.
-
-With the default `full` profile, the P2 package exposes stable package-level `Vertical Fixed Position` and `Horizontal Fixed Position` selects in Home Assistant while retaining internal raw component selects for protocol state/write handling. `limited` hides both public FIX entities. The installed Kitchen P2 uses the default full profile.
+P2 FIX uses a packed horizontal/vertical `A3` representation. Vertical and horizontal state are therefore handled differently from J2 internally, while the same universal package exposes the appropriate FIX controls from the resolved family capability set. `disable_features: [fixed_position]` hides both P2 FIX controls if an installation needs that compatibility override.
 
 ## Fan and airflow telemetry
 
@@ -141,9 +159,21 @@ E0 remains diagnostic identity evidence. It is no longer used by the package as 
 
 ## Diagnostics
 
-The normal package includes a `Toshiba focused monitor` diagnostic switch.
+The universal package includes a `Toshiba focused monitor` diagnostic switch.
 
-Focused Monitor is passive. It does not inject its own A3/A4 reads or other register requests. Normal component traffic continues and received UART packets are logged in more detail while the monitor is enabled.
+Focused Monitor now operates as a raw loitering UART observer. It does not
+inject exploratory register reads and does not attempt to interpret known
+register values into temperatures, fan speeds or other human-readable state.
+For each normal TX/RX frame it logs direction, the hexadecimal register address
+when structurally identifiable, frame length and the complete raw hex bytes.
+Obvious matching replies may be labelled as responses to the most recent ESP
+register transaction; otherwise RX traffic is left unmatched rather than
+assigned a speculative origin.
+
+Traffic that the normal protocol parser cannot complete is also retained for
+diagnostic use: invalid-header bytes, checksum failures and timeout-terminated
+bursts are logged as unparsed raw RX traffic instead of being silently
+discarded by the monitor.
 
 Separate research examples remain available for deeper protocol work:
 
@@ -155,7 +185,6 @@ Separate research examples remain available for deeper protocol work:
 
 - Compatibility has only been directly tested on a small number of physical units.
 - Firmware differences within a nominal family are real and can affect model reporting and control behaviour.
-- The `limited` profile currently masks the firmware-variable FIX controls; other firmware-dependent features may be added to that mask only when evidence justifies it.
 - Some controls are shared-ODU functions on a multi-split system and should not be assumed to be purely local to one IDU.
 - Several timer, maintenance and energy fields remain only partly decoded.
 - Exact locality of some ODU/current/energy values is still being verified.
