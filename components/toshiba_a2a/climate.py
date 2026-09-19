@@ -167,7 +167,7 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
         cv.Optional(FEATURE_HORIZONTAL_SWING): cv.boolean,
         cv.Optional(DISABLE_WIFI_LED): cv.boolean,
         cv.Optional(DISABLE_HEAT_MODE): cv.boolean,
-        cv.Optional(CONF_SUPPORTED_PRESETS): cv.ensure_list(cv.one_of("Standard", "Hi POWER", "ECO", "Fireplace 1", "Fireplace 2", "8 degrees", "Silent#1", "Silent#2", "Sleep", "Floor", "Comfort")),
+        cv.Optional(CONF_SUPPORTED_PRESETS): cv.ensure_list(cv.one_of("Standard", "Hi POWER", "ECO", "Fireplace 1", "Fireplace 2", "8 degrees", "Silent#1", "Silent#2", "Sleep", "Floor")),
         cv.Optional(CONF_DISABLE_FEATURES, default=[]): cv.ensure_list(cv.one_of(*DISABLE_FEATURE_VALUES.keys())),
         cv.Optional(MIN_TEMP): cv.int_,
         cv.Optional(CONF_TIME_ID): cv.use_id(cg.esphome_ns.namespace("time").class_("RealTimeClock")),
