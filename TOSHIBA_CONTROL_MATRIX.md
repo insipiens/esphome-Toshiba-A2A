@@ -21,7 +21,7 @@ The consuming YAML must declare the exact IDU model. That model selects the runt
 | ECO | yes | yes | yes | no | no | IDU demand | `F7/F8` |
 | Hi POWER | yes | yes | yes | no | no | IDU demand | `F7/F8` |
 | Silent Operation | yes | yes | yes | no | no | shared ODU | `F7/F8` |
-| Comfort Sleep | yes | yes | yes | no | no | IDU demand | distinct Toshiba function; mapping still under test |
+| Comfort Sleep | yes | yes | yes | no | no | IDU demand | observed RC state: Power Select 50%, fan Auto, OFF timer active; component reproduces this with 1/3/5/9 h OFF-timer duration |
 | Fireplace | no | no | yes | no | no | IDU local | `F7/F8` |
 | 8 °C Heat | no | no | yes | no | no | IDU demand | `F7/F8` |
 | Floor | no | no | yes | no | no | IDU local | `F7/F8` |
