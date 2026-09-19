@@ -158,7 +158,7 @@ Example:
 
 ## Registers `0x90` / `0x92` — ON timer
 
-The ON timer is directly validated with the genuine adaptor.
+The ON timer is directly validated with the genuine adaptor and has also been reproduced from the ESP controller.
 
 ### Availability / operating-state constraint
 
@@ -186,6 +186,8 @@ Confirmed examples:
 92 01 00   = 1 hour
 92 0C 00   = 12 hours
 ```
+
+The exposed controller UI uses the same `HH MM` encoding across 30 minutes through 12 hours in 30-minute steps.
 
 Example complete 12-hour write:
 
@@ -220,7 +222,7 @@ WiFi -> IDU   90 42
 IDU -> WiFi   generic ACK
 ```
 
-The programmed value and enable state are separate registers.
+The programmed value and enable state are separate registers. In a direct ESP-controller test, `92 00 1E` and `90 41` both received normal ACKs, `0x90` read back `0x41`, and the IDU then reported `0x80 = 0x30` while airflow remained zero, matching the previously observed armed-not-yet-running state.
 
 ### ON-timer expiry
 
