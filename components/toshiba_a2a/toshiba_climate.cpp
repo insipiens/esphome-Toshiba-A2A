@@ -161,6 +161,23 @@ void ToshibaClimateUart::sendCmd(ToshibaRegister cmd, uint8_t value) {
   this->enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::REGISTER, .register_id = cmd, .payload = std::vector<uint8_t>{payload}});
 }
 
+void ToshibaClimateUart::sendCmd(ToshibaRegister cmd, const std::vector<uint8_t> &values) {
+  const uint16_t protocol_length = static_cast<uint16_t>(6 + values.size());
+  std::vector<uint8_t> payload = {2, 0, 3, 16, 0,
+                                  static_cast<uint8_t>(protocol_length >> 8),
+                                  static_cast<uint8_t>(protocol_length & 0xFF),
+                                  1, 48, 1, 0,
+                                  static_cast<uint8_t>(1 + values.size()),
+                                  static_cast<uint8_t>(cmd)};
+  payload.insert(payload.end(), values.begin(), values.end());
+  payload.push_back(checksum(payload, payload.size()));
+  ESP_LOGD(TAG, "Sending ToshibaCommand: reg=0x%02X values=[%s]",
+           static_cast<unsigned>(cmd), format_hex_pretty(values).c_str());
+  this->enqueue_command_(ToshibaCommand{.operation = ToshibaQueueOperation::REGISTER,
+                                        .register_id = cmd,
+                                        .payload = std::move(payload)});
+}
+
 void ToshibaClimateUart::requestData(ToshibaRegister cmd) {
   std::vector<uint8_t> payload = {2, 0, 3, 16, 0, 0, 6, 1, 48, 1, 0, 1};
   payload.push_back(static_cast<uint8_t>(cmd));
