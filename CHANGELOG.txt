@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 19th 2026
 
+* confirmed that the genuine Toshiba app for the tested J2 unit exposes ordinary ON/OFF timers but no Comfort Sleep control; Comfort Sleep therefore remains a remote-control-derived function and its exact transport is still under investigation
 * directly reproduced the OFF-timer command path from the ESP controller while the IDU was running: `0x96 = 00 1E` (30 minutes) and `0x94 = 0x41` were both ACKed and the unit continued operating with live fan feedback after arming; expiry was not included in the capture
 * confirmed that the IDU accepts and arms a non-remote ON-timer duration: `0x92 = 0A 1E` (10 h 30 min) received the normal ACK, `0x90 = 0x41` was ACKed, and `0x80 = 0x30` followed while airflow remained zero; expiry at 10 h 30 min remains untested
 * changed ON/OFF timer availability gating from cached `0x80` power state to the climate operating state, because `0x80` can report logical/armed ON while an ON timer is waiting and the IDU is still physically stopped
