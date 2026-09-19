@@ -42,7 +42,6 @@ enum ToshibaFeature : uint32_t {
   FEATURE_AIR_OUTLET_SELECT = 1UL << 11,
   FEATURE_HADA_CARE = 1UL << 12,
   FEATURE_SLEEP = 1UL << 13,
-  FEATURE_COMFORT = 1UL << 14,
   FEATURE_PURE = 1UL << 15,
   FEATURE_START_DEFROST = 1UL << 16,
   FEATURE_FIXED_POSITION = 1UL << 17,
@@ -142,7 +141,6 @@ inline ToshibaFeatureScope feature_scope(ToshibaFeature feature) {
     case FEATURE_HI_POWER:
     case FEATURE_EIGHT_DEG_HEAT:
     case FEATURE_SLEEP:
-    case FEATURE_COMFORT:
       return ToshibaFeatureScope::IDU_DEMAND;
 
     case FEATURE_POWER_SELECT:
