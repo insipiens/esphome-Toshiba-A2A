@@ -337,13 +337,14 @@ void ToshibaValidatedControlUart::on_set_timer_(bool on_timer, const std::string
     return;
   }
 
-  // Match the Toshiba UI behaviour observed on the genuine adaptor: the ON
-  // timer is set only while the unit is OFF; the OFF timer only while it is ON.
-  if (on_timer && this->power_state_ != STATE::OFF) {
+  // Match the Toshiba UI behaviour using the climate operating state.
+  // 0x80 is a logical/requested/armed state and can report ON while an ON timer
+  // is merely armed and the IDU is still physically stopped.
+  if (on_timer && this->mode != climate::CLIMATE_MODE_OFF) {
     ESP_LOGW(TAG, "ON Timer is available only while the unit is OFF");
     return;
   }
-  if (!on_timer && this->power_state_ != STATE::ON) {
+  if (!on_timer && this->mode == climate::CLIMATE_MODE_OFF) {
     ESP_LOGW(TAG, "OFF Timer is available only while the unit is ON");
     return;
   }
