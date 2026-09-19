@@ -3,6 +3,8 @@ ESPHome Toshiba A2A development
 
 Sep 19th 2026
 
+* removed the remaining inherited/unvalidated `F7=0x07` Comfort enum, preset mappings and feature flag; it is no longer interpreted by the component, and the register map records the value as deliberately unassigned pending direct evidence
+* added explicit follow-up items to validate `0xD8` energy semantics against the genuine app energy path and to calibrate the sensible-output estimator/P2 airflow data against independent measurements
 * removed the synthetic Comfort Sleep selector, J2 UART capability flag and package/config exposure: timed IR-remote testing showed no corresponding `F7`, `F8`, `0x87`, `0x94` or `0x96` UART state and the genuine Toshiba app has no Comfort Sleep control; documentation now records Comfort Sleep as an IDU-internal/IR function on the tested J2 unless future direct UART evidence establishes otherwise
 * confirmed that the genuine Toshiba app for the tested J2 unit exposes ordinary ON/OFF timers but no Comfort Sleep control; Comfort Sleep therefore remains a remote-control-derived function and its exact transport is still under investigation
 * directly reproduced the OFF-timer command path from the ESP controller while the IDU was running: `0x96 = 00 1E` (30 minutes) and `0x94 = 0x41` were both ACKed and the unit continued operating with live fan feedback after arming; expiry was not included in the capture
