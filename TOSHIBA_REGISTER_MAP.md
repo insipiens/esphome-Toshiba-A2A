@@ -39,7 +39,7 @@ The summary table is an index. Detailed sections below describe framing, payload
 | `0xE4` | IDU engineering status | pushed/read | 8-byte record; `+2` is live IDU fan-speed feedback at approximately 10 rpm/count (RPM/10), distinct from the fan command enum; `FE/FF` are treated as unavailable rather than speed values | **confirmed field purpose/scale; unavailable handling based on observed sentinel form** |
 | `0xE5` | ODU/system engineering status | pushed/read | 8-byte engineering record; `+6` is current-like and tracks ODU electrical activity | **partially decoded** |
 | `0xEA` | Date/time sync | Write | Multi-byte time/date write; ACK pattern previously mapped | **established** |
-| `0xF7` | Special-function selector | R/W | Standard `00`, Hi POWER `01`, Silent 1 `02`, ECO `03`, 8°C `04`, Sleep `05`, Floor `06`, Comfort `07`, Silent 2 `0A`, Fireplace 1 `20`, Fireplace 2 `30` | **enum established; authoritative readback still to test** |
+| `0xF7` | Special-function selector | R/W | Standard `00`, Hi POWER `01`, Silent 1 `02`, ECO `03`, 8°C `04`, Sleep `05`, Floor `06`, Silent 2 `0A`, Fireplace 1 `20`, Fireplace 2 `30` | **enum established; authoritative readback still to test** |
 | `0xF8` | Aggregate operating configuration | Write / observed | Four bytes: `[mode][target °C][fan][special-function]` | **confirmed across P2KVSG and J2FVG genuine-adaptor captures** |
 
 ## Protocol framing and message classes
@@ -898,13 +898,12 @@ Established enum:
 04 = 8°C
 05 = Sleep
 06 = Floor
-07 = Comfort (inherited/declared enum; not observed as the tested J2 IR Comfort Sleep state)
 0A = Silent 2
 20 = Fireplace 1
 30 = Fireplace 2
 ```
 
-The enum is independently corroborated only in part by `F8 +3`, where `00`, `01`, and `03` have been observed. In particular, `07` must not be equated with the tested J2 IR Comfort Sleep function: a time-correlated IR Comfort Sleep capture produced no `F7`, `F8`, `0x87`, `0x94` or `0x96` state publication, and the genuine Toshiba app exposes no Comfort Sleep control. `07` therefore remains inherited/declared rather than directly validated on the tested hardware.
+The enum is independently corroborated only in part by `F8 +3`, where `00`, `01`, and `03` have been observed. The inherited `0x07` "Comfort" assignment has been removed from the implementation because it has not been directly validated on the tested hardware and must not be equated with J2 IR Comfort Sleep.
 
 ## Register `0xF8` — Aggregate operating configuration
 
