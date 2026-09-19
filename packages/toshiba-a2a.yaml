@@ -74,7 +74,7 @@ climate:
     floor:
       name: "Floor"
     comfort:
-      name: "Comfort"
+      name: "Comfort Sleep"
     pure:
       name: "PURE"
 
