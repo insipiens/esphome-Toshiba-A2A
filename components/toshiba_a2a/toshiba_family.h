@@ -32,7 +32,6 @@ enum ToshibaFeature : uint32_t {
   FEATURE_COMMON_HVAC = 1UL << 0,
   FEATURE_ECO = 1UL << 1,
   FEATURE_HI_POWER = 1UL << 2,
-  FEATURE_COMFORT_SLEEP = 1UL << 3,
   FEATURE_POWER_SELECT = 1UL << 4,
   FEATURE_OUTDOOR_SILENT = 1UL << 5,
   FEATURE_FIREPLACE = 1UL << 6,
@@ -141,7 +140,6 @@ inline ToshibaFeatureScope feature_scope(ToshibaFeature feature) {
     case FEATURE_COMMON_HVAC:
     case FEATURE_ECO:
     case FEATURE_HI_POWER:
-    case FEATURE_COMFORT_SLEEP:
     case FEATURE_EIGHT_DEG_HEAT:
     case FEATURE_SLEEP:
     case FEATURE_COMFORT:
