@@ -59,6 +59,25 @@ bool climate_call_is_swing_only(const climate::ClimateCall &call) {
          !call.has_custom_fan_mode() && !call.get_preset().has_value() && !call.has_custom_preset();
 }
 
+bool timer_duration_from_name(const std::string &value, uint8_t &hours, uint8_t &minutes) {
+  if (value == "30 minutes") {
+    hours = 0;
+    minutes = 30;
+    return true;
+  }
+  if (value == "1 hour") {
+    hours = 1;
+    minutes = 0;
+    return true;
+  }
+  if (value == "12 hours") {
+    hours = 12;
+    minutes = 0;
+    return true;
+  }
+  return false;
+}
+
 }  // namespace
 
 void ToshibaValidatedControlUart::setup() {
@@ -300,6 +319,43 @@ void ToshibaValidatedControlUart::on_set_comfort_sleep_(const std::string &value
   this->comfort_sleep_select_->publish_state(value);
 }
 
+void ToshibaValidatedControlUart::on_set_timer_(bool on_timer, const std::string &value) {
+  ToshibaTimerSelect *entity = on_timer ? this->on_timer_select_ : this->off_timer_select_;
+  const ToshibaRegister state_reg = on_timer ? ToshibaRegister::TIMER_ON : ToshibaRegister::TIMER_OFF;
+  const ToshibaRegister duration_reg =
+      on_timer ? ToshibaRegister::TIMER_ON_DURATION : ToshibaRegister::TIMER_OFF_DURATION;
+
+  if (value == "Off") {
+    this->sendCmd(state_reg, 0x42);
+    this->requestData(state_reg);
+    if (entity != nullptr) entity->publish_state("Off");
+    return;
+  }
+
+  // Match the Toshiba UI behaviour observed on the genuine adaptor: the ON
+  // timer is set only while the unit is OFF; the OFF timer only while it is ON.
+  if (on_timer && this->power_state_ != STATE::OFF) {
+    ESP_LOGW(TAG, "ON Timer is available only while the unit is OFF");
+    return;
+  }
+  if (!on_timer && this->power_state_ != STATE::ON) {
+    ESP_LOGW(TAG, "OFF Timer is available only while the unit is ON");
+    return;
+  }
+
+  uint8_t hours = 0;
+  uint8_t minutes = 0;
+  if (!timer_duration_from_name(value, hours, minutes)) {
+    ESP_LOGW(TAG, "Unknown %s Timer duration: %s", on_timer ? "ON" : "OFF", value.c_str());
+    return;
+  }
+
+  this->sendCmd(duration_reg, std::vector<uint8_t>{hours, minutes});
+  this->sendCmd(state_reg, 0x41);
+  this->requestData(state_reg);
+  if (entity != nullptr) entity->publish_state(value);
+}
+
 void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
   const ToshibaHvacMode mode = this->current_hvac_mode_();
   const ToshibaFeature feature = strong ? FEATURE_STRONG_DEFROST : FEATURE_START_DEFROST;
@@ -519,6 +575,18 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
     return;
   }
 
+  if ((response_register == static_cast<uint8_t>(ToshibaRegister::TIMER_ON) ||
+       response_register == static_cast<uint8_t>(ToshibaRegister::TIMER_OFF)) &&
+      extract_scalar(raw, static_cast<uint8_t>(response_register), value)) {
+    ToshibaTimerSelect *entity =
+        response_register == static_cast<uint8_t>(ToshibaRegister::TIMER_ON)
+            ? this->on_timer_select_
+            : this->off_timer_select_;
+    if (value == 0x42 && entity != nullptr) entity->publish_state("Off");
+    // 0x41 confirms that the timer is active, but it does not contain its
+    // duration. Preserve the locally selected duration rather than inventing one.
+  }
+
   if (response_register == static_cast<uint8_t>(ToshibaRegister::MAINTENANCE) &&
       extract_scalar(raw, static_cast<uint8_t>(ToshibaRegister::MAINTENANCE), value)) {
     const auto state = static_cast<MAINTENANCE_STATE>(value);
@@ -624,6 +692,10 @@ void ToshibaValidatedPowerSelect::control(const std::string &value) {
 
 void ToshibaComfortSleepSelect::control(const std::string &value) {
   this->parent_->on_set_comfort_sleep_(value);
+}
+
+void ToshibaTimerSelect::control(const std::string &value) {
+  this->parent_->on_set_timer_(this->on_timer_, value);
 }
 
 void ToshibaPureSwitch::write_state(bool state) {
