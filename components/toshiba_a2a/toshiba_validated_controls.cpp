@@ -60,20 +60,22 @@ bool climate_call_is_swing_only(const climate::ClimateCall &call) {
 }
 
 bool timer_duration_from_name(const std::string &value, uint8_t &hours, uint8_t &minutes) {
-  if (value == "30 minutes") {
-    hours = 0;
-    minutes = 30;
-    return true;
-  }
-  if (value == "1 hour") {
-    hours = 1;
-    minutes = 0;
-    return true;
-  }
-  if (value == "12 hours") {
-    hours = 12;
-    minutes = 0;
-    return true;
+  // Toshiba timer UI spans 0.5-12 hours in half-hour steps.
+  for (uint8_t half_hours = 1; half_hours <= 24; half_hours++) {
+    const uint8_t h = half_hours / 2;
+    const bool half = (half_hours % 2) != 0;
+    std::string name;
+    if (h == 0) {
+      name = "30 minutes";
+    } else {
+      name = std::to_string(h) + (h == 1 ? " hour" : " hours");
+      if (half) name += " 30 minutes";
+    }
+    if (value == name) {
+      hours = h;
+      minutes = half ? 30 : 0;
+      return true;
+    }
   }
   return false;
 }
