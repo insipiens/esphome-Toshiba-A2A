@@ -85,7 +85,7 @@ DISABLE_FEATURE_VALUES = {
     "eight_degree_heat": 1 << 7,
     "floor": 1 << 10,
     "sleep": 1 << 13,
-    "comfort": 1 << 14,
+    "comfort": 1 << 3,
     "pure": 1 << 15,
     "defrost": (1 << 16) | (1 << 18),
 }
@@ -93,6 +93,7 @@ DISABLE_FEATURE_VALUES = {
 toshiba_ns = cg.esphome_ns.namespace("toshiba_a2a")
 ToshibaClimateUart = toshiba_ns.class_("ToshibaValidatedControlUart", cg.PollingComponent, climate.Climate, uart.UARTDevice)
 ToshibaValidatedPowerSelect = toshiba_ns.class_("ToshibaValidatedPowerSelect", select.Select)
+ToshibaComfortSleepSelect = toshiba_ns.class_("ToshibaComfortSleepSelect", select.Select)
 ToshibaVerticalAirDirectionSelect = toshiba_ns.class_("ToshibaValidatedVerticalAirDirectionSelect", select.Select)
 ToshibaHorizontalAirDirectionSelect = toshiba_ns.class_("ToshibaHorizontalAirDirectionSelect", select.Select)
 ToshibaValidatedFunctionSwitch = toshiba_ns.class_("ToshibaValidatedFunctionSwitch", switch.Switch)
@@ -107,7 +108,6 @@ SPECIAL_MODE_VALUES = {
     CONF_EIGHT_DEGREE_HEAT: 4,
     CONF_SLEEP: 5,
     CONF_FLOOR: 6,
-    CONF_COMFORT: 7,
 }
 
 CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
@@ -149,7 +149,7 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
         cv.Optional(CONF_STRONG_DEFROST): button.button_schema(ToshibaDefrostButton).extend({cv.GenerateID(): cv.declare_id(ToshibaDefrostButton)}),
         cv.Optional(CONF_SLEEP): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
         cv.Optional(CONF_FLOOR): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
-        cv.Optional(CONF_COMFORT): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
+        cv.Optional(CONF_COMFORT): select.select_schema(ToshibaComfortSleepSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaComfortSleepSelect)}),
         cv.Optional(CONF_FIREPLACE): select.select_schema(ToshibaValidatedSpecialModeLevelSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedSpecialModeLevelSelect)}),
         cv.Optional(FEATURE_HORIZONTAL_SWING): cv.boolean,
         cv.Optional(DISABLE_WIFI_LED): cv.boolean,
@@ -242,7 +242,10 @@ async def to_code(config):
     await _register_special_switch(config, var, CONF_EIGHT_DEGREE_HEAT, SPECIAL_MODE_VALUES[CONF_EIGHT_DEGREE_HEAT], "set_eight_degree_heat_switch")
     await _register_special_switch(config, var, CONF_SLEEP, SPECIAL_MODE_VALUES[CONF_SLEEP], "set_sleep_switch")
     await _register_special_switch(config, var, CONF_FLOOR, SPECIAL_MODE_VALUES[CONF_FLOOR], "set_floor_switch")
-    await _register_special_switch(config, var, CONF_COMFORT, SPECIAL_MODE_VALUES[CONF_COMFORT], "set_comfort_switch")
+    if CONF_COMFORT in config:
+        sel = await select.new_select(config[CONF_COMFORT], options=["Off", "1 hour", "3 hours", "5 hours", "9 hours"])
+        await cg.register_parented(sel, config[CONF_ID])
+        cg.add(var.set_comfort_sleep_select(sel))
 
     if CONF_FIREPLACE in config:
         sel = await select.new_select(config[CONF_FIREPLACE], options=["Off", "Fireplace 1", "Fireplace 2"])
