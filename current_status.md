@@ -94,6 +94,9 @@ Availability by HVAC mode and family is documented in `TOSHIBA_CONTROL_MATRIX.md
 
 J2 Comfort Sleep is exposed as a duration selector (`Off`, `1 hour`, `3 hours`, `5 hours`, `9 hours`). The current implementation deliberately reproduces the directly observed RC result rather than assigning an unverified F7 value: Power Select 50%, fan Auto, OFF-timer duration in `0x96`, then OFF-timer enable in `0x94`. This recipe remains hardware-testable/falsifiable; the 1-hour RC capture showed the resulting 50%/Auto/OFF-timer-active state but did not itself publish `0x96`.
 
+The universal package also exposes ordinary `ON Timer` and `OFF Timer` selects from the validated timer registers. The ON Timer accepts a non-Off duration only when the IDU is currently OFF; the OFF Timer accepts a non-Off duration only when the IDU is currently ON. Cancelling with `Off` is allowed regardless of current power state so an armed timer can always be cleared. The selector options are intentionally limited to directly captured durations: ON Timer supports `30 minutes`, `1 hour` and `12 hours`; OFF Timer supports `30 minutes` and `1 hour`.
+
+
 ## FIX / louvre control
 
 ### J2FVG
