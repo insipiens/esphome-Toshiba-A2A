@@ -24,8 +24,9 @@ The package provides:
 
 - a climate entity for power, HVAC mode, setpoint, fan mode and ordinary swing;
 - family-dependent controls including Power Select, ECO, Hi POWER, Outdoor
-  Silent, Fireplace, 8 °C Heat, Floor, Sleep, Comfort, PURE, FIX positions and
+  Silent, Fireplace, 8 °C Heat, Floor, Sleep, Comfort Sleep, PURE, FIX positions and
   defrost actions where supported;
+- separate `ON Timer` and `OFF Timer` selects; ON Timer accepts a new duration only while the unit is OFF, while OFF Timer accepts a new duration only while the unit is ON; `Off` remains available to cancel an armed timer;
 - indoor/outdoor and heat-exchanger temperatures, IDU fan feedback, energy and
   other engineering telemetry when the IDU supplies it;
 - IDU/ODU model and identity diagnostics;
