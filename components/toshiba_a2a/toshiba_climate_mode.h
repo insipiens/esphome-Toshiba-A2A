@@ -34,7 +34,6 @@ constexpr const char* SPECIAL_MODE_SILENT_1 = "Silent#1";
 constexpr const char* SPECIAL_MODE_SILENT_2 = "Silent#2";
 constexpr const char* SPECIAL_MODE_SLEEP = "Sleep";
 constexpr const char* SPECIAL_MODE_FLOOR = "Floor";
-constexpr const char* SPECIAL_MODE_COMFORT = "Comfort";
 
 using MODE=reg_b0::Mode; using FAN=reg_a0::Fan; using STATE=reg_80::State; using PWR_LEVEL=reg_87::PowerLevel;
 using MAINTENANCE_STATE=reg_cb::State; using SELF_CLEAN_STATE=reg_cb::SelfCleanState; using SPECIAL_MODE=reg_f7::SpecialMode;
