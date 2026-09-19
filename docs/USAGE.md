@@ -24,7 +24,7 @@ The package provides:
 
 - a climate entity for power, HVAC mode, setpoint, fan mode and ordinary swing;
 - family-dependent controls including Power Select, ECO, Hi POWER, Outdoor
-  Silent, Fireplace, 8 °C Heat, Floor, Sleep, Comfort Sleep, PURE, FIX positions and
+  Silent, Fireplace, 8 °C Heat, Floor, Sleep, PURE, FIX positions and
   defrost actions where supported;
 - separate `ON Timer` and `OFF Timer` selects covering 30 minutes through 12 hours in 30-minute steps; ON Timer accepts a new duration only while the unit is OFF, while OFF Timer accepts a new duration only while the unit is ON; `Off` remains available to cancel an armed timer;
 - indoor/outdoor and heat-exchanger temperatures, IDU fan feedback, energy and
@@ -65,7 +65,7 @@ climate:
 
 Accepted values are `fixed_position`, `eco`, `hi_power`, `power_select`,
 `outdoor_silent`, `fireplace`, `eight_degree_heat`, `floor`, `sleep`,
-`comfort`, `pure` and `defrost`. The `defrost` value disables both defrost
+`pure` and `defrost`. The `defrost` value disables both defrost
 actions. Overrides only remove controls; they do not add a capability that the
 family profile does not support.
 
