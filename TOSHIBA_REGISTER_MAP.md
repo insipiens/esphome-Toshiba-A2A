@@ -187,7 +187,7 @@ Confirmed examples:
 92 0C 00   = 12 hours
 ```
 
-The exposed controller UI uses the same `HH MM` encoding across 30 minutes through 12 hours in 30-minute steps.
+The exposed controller UI currently uses the same `HH MM` encoding across 30 minutes through 12 hours in 30-minute steps. The genuine remote does not expose every one of those values. A direct ESP test of the non-remote value `92 0A 1E` (10 h 30 min) received the normal `0x92` ACK, `90 41` was then ACKed, and the IDU entered the usual armed `0x80 = 0x30` state with zero airflow. This establishes acceptance/arming of that value at protocol level; expiry at 10 h 30 min has not yet been observed.
 
 Example complete 12-hour write:
 
