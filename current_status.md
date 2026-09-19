@@ -199,6 +199,11 @@ For passive protocol work, use
 `examples/passive-uart-sniffer.yaml`; it reconstructs complete Toshiba frames
 from both genuine-adaptor wire directions without transmitting.
 
+## To do
+
+- Validate the exposed `0xD8` daily-energy interpretation against the genuine Toshiba app/`0xCC`-`0xCF` energy path and rename or revise the entity if the semantics differ.
+- Calibrate the sensible-output estimator against independent delivered-air/output measurements, including the provisional P2 airflow endpoints and the runtime output multiplier.
+
 ## Current known limitations
 
 - Compatibility has only been directly tested on a small number of physical units.
