@@ -73,8 +73,6 @@ climate:
       name: "Sleep"
     floor:
       name: "Floor"
-    comfort:
-      name: "Comfort Sleep"
     on_timer:
       name: "ON Timer"
     off_timer:
