@@ -117,7 +117,7 @@ void ToshibaValidatedControlUart::apply_effective_capabilities_() {
                   !this->effective_feature_available_(FEATURE_EIGHT_DEG_HEAT));
   set_internal_if(this->validated_sleep_switch_, !this->effective_feature_available_(FEATURE_SLEEP));
   set_internal_if(this->validated_floor_switch_, !this->effective_feature_available_(FEATURE_FLOOR));
-  set_internal_if(this->validated_comfort_switch_, !this->effective_feature_available_(FEATURE_COMFORT));
+  set_internal_if(this->comfort_sleep_select_, !this->effective_feature_available_(FEATURE_COMFORT_SLEEP));
   set_internal_if(this->pure_switch_, !this->effective_feature_available_(FEATURE_PURE));
 
   const bool fixed_available = this->effective_feature_available_(FEATURE_FIXED_POSITION);
@@ -157,7 +157,6 @@ void ToshibaValidatedControlUart::clear_validated_f7_entities_() {
   if (this->validated_eight_degree_heat_switch_ != nullptr) this->validated_eight_degree_heat_switch_->publish_state(false);
   if (this->validated_sleep_switch_ != nullptr) this->validated_sleep_switch_->publish_state(false);
   if (this->validated_floor_switch_ != nullptr) this->validated_floor_switch_->publish_state(false);
-  if (this->validated_comfort_switch_ != nullptr) this->validated_comfort_switch_->publish_state(false);
   if (this->validated_fireplace_select_ != nullptr) this->validated_fireplace_select_->publish_state("Off");
   if (this->validated_outdoor_silent_select_ != nullptr) this->validated_outdoor_silent_select_->publish_state("Standard");
 }
@@ -180,9 +179,6 @@ void ToshibaValidatedControlUart::publish_validated_f7_mode_(SPECIAL_MODE mode) 
       break;
     case SPECIAL_MODE::FLOOR:
       if (this->validated_floor_switch_ != nullptr) this->validated_floor_switch_->publish_state(true);
-      break;
-    case SPECIAL_MODE::COMFORT:
-      if (this->validated_comfort_switch_ != nullptr) this->validated_comfort_switch_->publish_state(true);
       break;
     case SPECIAL_MODE::FIREPLACE_1:
       if (this->validated_fireplace_select_ != nullptr) this->validated_fireplace_select_->publish_state("Fireplace 1");
@@ -266,6 +262,42 @@ void ToshibaValidatedControlUart::on_set_pure_(bool enabled) {
   }
   this->sendCmd(ToshibaRegister::PURE, enabled ? static_cast<uint8_t>(reg_c7::PureState::ON) : static_cast<uint8_t>(reg_c7::PureState::OFF));
   this->requestData(ToshibaRegister::PURE);
+}
+
+void ToshibaValidatedControlUart::on_set_comfort_sleep_(const std::string &value) {
+  if (!this->validated_function_allowed_(FEATURE_COMFORT_SLEEP, this->current_hvac_mode_())) {
+    ESP_LOGW(TAG, "Comfort Sleep is not available in the current HVAC mode");
+    return;
+  }
+
+  if (value == "Off") {
+    this->sendCmd(ToshibaRegister::TIMER_OFF, 0x42);
+    this->requestData(ToshibaRegister::TIMER_OFF);
+    this->comfort_sleep_select_->publish_state("Off");
+    return;
+  }
+
+  uint8_t hours = 0;
+  if (value == "1 hour") hours = 1;
+  else if (value == "3 hours") hours = 3;
+  else if (value == "5 hours") hours = 5;
+  else if (value == "9 hours") hours = 9;
+  else {
+    ESP_LOGW(TAG, "Unknown Comfort Sleep duration: %s", value.c_str());
+    return;
+  }
+
+  // Reproduce the state observed after the genuine remote's Comfort Sleep
+  // action: Power Select 50%, fan Auto and an enabled OFF timer. 0x96 is the
+  // established OFF-timer duration register (HH, MM).
+  this->sendCmd(ToshibaRegister::POWER_SELECT, static_cast<uint8_t>(reg_87::PowerLevel::PCT_50));
+  this->sendCmd(ToshibaRegister::FAN, static_cast<uint8_t>(reg_a0::Fan::FAN_AUTO));
+  this->sendCmd(ToshibaRegister::TIMER_OFF_DURATION, std::vector<uint8_t>{hours, 0x00});
+  this->sendCmd(ToshibaRegister::TIMER_OFF, 0x41);
+  this->requestData(ToshibaRegister::POWER_SELECT);
+  this->requestData(ToshibaRegister::FAN);
+  this->requestData(ToshibaRegister::TIMER_OFF);
+  this->comfort_sleep_select_->publish_state(value);
 }
 
 void ToshibaValidatedControlUart::on_press_defrost_(bool strong) {
@@ -588,6 +620,10 @@ void ToshibaValidatedSpecialModeLevelSelect::control(const std::string &value) {
 
 void ToshibaValidatedPowerSelect::control(const std::string &value) {
   this->parent_->on_set_validated_power_level_(value);
+}
+
+void ToshibaComfortSleepSelect::control(const std::string &value) {
+  this->parent_->on_set_comfort_sleep_(value);
 }
 
 void ToshibaPureSwitch::write_state(bool state) {
