@@ -111,7 +111,6 @@ enum class SpecialMode : uint8_t {
   EIGHT_DEG = 0x04,
   SLEEP = 0x05,
   FLOOR = 0x06,
-  COMFORT = 0x07,
   SILENT_2 = 0x0A,
   FIREPLACE_1 = 0x20,
   FIREPLACE_2 = 0x30,
