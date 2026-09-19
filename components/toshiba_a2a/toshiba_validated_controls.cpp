@@ -590,6 +590,9 @@ void ToshibaValidatedControlUart::parseResponse(std::vector<uint8_t> raw) {
     if (value == 0x42 && entity != nullptr) entity->publish_state("Off");
     // 0x41 confirms that the timer is active, but it does not contain its
     // duration. Preserve the locally selected duration rather than inventing one.
+    // Timer state is fully handled here; do not pass it to the legacy/base
+    // parser, which would otherwise log 0x90/0x94 as an unknown sensor.
+    return;
   }
 
   if (response_register == static_cast<uint8_t>(ToshibaRegister::MAINTENANCE) &&
