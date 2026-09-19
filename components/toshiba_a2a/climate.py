@@ -105,6 +105,18 @@ ToshibaValidatedSpecialModeLevelSelect = toshiba_ns.class_("ToshibaValidatedSpec
 ToshibaPureSwitch = toshiba_ns.class_("ToshibaPureSwitch", switch.Switch)
 ToshibaDefrostButton = toshiba_ns.class_("ToshibaDefrostButton", button.Button)
 
+TIMER_DURATION_OPTIONS = ["Off"]
+for half_hours in range(1, 25):
+    hours = half_hours // 2
+    half = (half_hours % 2) != 0
+    if hours == 0:
+        TIMER_DURATION_OPTIONS.append("30 minutes")
+    else:
+        label = f"{hours} hour" if hours == 1 else f"{hours} hours"
+        if half:
+            label += " 30 minutes"
+        TIMER_DURATION_OPTIONS.append(label)
+
 SPECIAL_MODE_VALUES = {
     CONF_HI_POWER: 1,
     CONF_ECO: 3,
@@ -252,12 +264,12 @@ async def to_code(config):
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_comfort_sleep_select(sel))
     if CONF_ON_TIMER in config:
-        sel = await select.new_select(config[CONF_ON_TIMER], options=["Off", "30 minutes", "1 hour", "12 hours"])
+        sel = await select.new_select(config[CONF_ON_TIMER], options=TIMER_DURATION_OPTIONS)
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(sel.set_on_timer(True))
         cg.add(var.set_on_timer_select(sel))
     if CONF_OFF_TIMER in config:
-        sel = await select.new_select(config[CONF_OFF_TIMER], options=["Off", "30 minutes", "1 hour"])
+        sel = await select.new_select(config[CONF_OFF_TIMER], options=TIMER_DURATION_OPTIONS)
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(sel.set_on_timer(False))
         cg.add(var.set_off_timer_select(sel))
