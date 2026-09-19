@@ -52,7 +52,6 @@ class ToshibaValidatedFunctionSwitch;
 class ToshibaValidatedSilentSelect;
 class ToshibaValidatedSpecialModeLevelSelect;
 class ToshibaValidatedPowerSelect;
-class ToshibaComfortSleepSelect;
 class ToshibaTimerSelect;
 class ToshibaPureSwitch;
 class ToshibaDefrostButton;
@@ -310,7 +309,6 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   void set_eight_degree_heat_switch(ToshibaValidatedFunctionSwitch *entity) { validated_eight_degree_heat_switch_ = entity; }
   void set_sleep_switch(ToshibaValidatedFunctionSwitch *entity) { validated_sleep_switch_ = entity; }
   void set_floor_switch(ToshibaValidatedFunctionSwitch *entity) { validated_floor_switch_ = entity; }
-  void set_comfort_sleep_select(ToshibaComfortSleepSelect *entity) { comfort_sleep_select_ = entity; }
   void set_on_timer_select(ToshibaTimerSelect *entity) { on_timer_select_ = entity; }
   void set_off_timer_select(ToshibaTimerSelect *entity) { off_timer_select_ = entity; }
   void set_fireplace_select(ToshibaValidatedSpecialModeLevelSelect *entity) { validated_fireplace_select_ = entity; }
@@ -336,7 +334,6 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   void on_set_validated_silent_(const std::string &value);
   void on_set_validated_power_level_(const std::string &value);
   void on_set_pure_(bool enabled);
-  void on_set_comfort_sleep_(const std::string &value);
   void on_set_timer_(bool on_timer, const std::string &value);
   void on_press_defrost_(bool strong);
   void on_set_vertical_fixed_position_(const std::string &value);
@@ -352,7 +349,6 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   ToshibaValidatedFunctionSwitch *validated_eight_degree_heat_switch_ = nullptr;
   ToshibaValidatedFunctionSwitch *validated_sleep_switch_ = nullptr;
   ToshibaValidatedFunctionSwitch *validated_floor_switch_ = nullptr;
-  ToshibaComfortSleepSelect *comfort_sleep_select_ = nullptr;
   ToshibaTimerSelect *on_timer_select_ = nullptr;
   ToshibaTimerSelect *off_timer_select_ = nullptr;
   ToshibaValidatedSpecialModeLevelSelect *validated_fireplace_select_ = nullptr;
@@ -369,7 +365,6 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   friend class ToshibaValidatedSilentSelect;
   friend class ToshibaValidatedSpecialModeLevelSelect;
   friend class ToshibaValidatedPowerSelect;
-  friend class ToshibaComfortSleepSelect;
   friend class ToshibaTimerSelect;
   friend class ToshibaPureSwitch;
   friend class ToshibaDefrostButton;
@@ -410,12 +405,6 @@ class ToshibaValidatedSpecialModeLevelSelect : public select::Select,
 
 class ToshibaValidatedPowerSelect : public select::Select,
                                     public esphome::Parented<ToshibaValidatedControlUart> {
- protected:
-  void control(const std::string &value) override;
-};
-
-class ToshibaComfortSleepSelect : public select::Select,
-                                  public esphome::Parented<ToshibaValidatedControlUart> {
  protected:
   void control(const std::string &value) override;
 };
