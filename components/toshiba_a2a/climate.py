@@ -53,6 +53,8 @@ CONF_HORIZONTAL_AIR_DIRECTION = "horizontal_air_direction"
 CONF_SELF_CLEAN = "self_clean"
 CONF_TIME_SYNC_INTERVAL = "time_sync_interval"
 CONF_ENERGY = "energy"
+CONF_ON_TIMER = "on_timer"
+CONF_OFF_TIMER = "off_timer"
 
 CONF_ECO = "eco"
 CONF_HI_POWER = "hi_power"
@@ -94,6 +96,7 @@ toshiba_ns = cg.esphome_ns.namespace("toshiba_a2a")
 ToshibaClimateUart = toshiba_ns.class_("ToshibaValidatedControlUart", cg.PollingComponent, climate.Climate, uart.UARTDevice)
 ToshibaValidatedPowerSelect = toshiba_ns.class_("ToshibaValidatedPowerSelect", select.Select)
 ToshibaComfortSleepSelect = toshiba_ns.class_("ToshibaComfortSleepSelect", select.Select)
+ToshibaTimerSelect = toshiba_ns.class_("ToshibaTimerSelect", select.Select)
 ToshibaVerticalAirDirectionSelect = toshiba_ns.class_("ToshibaValidatedVerticalAirDirectionSelect", select.Select)
 ToshibaHorizontalAirDirectionSelect = toshiba_ns.class_("ToshibaHorizontalAirDirectionSelect", select.Select)
 ToshibaValidatedFunctionSwitch = toshiba_ns.class_("ToshibaValidatedFunctionSwitch", switch.Switch)
@@ -150,6 +153,8 @@ CONFIG_SCHEMA = climate.climate_schema(ToshibaClimateUart).extend(
         cv.Optional(CONF_SLEEP): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
         cv.Optional(CONF_FLOOR): switch.switch_schema(ToshibaValidatedFunctionSwitch).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedFunctionSwitch)}),
         cv.Optional(CONF_COMFORT): select.select_schema(ToshibaComfortSleepSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaComfortSleepSelect)}),
+        cv.Optional(CONF_ON_TIMER): select.select_schema(ToshibaTimerSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaTimerSelect)}),
+        cv.Optional(CONF_OFF_TIMER): select.select_schema(ToshibaTimerSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaTimerSelect)}),
         cv.Optional(CONF_FIREPLACE): select.select_schema(ToshibaValidatedSpecialModeLevelSelect).extend({cv.GenerateID(): cv.declare_id(ToshibaValidatedSpecialModeLevelSelect)}),
         cv.Optional(FEATURE_HORIZONTAL_SWING): cv.boolean,
         cv.Optional(DISABLE_WIFI_LED): cv.boolean,
@@ -246,6 +251,16 @@ async def to_code(config):
         sel = await select.new_select(config[CONF_COMFORT], options=["Off", "1 hour", "3 hours", "5 hours", "9 hours"])
         await cg.register_parented(sel, config[CONF_ID])
         cg.add(var.set_comfort_sleep_select(sel))
+    if CONF_ON_TIMER in config:
+        sel = await select.new_select(config[CONF_ON_TIMER], options=["Off", "30 minutes", "1 hour", "12 hours"])
+        await cg.register_parented(sel, config[CONF_ID])
+        cg.add(sel.set_on_timer(True))
+        cg.add(var.set_on_timer_select(sel))
+    if CONF_OFF_TIMER in config:
+        sel = await select.new_select(config[CONF_OFF_TIMER], options=["Off", "30 minutes", "1 hour"])
+        await cg.register_parented(sel, config[CONF_ID])
+        cg.add(sel.set_on_timer(False))
+        cg.add(var.set_off_timer_select(sel))
 
     if CONF_FIREPLACE in config:
         sel = await select.new_select(config[CONF_FIREPLACE], options=["Off", "Fireplace 1", "Fireplace 2"])
