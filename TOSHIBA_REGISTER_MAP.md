@@ -286,6 +286,8 @@ cancel:
 
 Clearing the timer does not require zeroing `0x96`.
 
+A direct ESP-controller test while the unit was running in Fan Only programmed `96 00 1E` (30 minutes) and then `94 41`. Both writes received the normal ACKs and the unit continued operating normally with live `E4 +2` fan feedback, confirming that the OFF timer command path is accepted and arms without disturbing the current operating mode. Expiry at 30 minutes was not included in this capture.
+
 ## Register `0x99` — Clock/calendar and programme structure
 
 A long class-`0x10` `0x99` frame is sent by the genuine Wi-Fi adaptor during onboarding/pairing. Two independent captures prove that the leading bytes are a clock/calendar synchronisation record rather than a capability query.
