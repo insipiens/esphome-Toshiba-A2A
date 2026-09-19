@@ -14,6 +14,8 @@ enum class ToshibaQueueOperation : uint8_t {
 enum class ToshibaRegister : uint8_t {
   POWER_STATE = 0x80,
   POWER_SELECT = 0x87,
+  TIMER_ON = 0x90,
+  TIMER_ON_DURATION = 0x92,
   TIMER_OFF = 0x94,
   TIMER_OFF_DURATION = 0x96,
   FAN = 0xA0,
