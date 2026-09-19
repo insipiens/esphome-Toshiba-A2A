@@ -92,7 +92,7 @@ Examples include:
 
 Availability by HVAC mode and family is documented in `TOSHIBA_CONTROL_MATRIX.md`.
 
-J2 Comfort Sleep is treated as its own Toshiba operating function. It is not the ON/OFF timer facility; timer registers and scheduling remain separate protocol functions.
+J2 Comfort Sleep is exposed as a duration selector (`Off`, `1 hour`, `3 hours`, `5 hours`, `9 hours`). The current implementation deliberately reproduces the directly observed RC result rather than assigning an unverified F7 value: Power Select 50%, fan Auto, OFF-timer duration in `0x96`, then OFF-timer enable in `0x94`. This recipe remains hardware-testable/falsifiable; the 1-hour RC capture showed the resulting 50%/Auto/OFF-timer-active state but did not itself publish `0x96`.
 
 ## FIX / louvre control
 
