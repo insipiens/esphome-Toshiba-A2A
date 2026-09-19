@@ -52,6 +52,7 @@ class ToshibaValidatedFunctionSwitch;
 class ToshibaValidatedSilentSelect;
 class ToshibaValidatedSpecialModeLevelSelect;
 class ToshibaValidatedPowerSelect;
+class ToshibaComfortSleepSelect;
 class ToshibaPureSwitch;
 class ToshibaDefrostButton;
 class ToshibaHorizontalAirDirectionSelect;
@@ -250,6 +251,7 @@ class ToshibaClimateUart : public PollingComponent, public climate::Climate, pub
   void requestData(ToshibaRegister cmd);
   void process_command_queue_();
   void sendCmd(ToshibaRegister cmd, uint8_t value);
+  void sendCmd(ToshibaRegister cmd, const std::vector<uint8_t> &values);
   void getInitData();
   void handle_rx_byte_(uint8_t c);
   bool validate_message_();
@@ -307,7 +309,7 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   void set_eight_degree_heat_switch(ToshibaValidatedFunctionSwitch *entity) { validated_eight_degree_heat_switch_ = entity; }
   void set_sleep_switch(ToshibaValidatedFunctionSwitch *entity) { validated_sleep_switch_ = entity; }
   void set_floor_switch(ToshibaValidatedFunctionSwitch *entity) { validated_floor_switch_ = entity; }
-  void set_comfort_switch(ToshibaValidatedFunctionSwitch *entity) { validated_comfort_switch_ = entity; }
+  void set_comfort_sleep_select(ToshibaComfortSleepSelect *entity) { comfort_sleep_select_ = entity; }
   void set_fireplace_select(ToshibaValidatedSpecialModeLevelSelect *entity) { validated_fireplace_select_ = entity; }
   void set_outdoor_silent_select(ToshibaValidatedSilentSelect *entity) { validated_outdoor_silent_select_ = entity; }
   void set_start_defrost_button(ToshibaDefrostButton *entity) { start_defrost_button_ = entity; }
@@ -331,6 +333,7 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   void on_set_validated_silent_(const std::string &value);
   void on_set_validated_power_level_(const std::string &value);
   void on_set_pure_(bool enabled);
+  void on_set_comfort_sleep_(const std::string &value);
   void on_press_defrost_(bool strong);
   void on_set_vertical_fixed_position_(const std::string &value);
   void on_set_horizontal_air_direction_(const std::string &value);
@@ -345,7 +348,7 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   ToshibaValidatedFunctionSwitch *validated_eight_degree_heat_switch_ = nullptr;
   ToshibaValidatedFunctionSwitch *validated_sleep_switch_ = nullptr;
   ToshibaValidatedFunctionSwitch *validated_floor_switch_ = nullptr;
-  ToshibaValidatedFunctionSwitch *validated_comfort_switch_ = nullptr;
+  ToshibaComfortSleepSelect *comfort_sleep_select_ = nullptr;
   ToshibaValidatedSpecialModeLevelSelect *validated_fireplace_select_ = nullptr;
   ToshibaValidatedSilentSelect *validated_outdoor_silent_select_ = nullptr;
   ToshibaDefrostButton *start_defrost_button_ = nullptr;
@@ -360,6 +363,7 @@ class ToshibaValidatedControlUart : public ToshibaDiagnosticMonitorUart {
   friend class ToshibaValidatedSilentSelect;
   friend class ToshibaValidatedSpecialModeLevelSelect;
   friend class ToshibaValidatedPowerSelect;
+  friend class ToshibaComfortSleepSelect;
   friend class ToshibaPureSwitch;
   friend class ToshibaDefrostButton;
   friend class ToshibaHorizontalAirDirectionSelect;
@@ -399,6 +403,12 @@ class ToshibaValidatedSpecialModeLevelSelect : public select::Select,
 
 class ToshibaValidatedPowerSelect : public select::Select,
                                     public esphome::Parented<ToshibaValidatedControlUart> {
+ protected:
+  void control(const std::string &value) override;
+};
+
+class ToshibaComfortSleepSelect : public select::Select,
+                                  public esphome::Parented<ToshibaValidatedControlUart> {
  protected:
   void control(const std::string &value) override;
 };
