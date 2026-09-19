@@ -135,7 +135,6 @@ const optional<SPECIAL_MODE> PresetToSpecialMode(const char* preset) {
   if (str_equals_case_insensitive(preset, SPECIAL_MODE_SILENT_2)) return SPECIAL_MODE::SILENT_2;
   if (str_equals_case_insensitive(preset, SPECIAL_MODE_SLEEP)) return SPECIAL_MODE::SLEEP;
   if (str_equals_case_insensitive(preset, SPECIAL_MODE_FLOOR)) return SPECIAL_MODE::FLOOR;
-  if (str_equals_case_insensitive(preset, SPECIAL_MODE_COMFORT)) return SPECIAL_MODE::COMFORT;
   return nullopt;
 }
 
@@ -151,7 +150,6 @@ const char* SpecialModeToPreset(SPECIAL_MODE mode) {
     case SPECIAL_MODE::SILENT_2: return SPECIAL_MODE_SILENT_2;
     case SPECIAL_MODE::SLEEP: return SPECIAL_MODE_SLEEP;
     case SPECIAL_MODE::FLOOR: return SPECIAL_MODE_FLOOR;
-    case SPECIAL_MODE::COMFORT: return SPECIAL_MODE_COMFORT;
     default: return SPECIAL_MODE_STANDARD;
   }
 }
@@ -161,7 +159,6 @@ const optional<climate::ClimatePreset> StringToClimatePreset(const char *preset)
   if (str_equals_case_insensitive(preset, SPECIAL_MODE_ECO)) return climate::CLIMATE_PRESET_ECO;
   if (str_equals_case_insensitive(preset, SPECIAL_MODE_HI_POWER)) return climate::CLIMATE_PRESET_BOOST;
   if (str_equals_case_insensitive(preset, SPECIAL_MODE_SLEEP)) return climate::CLIMATE_PRESET_SLEEP;
-  if (str_equals_case_insensitive(preset, SPECIAL_MODE_COMFORT)) return climate::CLIMATE_PRESET_COMFORT;
   return nullopt;
 }
 
@@ -171,7 +168,6 @@ const char* ClimatePresetToString(climate::ClimatePreset preset) {
     case climate::CLIMATE_PRESET_ECO: return SPECIAL_MODE_ECO;
     case climate::CLIMATE_PRESET_BOOST: return SPECIAL_MODE_HI_POWER;
     case climate::CLIMATE_PRESET_SLEEP: return SPECIAL_MODE_SLEEP;
-    case climate::CLIMATE_PRESET_COMFORT: return SPECIAL_MODE_COMFORT;
     default: return SPECIAL_MODE_STANDARD;
   }
 }
@@ -186,7 +182,6 @@ const optional<climate::ClimatePreset> SpecialModeToClimatePreset(SPECIAL_MODE m
     case SPECIAL_MODE::ECO: return climate::CLIMATE_PRESET_ECO;
     case SPECIAL_MODE::HI_POWER: return climate::CLIMATE_PRESET_BOOST;
     case SPECIAL_MODE::SLEEP: return climate::CLIMATE_PRESET_SLEEP;
-    case SPECIAL_MODE::COMFORT: return climate::CLIMATE_PRESET_COMFORT;
     default: return nullopt;
   }
 }
