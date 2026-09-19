@@ -95,6 +95,9 @@ void ToshibaValidatedControlUart::setup() {
       CUSTOM_FAN_LEVEL_2,
       CUSTOM_FAN_LEVEL_4,
   });
+
+  if (this->on_timer_select_ != nullptr) this->requestData(ToshibaRegister::TIMER_ON);
+  if (this->off_timer_select_ != nullptr) this->requestData(ToshibaRegister::TIMER_OFF);
 }
 
 
