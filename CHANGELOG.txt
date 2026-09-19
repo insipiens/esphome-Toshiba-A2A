@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 19th 2026
 
+* handled validated `0x90`/`0x94` timer-state readback entirely in the timer layer so confirmed ON/OFF timer states no longer fall through to the legacy parser as spurious `Unknown sensor: 144/148` warnings
 * exposed separate `ON Timer` and `OFF Timer` Home Assistant selects using the validated `0x92/0x90` and `0x96/0x94` timer paths; ON Timer accepts new durations only while the unit is OFF and OFF Timer only while the unit is ON, while `Off` remains available in either state for cancellation; initial options are restricted to directly captured durations
 * replaced the speculative J2 `F7` Comfort control with a falsifiable Comfort Sleep duration selector (`Off`, `1 hour`, `3 hours`, `5 hours`, `9 hours`): activation reproduces the directly observed remote-control result by selecting 50% Power Select, Auto fan, programming the established `0x96` OFF-timer duration and enabling `0x94`; cancellation disables the OFF timer; added generic multi-byte register-write support for the two-byte timer duration
 
