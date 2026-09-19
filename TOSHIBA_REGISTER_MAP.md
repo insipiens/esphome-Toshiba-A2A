@@ -898,13 +898,13 @@ Established enum:
 04 = 8°C
 05 = Sleep
 06 = Floor
-07 = Comfort
+07 = Comfort (inherited/declared enum; not observed as the tested J2 IR Comfort Sleep state)
 0A = Silent 2
 20 = Fireplace 1
 30 = Fireplace 2
 ```
 
-The enum is independently corroborated by `F8 +3`, where `00`, `01`, and `03` have been observed. What remains unresolved is authoritative IDU state feedback when the setting is changed somewhere other than the app.
+The enum is independently corroborated only in part by `F8 +3`, where `00`, `01`, and `03` have been observed. In particular, `07` must not be equated with the tested J2 IR Comfort Sleep function: a time-correlated IR Comfort Sleep capture produced no `F7`, `F8`, `0x87`, `0x94` or `0x96` state publication, and the genuine Toshiba app exposes no Comfort Sleep control. `07` therefore remains inherited/declared rather than directly validated on the tested hardware.
 
 ## Register `0xF8` — Aggregate operating configuration
 
