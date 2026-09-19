@@ -15,6 +15,7 @@ enum class ToshibaRegister : uint8_t {
   POWER_STATE = 0x80,
   POWER_SELECT = 0x87,
   TIMER_OFF = 0x94,
+  TIMER_OFF_DURATION = 0x96,
   FAN = 0xA0,
   LOUVRE = 0xA3,
   MODE = 0xB0,
