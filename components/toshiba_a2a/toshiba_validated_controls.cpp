@@ -30,7 +30,6 @@ ToshibaFeature feature_for_special_mode(SPECIAL_MODE mode) {
     case SPECIAL_MODE::EIGHT_DEG: return FEATURE_EIGHT_DEG_HEAT;
     case SPECIAL_MODE::SLEEP: return FEATURE_SLEEP;
     case SPECIAL_MODE::FLOOR: return FEATURE_FLOOR;
-    case SPECIAL_MODE::COMFORT: return FEATURE_COMFORT;
     case SPECIAL_MODE::FIREPLACE_1:
     case SPECIAL_MODE::FIREPLACE_2: return FEATURE_FIREPLACE;
     default: return FEATURE_NONE;
