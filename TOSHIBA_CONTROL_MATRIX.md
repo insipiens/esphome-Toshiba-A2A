@@ -21,7 +21,7 @@ The consuming YAML must declare the exact IDU model. That model selects the runt
 | ECO | yes | yes | yes | no | no | IDU demand | `F7/F8` |
 | Hi POWER | yes | yes | yes | no | no | IDU demand | `F7/F8` |
 | Silent Operation | yes | yes | yes | no | no | shared ODU | `F7/F8` |
-| Comfort Sleep | yes | yes | yes | no | no | IDU demand | remote-control function on the tested J2; the Toshiba app exposes only ordinary ON/OFF timers and no Comfort Sleep control; exact RC-derived transport remains under investigation |
+| Comfort Sleep | IR only | IR only | IR only | no | no | IDU local | available from the physical remote on the tested J2, but no corresponding UART control/state was observed and the Toshiba app exposes no Comfort Sleep control; not exposed by this component |
 | Fireplace | no | no | yes | no | no | IDU local | `F7/F8` |
 | 8 °C Heat | no | no | yes | no | no | IDU demand | `F7/F8` |
 | Floor | no | no | yes | no | no | IDU local | `F7/F8` |
