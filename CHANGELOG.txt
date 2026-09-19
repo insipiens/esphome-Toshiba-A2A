@@ -3,6 +3,7 @@ ESPHome Toshiba A2A development
 
 Sep 19th 2026
 
+* changed ON/OFF timer availability gating from cached `0x80` power state to the climate operating state, because `0x80` can report logical/armed ON while an ON timer is waiting and the IDU is still physically stopped
 * directly reproduced a 30-minute ON timer from the ESP controller: `0x92 00 1E` and `0x90 41` were ACKed, `0x90` read back active, and the IDU reported the expected armed `0x80 = 0x30` state while airflow remained zero
 * handled validated `0x90`/`0x94` timer-state readback entirely in the timer layer so confirmed ON/OFF timer states no longer fall through to the legacy parser as spurious `Unknown sensor: 144/148` warnings
 * exposed separate `ON Timer` and `OFF Timer` Home Assistant selects using the validated `0x92/0x90` and `0x96/0x94` timer paths; both cover 30 minutes through 12 hours in 30-minute steps; ON Timer accepts new durations only while the unit is OFF and OFF Timer only while the unit is ON, while `Off` remains available in either state for cancellation
