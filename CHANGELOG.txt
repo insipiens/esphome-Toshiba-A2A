@@ -1,6 +1,10 @@
 ESPHome Toshiba A2A development
 ===============================
 
+Sep 19th 2026
+
+* replaced the speculative J2 `F7` Comfort control with a falsifiable Comfort Sleep duration selector (`Off`, `1 hour`, `3 hours`, `5 hours`, `9 hours`): activation reproduces the directly observed remote-control result by selecting 50% Power Select, Auto fan, programming the established `0x96` OFF-timer duration and enabling `0x94`; cancellation disables the OFF timer; added generic multi-byte register-write support for the two-byte timer duration
+
 Sep 18th 2026
 
 * corrected the common Toshiba RX framer to honour the full 16-bit big-endian protocol length in bytes 5-6 instead of the low byte only; this allows long genuine Toshiba frames such as CC/CE/CF energy-history responses to reach the normal parser and Focused Monitor intact; Focused Monitor now chunks long frames for readable lossless logging, and CI checks representative 15-, 358-, 502- and 890-byte frame lengths
